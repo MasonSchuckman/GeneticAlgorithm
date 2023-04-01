@@ -68,6 +68,8 @@ __host__ __device__ void printNet(float* activs, int* layerShapes) {
 	printf("\n");
 }
 
+
+
 /**
  * Perform forward propagation of a dense neural network
  *
