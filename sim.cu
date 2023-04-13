@@ -52,34 +52,21 @@ __device__ void forward_propagation(const float* inputs, const float* weights, c
 {
 	int stride = blockDim.x;
 	int tid = threadIdx.x;
-
-	/*if (threadIdx.x == 0) {
+#ifdef DEBUG
+	if (threadIdx.x == 0) {
 		printf("Biases : ");
 		for (int i = 0; i < output_size; i++) {
 			printf("%f, ", biases[i]);
 		}
 		printf("\n");
-	}*/
+	}
+#endif
 	// Initialize output to biases
 	for (int i = threadIdx.x; i < output_size; i += stride) {
 		output[i] = biases[i];
 	}
-	//__syncthreads();
-	/*if (threadIdx.x == 0) {
-		printf("inside func Weights of layer:\n");
-		
-		int cc = 0;
-		for (int k = 0; k < output_size * input_size; k++) {
-			printf("%f, ", weights[k]);
-			cc++;
-			if (cc % output_size == 0)
-				printf("\n");
-		}
-		printf("\n");
-		printf("input size = %d, output size = %d\n", input_size, output_size);
-
-	}*/
-
+	
+	// Compute dot product of input and weights
 #pragma unroll 4
 	for (int i = 0; i < input_size; i++) {
 		for (int j = tid; j < output_size; j += stride) {
@@ -88,12 +75,7 @@ __device__ void forward_propagation(const float* inputs, const float* weights, c
 	}
 
 
-	//// Compute dot product of input and weights
-	//for (int i = 0; i < input_size; i++) {
-	//	for (int j = 0; j < output_size; j++) {
-	//		output[j] += inputs[i] * weights[i * output_size + j];
-	//	}
-	//}
+	
 
 #ifdef DEBUG
 	if (threadIdx.x == 0 && blockIdx.x == 0) {
@@ -107,11 +89,8 @@ __device__ void forward_propagation(const float* inputs, const float* weights, c
 
 	
 
-
-	// Apply activation function (sigmoid in this case)
-	/*for (int i = 0; i < output_size; i++) {
-		output[i] = 1 / (1 + expf(-output[i]));
-	}*/
+	//TODO: Look into using different activation functions for different layers. (output should probably be sigmoid, others maybe ReLU)
+	// Apply activation function (sigmoid in this case)	
 	__syncthreads();
 	for (int i = tid; i < output_size; i += stride) 
 		output[i] = 1 / (1 + expf(-output[i]));
@@ -152,9 +131,11 @@ __global__ void simulateShared(const int n, const float* allWeights, const float
 		float* biases = weights + totalWeights * bpt;
 		float* activations = biases + totalNeurons * bpt;
 
-		/*printf("Weights = %p\n", weights);
+#ifdef DEBUG
+		printf("Weights = %p\n", weights);
 		printf("biases  = %p\n", biases);
-		printf("activs  = %p\n", activations);*/
+		printf("activs  = %p\n", activations);
+#endif
 
 		//Copy this block's weights and biases to the shared arrays.
 		for (int i = 0; i < totalWeights * bpt; i += stride) {
@@ -208,9 +189,10 @@ __global__ void simulateShared(const int n, const float* allWeights, const float
 				for (int layer = 0; layer < numLayers - 1; layer++) {
 					numBiases = layerShapes[layer];
 					numWeights = numBiases * layerShapes[layer + 1];
-					/*if (tid == 0) {
+#ifdef DEBUG
+					if (tid == 0) {
 						printf("Weights of layer %d:\n", layer);
-						/*for (int k = 0; k < numBiases; k++) {
+						for (int k = 0; k < numBiases; k++) {
 							for (int l = 0; l < layerShapes[layer + 1]; l++) {
 								printf("%f, ", (nns[i] + LO + numBiases)[k * layerShapes[layer + 1] + l]);
 							}
@@ -225,7 +207,8 @@ __global__ void simulateShared(const int n, const float* allWeights, const float
 						}
 						printf("\n");
 					}
-					*/
+					
+#endif
 					//forward_propagation(float* input, float* weights, float* biases, float* output, int input_size, int output_size)
 					forward_propagation(activs[bot] + AO, ws[bot] + WO, bs[bot] + numBiases + BO, activs[bot] + AO + numBiases, numBiases, layerShapes[layer + 1]);
 
@@ -252,21 +235,21 @@ __global__ void simulateShared(const int n, const float* allWeights, const float
 				finished = true;
 			}
 		}
-
-		//if (tid == 0 && blockIdx.x == 0) {
-		//	printf("Activations:\n");
-		//	int AO = 0; // "activs offset"
-		//	for (int layer = 0; layer < numLayers; layer++) {
-		//		printf("Layer %d, size = %d, AO = %d\n", layer, layerShapes[layer], AO);
-		//		for (int i = 0; i < layerShapes[layer]; i++) {
-		//			printf("%f, ", activs[0][AO + i]);
-		//		}
-		//		AO += layerShapes[layer];
-		//		printf("\n");
-		//	}
-		//	printf("\n");
-		//}
-
+#ifdef DEBUG
+		if (tid == 0 && blockIdx.x == 0) {
+			printf("Activations:\n");
+			int AO = 0; // "activs offset"
+			for (int layer = 0; layer < numLayers; layer++) {
+				printf("Layer %d, size = %d, AO = %d\n", layer, layerShapes[layer], AO);
+				for (int i = 0; i < layerShapes[layer]; i++) {
+					printf("%f, ", activs[0][AO + i]);
+				}
+				AO += layerShapes[layer];
+				printf("\n");
+			}
+			printf("\n");
+		}
+#endif
 	}
 	return;
 }
@@ -296,10 +279,46 @@ __global__ void simulateShared(const int n, const float* allWeights, const float
 */
 
 
+//Defining the interface
+using game_logic_func = int (*) (int);
+
+//Actual function def here
+__device__ int game1(int input){
+	printf("in game\n");
+	return 0;
+}
+
+// Required for functional pointer argument in kernel function
+// Static pointers to device functions
+__device__ game_logic_func game1_d = game1;
+
+
+
+__global__ void game_kernel(game_logic_func game_logic) {
+    int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    //output[tid] = game_logic(input[tid]);
+	printf("%d\n", (*game_logic)(tid));	
+	return;
+}
+
+void functionPointerTest(){
+
+
+	cudaSetDevice(0);
+	game_logic_func game1_h;
+	cudaMemcpyFromSymbol(&game1_h, game1_d, sizeof(game_logic_func));
+
+	game_kernel<<<2, 32>>>(game1_h);
+	cudaDeviceSynchronize();
+
+	printf("done\n");
+}
+
 int main()
 {
+	functionPointerTest();
 
-	sharedTest();
+	//sharedTest();
 
 
 	// cudaDeviceReset must be called before exiting in order for profiling and
@@ -310,6 +329,7 @@ int main()
 		return 1;
 	}
 
+	
 	return 0;
 }
 
