@@ -3,7 +3,7 @@
 // string type
 #include <string>
 
-// std::transform, std::max
+// std::transform, std::max, std::min
 #include <algorithm> 
 
 // std::accumulate
@@ -127,11 +127,10 @@ copy constructor which creates a Genome object from an existing Genome
 */
 Genome::Genome(Genome *other) {
 
-  // copying slengths
+  // copying lengths
   this->shapeLen = other->shapeLen;
   this->numNeurons = other->numNeurons;
   this->numConnections = other->numConnections;
-
 
   // copying array contents
   this->shape = new int[other->shapeLen];
@@ -154,7 +153,6 @@ Genome *Genome::mitosis(float percentage, float intensity) {
   Genome *child = new Genome(this);
 
   // deciding how many neurons / connections we want to mutate
-
   int numNeuronsToModify = std::min(numNeurons, std::max(0, (int)(numNeurons * percentage) ));
   int numConnectionsToModify = std::min(numConnections, std::max(0, (int)(numConnections * percentage) ));
 
@@ -168,16 +166,14 @@ Genome *Genome::mitosis(float percentage, float intensity) {
     connectionIndexes.insert(rand() % numConnections);
 
   // mutating the selected weights by a certain intensity
-  // weight = weight +- weight*(-intensity..intensity)
+  // weight = weight + weight*(-intensity..intensity)
   for(auto i = neuronIndexes.begin(); i != neuronIndexes.end(); i++) {
-    std::cout << "mutating neuron #" << *i << std::endl;
     float originalWeight = child->biases[*i];
     float newWeight = originalWeight + (originalWeight * intensity * 2 * ((float)rand()/RAND_MAX - 0.5));
     child->biases[*i] = newWeight;
   }
 
   for(auto i = connectionIndexes.begin(); i != connectionIndexes.end(); i++) {
-    std::cout << "mutating connection #" << *i << std::endl;
     float originalWeight = child->connections[*i];
     float newWeight = originalWeight + (originalWeight * intensity * 2 * ((float)rand()/RAND_MAX - 0.5));
     child->connections[*i] = newWeight;
@@ -202,14 +198,12 @@ Genome *Genome::meiosis(Genome *parent2) {
 returns a string representing the shape of the genome's corresponding Neural Network
 */
 std::string Genome::shapeString() {
-
   std::string toReturn = "";
 
   for(int i = 0; i < shapeLen; i++)
     toReturn += std::to_string(shape[i]) + ",";
   
   toReturn = "(" + toReturn.substr(0,toReturn.length()-1) + ")";
-
   return toReturn;
 }
 
@@ -218,12 +212,10 @@ returns a string containing all of the connection and bias weights belonging to 
 separated + labeled with layer and connection names
 */
 std::string Genome::bodyString() {
-
   if(shapeLen == 0)
     return "empty network (no layers)";
 
   std::string toReturn = "";
-
 
   // calculate input layer separately to align bias and connection counts
   toReturn += "layer 0 (input): \t";
@@ -232,7 +224,6 @@ std::string Genome::bodyString() {
   for(int i = 0; i < inputLayerSize; i++) 
       toReturn += std::to_string(biases[i]) + ", ";
   
-
 
   // formatting the rest of the layers like so:
 
@@ -245,7 +236,6 @@ std::string Genome::bodyString() {
   int connectionOffset = 0;
 
   for(int i = 1; i < shapeLen; i++) {
-
     int layerSize = shape[i];
 
     toReturn += "\nlayer " + std::to_string(i) + ": \t\t";
@@ -253,7 +243,6 @@ std::string Genome::bodyString() {
       toReturn += std::to_string(biases[neuronOffset + j]) + ", ";
 
     neuronOffset += layerSize;
-
 
     toReturn += "\nconnections " + std::to_string(i-1) + "->" + std::to_string(i) + ": \t";
     for(int j = 0; j < layerSize * shape[i-1]; j++) 
