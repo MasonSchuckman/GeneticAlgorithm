@@ -13,6 +13,12 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+
+# our stuff :)
+*.exe
+*.exp
+*.lib
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
