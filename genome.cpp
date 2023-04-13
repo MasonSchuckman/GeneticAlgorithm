@@ -206,10 +206,26 @@ Genome *Genome::mitosis(float percentage, float staticStepSize, float dynamicSte
  @param other  the second parent to be used to produce the child
 */
 Genome *Genome::meiosis(Genome *parent2) {
+
+  // starting with a perfect copy of the current parent
   Genome *child = new Genome(this);
 
-  // TODO merge however
+  // picking which neuron / connection weights will be taken from the second parent 
+  std::set<int> neuronIndexes;
+  while(neuronIndexes.size() < numNeurons / 2)
+    neuronIndexes.insert(rand() % numNeurons);
 
+  std::set<int> connectionIndexes;
+  while(connectionIndexes.size() < numConnections / 2)
+    connectionIndexes.insert(rand() % numConnections);
+
+  // transferring the chosen weights over to the child
+  for(auto i = neuronIndexes.begin(); i != neuronIndexes.end(); i++) 
+    child->biases[*i] = parent2->biases[*i];
+
+  for(auto i = connectionIndexes.begin(); i != connectionIndexes.end(); i++) 
+    child->connections[*i] = parent2->connections[*i];
+  
   return child;
 }
 
