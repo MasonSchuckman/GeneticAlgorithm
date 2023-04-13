@@ -40,15 +40,15 @@ public:
   Genome(Genome *other);
   ~Genome();
 
-  Genome *mitosis(float percentage, float intensity);
+  Genome *mitosis(float percentage, float staticStepSize, float dynamicStepSize);
   Genome *meiosis(Genome *parent2);
 
   std::string shapeString();
   std::string bodyString();
 };
 
-/*
-deletes all relevant dynamic members of the class
+/**
+ deletes all relevant dynamic members of the class
 */
 Genome::~Genome() {
   delete shape;
@@ -57,7 +57,10 @@ Genome::~Genome() {
 }
 
 /*
-creates a random Genome with a specific shape
+creates a Genome with a specific shape and random weights
+
+ @param shape  an array describing how many neurons are in each layer of the neural network
+ @param shapeLen  the length of the shape parameter
 */
 Genome::Genome(int *shape, int shapeLen) {
 
@@ -89,8 +92,13 @@ Genome::Genome(int *shape, int shapeLen) {
     connections[i] = ((float)rand()/RAND_MAX) * 3 - 1.5;
 }
 
-/*
-create a genome with a specific shape and specific weights
+/**
+ create a genome with a specific shape and specific weights
+
+ @param shape  an array describing how many neurons are in each layer of the neural network
+ @param shapeLen  the length of the shape parameter
+ @param biases  an array containing all bias weights
+ @param connections  an array containing all connection weights 
 */
 Genome::Genome(int *shape, int shapeLen, float *biases, float *connections) {
 
@@ -122,8 +130,10 @@ Genome::Genome(int *shape, int shapeLen, float *biases, float *connections) {
     this->connections[i] = connections[i];
 }
 
-/*
-copy constructor which creates a Genome object from an existing Genome
+/**
+ copy constructor which creates a Genome object from an existing Genome
+
+ @param other  the genome to be copied when making this one
 */
 Genome::Genome(Genome *other) {
 
@@ -146,10 +156,14 @@ Genome::Genome(Genome *other) {
     this->connections[i] = other->connections[i];
 }
 
-/*
-produce a child genome based off the parent but with slight mutations
+/**
+ produce a child genome based off the parent but with slight mutations
+
+ @param percentage  percentage of neurons, connections which will be mutated
+ @param staticStepSize  a consistent mutation step size (range: -staticStepSize < adjust < staticStepSize)
+ @param dynamicStepSize  a mutation step size determined based on the weight (range: -dynamicStepSize*weight < adjust < dynamicStepSize*weight)
 */
-Genome *Genome::mitosis(float percentage, float intensity) {
+Genome *Genome::mitosis(float percentage, float staticStepSize, float dynamicStepSize) {
   Genome *child = new Genome(this);
 
   // deciding how many neurons / connections we want to mutate
@@ -166,25 +180,30 @@ Genome *Genome::mitosis(float percentage, float intensity) {
     connectionIndexes.insert(rand() % numConnections);
 
   // mutating the selected weights by a certain intensity
-  // weight = weight + weight*(-intensity..intensity)
+  // weight = weight + (-staticStepSize..staticStepSize) + weight*(-dynamicStepSize..dynamicStepSize) 
   for(auto i = neuronIndexes.begin(); i != neuronIndexes.end(); i++) {
     float originalWeight = child->biases[*i];
-    float newWeight = originalWeight + (originalWeight * intensity * 2 * ((float)rand()/RAND_MAX - 0.5));
+    float newWeight = originalWeight
+      + (staticStepSize * 2 * ((float)rand()/RAND_MAX - 0.5))
+      + (originalWeight * dynamicStepSize * 2 * ((float)rand()/RAND_MAX - 0.5));
     child->biases[*i] = newWeight;
   }
 
   for(auto i = connectionIndexes.begin(); i != connectionIndexes.end(); i++) {
     float originalWeight = child->connections[*i];
-    float newWeight = originalWeight + (originalWeight * intensity * 2 * ((float)rand()/RAND_MAX - 0.5));
+    float newWeight = originalWeight
+      + (staticStepSize * 2 * ((float)rand()/RAND_MAX - 0.5))
+      + (originalWeight * dynamicStepSize * 2 * ((float)rand()/RAND_MAX - 0.5));
     child->connections[*i] = newWeight;
   }
 
   return child;
 }
 
-/*
-breed with a second parent to produce a child genome,
-which inherits traits from both parents
+/**
+ breed with a second parent to produce a child genome, which inherits traits from both parents
+
+ @param other  the second parent to be used to produce the child
 */
 Genome *Genome::meiosis(Genome *parent2) {
   Genome *child = new Genome(this);
@@ -194,8 +213,8 @@ Genome *Genome::meiosis(Genome *parent2) {
   return child;
 }
 
-/*
-returns a string representing the shape of the genome's corresponding Neural Network
+/**
+ returns a string representing the shape of the genome's corresponding Neural Network
 */
 std::string Genome::shapeString() {
   std::string toReturn = "";
@@ -207,9 +226,9 @@ std::string Genome::shapeString() {
   return toReturn;
 }
 
-/*
-returns a string containing all of the connection and bias weights belonging to the genome
-separated + labeled with layer and connection names
+/** 
+ returns a string containing all of the connection and bias weights belonging to the genome
+ separated + labeled with layer and connection names
 */
 std::string Genome::bodyString() {
   if(shapeLen == 0)
@@ -243,7 +262,7 @@ std::string Genome::bodyString() {
       toReturn += std::to_string(biases[neuronOffset + j]) + ", ";
 
     neuronOffset += layerSize;
-
+    
     toReturn += "\nconnections " + std::to_string(i-1) + "->" + std::to_string(i) + ": \t";
     for(int j = 0; j < layerSize * shape[i-1]; j++) 
       toReturn += std::to_string(connections[connectionOffset + j]) + ", ";
@@ -255,17 +274,22 @@ std::string Genome::bodyString() {
 
 int main() {
 
-   int shape[] = {2,2};
-   int len = 2;
+  // setting random seed
+  srand(10);
+
+  int shape[] = {8,32,8};
+  int len = 2;
   
   Genome* root = new Genome(shape,len);
 
-   for(int i = 0; i < 5; i++) {
+   for(int i = 0; i < 600000; i++) {
+    if(i % 100 == 0) {
     std::cout << "epoch " << i << std::endl;
     std::cout << root->bodyString() << std::endl;
     std::cout << root->shapeString() << std::endl;
+    }
 
-    Genome* child = root->mitosis(0.5,1);
+    Genome* child = root->mitosis(0.5, 0.03, 0.01);
     delete root;
     root = child;
    }
