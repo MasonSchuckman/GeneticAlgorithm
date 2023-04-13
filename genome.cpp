@@ -6,13 +6,10 @@
 // std::transform, std::max, std::min
 #include <algorithm> 
 
-// std::accumulate
-#include <numeric>
-
 // std::set
 #include <set>
 
-/*
+/**
 A single agent's brain structure
 
 a genome represents the weights of every neuron and bias in a
@@ -35,8 +32,8 @@ public:
   float *connections;
   int numConnections;
 
-  Genome(int *shape, int shapeLen);
-  Genome(int *shape, int shapeLen, float *biases, float *connections);
+  Genome(int *shape);
+  Genome(int *shape, float *biases, float *connections);
   Genome(Genome *other);
   ~Genome();
 
@@ -56,17 +53,19 @@ Genome::~Genome() {
   delete connections;
 }
 
-/*
+/**
 creates a Genome with a specific shape and random weights
 
  @param shape  an array describing how many neurons are in each layer of the neural network
  @param shapeLen  the length of the shape parameter
 */
-Genome::Genome(int *shape, int shapeLen) {
+Genome::Genome(int *shape) {
+
+  int shapeLen = sizeof(shape) / sizeof(int);
 
   // copying shape data
-  this->shape = new int[shapeLen];
   this->shapeLen = shapeLen;
+  this->shape = new int[shapeLen];
 
   for (int i = 0; i < shapeLen; i++) 
     this->shape[i] = shape[i];
@@ -100,11 +99,13 @@ Genome::Genome(int *shape, int shapeLen) {
  @param biases  an array containing all bias weights
  @param connections  an array containing all connection weights 
 */
-Genome::Genome(int *shape, int shapeLen, float *biases, float *connections) {
+Genome::Genome(int *shape, float *biases, float *connections) {
+
+  int shapeLen = sizeof(shape) / sizeof(int);
 
   // copying shape data
-  this->shape = new int[shapeLen];
   this->shapeLen = shapeLen;
+  this->shape = new int[shapeLen];
 
   for (int i = 0; i < shapeLen; i++) 
     this->shape[i] = shape[i];
@@ -286,27 +287,4 @@ std::string Genome::bodyString() {
     connectionOffset += layerSize * shape[i-1];
   }
   return toReturn;
-}
-
-int main() {
-
-  // setting random seed
-  srand(10);
-
-  int shape[] = {8,32,8};
-  int len = 2;
-  
-  Genome* root = new Genome(shape,len);
-
-   for(int i = 0; i < 600000; i++) {
-    if(i % 100 == 0) {
-    std::cout << "epoch " << i << std::endl;
-    std::cout << root->bodyString() << std::endl;
-    std::cout << root->shapeString() << std::endl;
-    }
-
-    Genome* child = root->mitosis(0.5, 0.03, 0.01);
-    delete root;
-    root = child;
-   }
 }
