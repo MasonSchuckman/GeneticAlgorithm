@@ -11,7 +11,7 @@ public:
     __host__ __device__ ~BasicSimulation(){}
 
     
-    __device__ void eval(float * actions, float * gamestate);
+    __device__ void eval(float ** actions, float * gamestate);
 
     __device__ int checkFinished(float * gamestate);
 

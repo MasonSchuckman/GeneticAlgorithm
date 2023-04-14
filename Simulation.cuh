@@ -10,7 +10,10 @@
 //abstract class (interface) for what defines a valid simulation
 #pragma once
 
+// These are needed for compile time understanding of static arrays in kernels.
+// The code would be much uglier without them.
 const int MAX_LAYERS = 20;
+const int MAX_BOTS_PER_SIM = 4;
 
 // Max layers = 20 right now.
 struct SimConfig{
@@ -19,7 +22,7 @@ struct SimConfig{
     int totalWeights;
     int bpb; //Bots per Block (bots per simulation)
     int maxIters;
-
+    int numStartingParams;
     
     // Making this statically allocated might have unforseen consequences, idk.
     int layerShapes[MAX_LAYERS];
@@ -33,7 +36,7 @@ public:
 
     // actions and gamestate are both shared memory variables. The exact way they're used is
     // simulation dependent.
-    __device__ virtual void eval(float * actions, float * gamestate) = 0;
+    __device__ virtual void eval(float ** actions, float * gamestate) = 0;
 
     //return 1 if simulation is finished.
     __device__ virtual int checkFinished(float * gamestate) = 0;

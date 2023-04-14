@@ -3,19 +3,22 @@
 // NOTE: this must be present in every derived simulation!
 extern __constant__ SimConfig config_d;
 
-__device__ void BasicSimulation::eval(float *actions, float *gamestate)
+__device__ void BasicSimulation::eval(float **actions, float *gamestate)
 {
     int tid = threadIdx.x;
-    
-    if (tid == 0)
+
+    for (int bot = 0; bot < config_d.bpb; bot++)
     {
-        printf("layer shapes in derived %d\n", config_d.layerShapes[blockIdx.x]);
-    }
-    if (tid < 4)
-    {
-        printf("block %d, tid %d : %f\n", blockIdx.x, tid, actions[tid]);
-        __syncthreads();
-        actions[tid + 1] += 1;
+        if (tid == 0)
+        {
+            printf("layer shapes in derived %d\n", config_d.layerShapes[blockIdx.x]);
+        }
+        if (tid < 4)
+        {
+            printf("block %d, tid %d : %f\n", blockIdx.x, tid, actions[bot][tid]);
+            __syncthreads();
+            actions[bot][tid + 1] += 1;
+        }
     }
 }
 
