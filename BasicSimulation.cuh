@@ -1,31 +1,23 @@
+#ifndef BASIC_SIMULATION_CUH
+#define BASIC_SIMULATION_CUH
+
 #pragma once
 
 #include "Simulation.cuh"
 
 class BasicSimulation : public Simulation {
 public:
-    void configureKernelLaunchParameters() override{}
-    void configureKernelFunctionParameters() override{}
+    __host__ __device__ BasicSimulation(){}    
+    __host__ __device__ ~BasicSimulation(){}
+
     
-    SimulationLogic getSimulationLogic() override{
-        m_kernelFunctionPtr = &logic;
-        return m_kernelFunctionPtr;
-    }
+    __device__ void eval(float * actions, float * gamestate);
 
-    __device__ void logic2(void*arg){
-        if(threadIdx.x == 0)
-        printf("basic\n");
-    }
+    __device__ int checkFinished(float * gamestate);
 
-    //__device__ SimulationLogic func_d = logic2;
+    __host__ int getID();
 
-private:
-
-    __device__ static void logic(void*arg){
-        if(threadIdx.x == 0)
-        printf("basic\n");
-    }
-
-    // Additional private variables and functions specific to DerivedClass
-    SimulationLogic m_kernelFunctionPtr;
+    
 };
+
+#endif

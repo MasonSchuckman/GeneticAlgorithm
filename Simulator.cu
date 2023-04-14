@@ -231,7 +231,7 @@ private:
         //  Apply activation function (sigmoid in this case)
         __syncthreads();
         for (int i = tid; i < output_size; i += stride)
-            output[i] = 1 / (1 + expf(-output[i]));
+            output[i] = 1.0f / (1.0f + expf(-output[i]));
     }
 
     // this kernel divides the work into blocks rather than each thread works alone.
@@ -289,6 +289,10 @@ private:
             const float *ws[bpt]; // abbreviation for "bot weights"
             const float *bs[bpt]; // abbreviation for "bot biases"
             float *activs[bpt];   // abbreviation for "bot activations"
+
+            // The pointers in this array point to the last layer of each bots' neural net.
+            // This makes it easier to pass the bots' actions' for each iteration.
+            float *actions[bpt];   
 
             // Populate the arrays created above
             for (int i = 0; i < bpt; i++)
