@@ -14,7 +14,7 @@ const int MAX_LAYERS = 20;
 
 // Max layers = 20 right now.
 struct SimConfig{
-    int layers;
+    int numLayers;
     int totalNeurons;
     int totalWeights;
     int bpb; //Bots per Block (bots per simulation)
@@ -37,7 +37,7 @@ public:
 
     //return 1 if simulation is finished.
     __device__ virtual int checkFinished(float * gamestate) = 0;
-    //__device__ virtual void determineOutcome(float * gamestate) = 0;
+    //__device__ virtual void determineOutcome(float * gamestate) = 0; //TODO: determine if this is needed
 
 
     //NOTE: The ID this function returns MUST be unique for each derived class!

@@ -6,38 +6,40 @@
 #include <stdio.h>
 #include <curand_kernel.h>
 
+
+#include "Agent.h"
+#include "Simulation.cuh"
+#include "BasicSimulation.cuh"
+#include "Kernels.cuh"
+
+
+
+#include <iostream>
 #include <vector>
 using std::vector;
 
-// This is basically a #define. Needed for compile time understanding of certain variable definitions (particularly those that use numLayers for the size of an array)
-constexpr auto numLayers = 3; // Number of layers;
-constexpr auto bpt = 1;       // Stands for "bots per thread" This allows for easy adjusting of the simulation if we wanna do something funky.
 
-class Agent
+
+#define check(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
-};
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPU error check: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 
 class Simulator
 {
 public:
     // Constructor allocates all necessary device memory prior to doing simulations
-    Simulator(vector<Agent> agents) : agents{agents}
+    Simulator(vector<Agent> agents, SimConfig config) : agents{agents}, config{config}
     {
         int totalBots = agents.size();
 
-        // TODO: calculate real values here based on network layout.
-        int numLayers = 3;
-        int numStartingParams = 1;
-        int numConnections = 1;
-        int numNeurons = 1;
-
-        // Calculate how many connections and neurons there are based on layerShapes_h so we can create the networks_h array.
-        // for (int i = 0; i < numLayers; i++) {
-        //     if(i != numLayers - 1)
-        //         numConnections += layerShapes_h[i] * layerShapes_h[i + 1]; //effectively numWeights
-        //     numNeurons += layerShapes_h[i];	//effectively numBiases
-
-        int botNetSize = (numConnections + numNeurons); // how many indices a single bot uses in the networks_h array.
+        int botNetSize = (config.totalNeurons + config.totalWeights); // how many indices a single bot uses in the networks_h array.
 
         cudaError_t cudaStatus;
 
@@ -174,6 +176,7 @@ private:
     float *biases_d;
 
     vector<Agent> agents;
+    SimConfig config;
 
     /**
      * Perform forward propagation of a dense neural network
