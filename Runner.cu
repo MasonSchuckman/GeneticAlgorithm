@@ -8,6 +8,8 @@
 
 #include <iostream>
 #include <vector>
+#include <chrono>
+
 using std::vector;
 
 // Define constant GPU memory for the config of our simulation.
@@ -90,7 +92,7 @@ void test_simulation_1()
 
     Simulator engine(bots, &sim, config);
 
-    engine.simulate();
+    engine.batchSimulate(2);
 
     for(int i = 0; i < totalBots; i++){
         delete bots[i];
@@ -104,7 +106,12 @@ int main()
 {   
     cudaSetDevice(0);
 
-    test_simulation_1();
+    auto start_time = std::chrono::high_resolution_clock::now();
+    test_simulation_1();    
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    std::cout << "Total time taken: " << elapsed_time << " ms\n";
 
     // cudaDeviceReset must be called before exiting in order for profiling and
 	// tracing tools such as Nsight and Visual Profiler to show complete traces.

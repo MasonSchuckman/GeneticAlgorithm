@@ -161,7 +161,7 @@ __global__ void simulateShared(const int n, const float* allWeights, const float
 		}
 		__syncthreads();
 
-		int maxIters = 1000;
+		int maxIters = 500;
 		bool finished = false;
 
 		int iter = 0; //current timestep of simulation we're on
@@ -316,9 +316,9 @@ void functionPointerTest(){
 
 int main()
 {
-	functionPointerTest();
+	//functionPointerTest();
 
-	//sharedTest();
+	sharedTest();
 
 
 	// cudaDeviceReset must be called before exiting in order for profiling and

@@ -125,6 +125,7 @@ void Simulator::copyToGPU(int *&layerShapes_h, float *&startingParams_h,
     check(cudaMemcpy(weights_d, weights_h, totalBots * config.totalWeights * sizeof(float), cudaMemcpyHostToDevice));
     check(cudaMemcpy(biases_d, biases_h, totalBots * config.totalNeurons * sizeof(float), cudaMemcpyHostToDevice));
 }
+#include <chrono>
 
 void Simulator::runSimulation(float * & output_h)
 {
@@ -136,13 +137,17 @@ void Simulator::runSimulation(float * & output_h)
     int sharedMemNeeded = (config.totalWeights + config.totalNeurons * 2) * config.bpb;
     printf("Shared mem needed per block = %d KB\n", sharedMemNeeded * sizeof(float) / (2 << 10));
 
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     // Launch a kernel on the GPU with one block for each simulation/contest
     Kernels::simulateShared<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
     // any errors encountered during the launch.
     check(cudaDeviceSynchronize());
-    
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    std::cout << "Time taken: " << elapsed_time << " ms\n";
 
     // Copy output vector from GPU buffer to host memory.
     check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
@@ -151,6 +156,7 @@ void Simulator::runSimulation(float * & output_h)
 
 void Simulator::batchSimulate(int numSimulations)
 {
+
     printf("num bots = %d, numLayers = %d, num weights = %d, numNeurons = %d\n", bots.size(), config.numLayers, config.totalWeights, config.totalNeurons);
     int totalBots = bots.size();
 
@@ -171,7 +177,10 @@ void Simulator::batchSimulate(int numSimulations)
     printf("Copied data to GPU.\n");
 
     // Invoke the kernel
-    runSimulation(output_h);
+    for(int i = 0; i < numSimulations; i++){
+        runSimulation(output_h);
+    }
+    
     printf("Ran simulation.\n");
 
     //Do something with the output data....
