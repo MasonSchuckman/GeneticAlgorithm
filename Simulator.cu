@@ -53,7 +53,7 @@ public:
         // Allocate GPU buffers
         // Note: all GPU arrays are member variables.
 
-        cudaStatus = cudaMalloc((void **)&layerShapes_d, numLayers * sizeof(int));
+        cudaStatus = cudaMalloc((void **)&layerShapes_d, config.numLayers * sizeof(int));
         if (cudaStatus != cudaSuccess)
         {
             fprintf(stderr, "cudaMalloc failed!");
