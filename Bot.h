@@ -1,20 +1,23 @@
-#include "genome.h"
+#ifndef BOT_H
+#define BOT_H
+
+#include "Genome.h"
 
 
-class Agent{
+class Bot{
 public:
 
-    Agent(int * layerShapes, int numLayers){
+    Bot(int * layerShapes, int numLayers){
         this->genes = new Genome(layerShapes);
     }
 
-    ~Agent(){
+    ~Bot(){
         delete genes;
     }
 
 private:
 
     Genome * genes = nullptr;
-
-
 };
+
+#endif

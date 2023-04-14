@@ -12,11 +12,21 @@
 
 // These are needed for compile time understanding of static arrays in kernels.
 // The code would be much uglier without them.
-const int MAX_LAYERS = 20;
+const int MAX_LAYERS = 6;
 const int MAX_BOTS_PER_SIM = 4;
 
 // Max layers = 20 right now.
 struct SimConfig{
+    SimConfig(){}
+
+    SimConfig(int numLayers,
+    int totalNeurons,
+    int totalWeights,
+    int bpb, //Bots per Block (bots per simulation)
+    int maxIters,
+    int numStartingParams) : numLayers{numLayers}, totalNeurons{totalNeurons}, totalWeights{totalWeights}, bpb{bpb}, 
+    maxIters{maxIters}, numStartingParams{numStartingParams}{};
+
     int numLayers;
     int totalNeurons;
     int totalWeights;

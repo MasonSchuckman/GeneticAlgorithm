@@ -9,13 +9,13 @@ __device__ void BasicSimulation::eval(float **actions, float *gamestate)
 
     for (int bot = 0; bot < config_d.bpb; bot++)
     {
-        if (tid == 0)
-        {
-            printf("layer shapes in derived %d\n", config_d.layerShapes[blockIdx.x]);
-        }
+        // if (tid == 0)
+        // {
+        //     printf("layer shapes in derived %d\n", config_d.layerShapes[blockIdx.x % 3]);
+        // }
         if (tid < 4)
         {
-            printf("block %d, tid %d : %f\n", blockIdx.x, tid, actions[bot][tid]);
+            //printf("block %d, tid %d : %f\n", blockIdx.x, tid, actions[bot][tid]);
             __syncthreads();
             actions[bot][tid + 1] += 1;
         }

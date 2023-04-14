@@ -1,5 +1,6 @@
 #include "Simulation.cuh"
 #include "BasicSimulation.cuh"
+#include <curand_kernel.h>
 
 extern __constant__ SimConfig config_d;
 
@@ -238,6 +239,8 @@ namespace Kernels
         return;
     }
 
+
+    //This is a basic example for what the simulation kernel will look like.
     __global__ void game_kernel(int n, Simulation **sim)
     {
 
@@ -266,6 +269,38 @@ namespace Kernels
             }
         }
         return;
+    }
+
+    
+    // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
+    // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
+    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome,
+                           float *nextGenWeights, float *nextGenBiases)
+    {
+        int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
+        int tid = threadIdx.x;                           // thread id (within a block)
+
+        int block = blockIdx.x;
+        int stride = blockDim.x;
+
+        // prevent OOB errors
+        if (block < n)
+        {
+            curandState_t state;
+            curand_init(blockIdx.x, threadIdx.x, 0, &state);
+
+            float rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+
+            // Copy this block's weights and biases to the shared arrays.
+            for (int i = 0; i < config_d.totalWeights * config_d.bpb; i += stride)
+            {
+                // weights[i] = (allWeights)[block * totalWeights + i];
+            }
+            for (int i = 0; i < config_d.totalNeurons * config_d.bpb; i += stride)
+            {
+                // biases[i] = (allBiases)[block * totalNeurons + i];
+            }
+        }
     }
 
     __global__ void createDerived(Simulation **sim, int id)
