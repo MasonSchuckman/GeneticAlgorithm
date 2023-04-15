@@ -66,6 +66,9 @@ private:
     float *weights_d;
     float *biases_d;
 
+    float* nextGenWeights_d;
+    float* nextGenBiases_d;
+
     vector<Bot*> bots;
     Simulation * derived;
     Simulation **sim_d;

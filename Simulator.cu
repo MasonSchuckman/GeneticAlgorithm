@@ -21,7 +21,6 @@ Simulator::Simulator(vector<Bot*> bots, Simulation *derived, SimConfig &config) 
 
     // Allocate GPU buffers
     // Note: all GPU arrays are member variables.
-
     cudaStatus = cudaMalloc((void **)&layerShapes_d, config.numLayers * sizeof(int));
     if (cudaStatus != cudaSuccess)
     {
@@ -31,8 +30,13 @@ Simulator::Simulator(vector<Bot*> bots, Simulation *derived, SimConfig &config) 
     {
         cudaMalloc((void **)&startingParams_d, config.numStartingParams * sizeof(float));
         cudaMalloc((void **)&output_d, totalBots * sizeof(float));
+
         cudaMalloc((void **)&weights_d, config.totalWeights * totalBots * sizeof(float));
+        cudaMalloc((void **)&nextGenWeights_d, config.totalWeights * totalBots * sizeof(float));
+
         cudaMalloc((void **)&biases_d, totalBots * config.totalNeurons * sizeof(float));
+        cudaMalloc((void **)&nextGenBiases_d, totalBots * config.totalNeurons * sizeof(float));
+
 
         // Copy the config over to GPU memory
         check(cudaMemcpyToSymbol(config_d, &config, sizeof(SimConfig)));
@@ -51,6 +55,8 @@ Simulator::~Simulator()
     cudaFree(output_d);
     cudaFree(weights_d);
     cudaFree(biases_d);
+    cudaFree(nextGenBiases_d);
+    cudaFree(nextGenWeights_d);
 
     // Free the simulation class on the GPU
     Kernels::delete_function<<<1, 1>>>(sim_d);
@@ -140,17 +146,39 @@ void Simulator::runSimulation(float * & output_h)
     auto start_time = std::chrono::high_resolution_clock::now();
 
     // Launch a kernel on the GPU with one block for each simulation/contest
-    Kernels::simulateShared<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
+    //Kernels::simulateShared<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
+    Kernels::simulateShared_noStaticArrays<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
     // any errors encountered during the launch.
     check(cudaDeviceSynchronize());
     auto end_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    std::cout << "Time taken: " << elapsed_time << " ms\n";
+    std::cout << "Simulation time taken: " << elapsed_time << " ms\n";
+
+    //Mutate the genes
+    float mutateMagnitude = 1.0f;
+
+    start_time = std::chrono::high_resolution_clock::now();
+    Kernels::mutate<<<numBlocks, tpb>>>(numBlocks, mutateMagnitude, weights_d, biases_d, output_d, nextGenWeights_d, nextGenBiases_d);
+    check(cudaDeviceSynchronize());
+    end_time = std::chrono::high_resolution_clock::now();
+    
+    elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    std::cout << "Mutation time taken: " << elapsed_time << " ms\n";
+
+    //swap which weights/biases arrays are "current"
+    float* temp = nextGenBiases_d;
+    nextGenBiases_d = biases_d;
+    biases_d = temp;
+
+    temp = nextGenWeights_d;
+    nextGenWeights_d = weights_d;
+    weights_d = temp;
+
 
     // Copy output vector from GPU buffer to host memory.
-    check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
+    //check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
     
 }
 
@@ -180,7 +208,7 @@ void Simulator::batchSimulate(int numSimulations)
     for(int i = 0; i < numSimulations; i++){
         runSimulation(output_h);
     }
-    
+
     printf("Ran simulation.\n");
 
     //Do something with the output data....

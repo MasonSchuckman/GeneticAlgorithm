@@ -72,6 +72,12 @@ void test_simulation_1()
 
     // Define the rest of the simulation configuration
     int botsPerSim = 1;
+
+    if(botsPerSim > MAX_BOTS_PER_SIM){
+        printf("Increase MAX_BOTS_PER_SIM and run again.\n");
+        
+    }
+
     int maxIters = 500;
     int totalBots = 1 << 15;
     int numStartingParams = 1;
@@ -94,6 +100,7 @@ void test_simulation_1()
 
     engine.batchSimulate(2);
 
+    
     for(int i = 0; i < totalBots; i++){
         delete bots[i];
     }

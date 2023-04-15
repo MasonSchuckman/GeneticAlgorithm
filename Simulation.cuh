@@ -12,8 +12,8 @@
 
 // These are needed for compile time understanding of static arrays in kernels.
 // The code would be much uglier without them.
-const int MAX_LAYERS = 6;
-const int MAX_BOTS_PER_SIM = 4;
+const int MAX_LAYERS = 3;
+const int MAX_BOTS_PER_SIM = 1;
 
 // Max layers = 20 right now.
 struct SimConfig{

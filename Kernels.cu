@@ -289,18 +289,22 @@ namespace Kernels
             curandState_t state;
             curand_init(blockIdx.x, threadIdx.x, 0, &state);
 
-            float rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-
-            // Copy this block's weights and biases to the shared arrays.
-            for (int i = 0; i < config_d.totalWeights * config_d.bpb; i += stride)
+            float rand;
+            
+            //change vals by a bit.
+            for (int i = tid; i < config_d.totalWeights * config_d.bpb; i += stride)
             {
-                // weights[i] = (allWeights)[block * totalWeights + i];
+                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                (nextGenWeights + block * config_d.totalWeights)[i] = (allWeights + block * config_d.totalWeights)[i] + rand;
             }
-            for (int i = 0; i < config_d.totalNeurons * config_d.bpb; i += stride)
+            for (int i = tid; i < config_d.totalNeurons * config_d.bpb; i += stride)
             {
-                // biases[i] = (allBiases)[block * totalNeurons + i];
+                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                (nextGenBiases + block * config_d.totalNeurons)[i] = (allBiases + block * config_d.totalNeurons)[i] + rand;                
             }
         }
+
+        return;
     }
 
     __global__ void createDerived(Simulation **sim, int id)
@@ -339,4 +343,178 @@ namespace Kernels
     {
         delete *sim;
     };
+
+
+    __global__ void simulateShared_noStaticArrays(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
+    {
+
+        int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
+        int tid = threadIdx.x;                           // thread id (within a block)
+
+        int block = blockIdx.x;
+        int stride = blockDim.x;
+
+        // prevent OOB errors
+        if (block < n)
+        {   
+
+            //hard coding this makes things *much* simpler. We can change it if needed.
+            __shared__ float gamestate[64]; 
+
+
+            // shared mem layout is w1,w2...,w_bpt,b1,b2,...,b_bpt,a_1,a_2,...,a_bpt
+            // declare our block of shared memory
+            extern __shared__ float s[];
+
+            // split our shared memory block into the weights, biases, and activations
+            float *weights = s;
+            float *biases = weights + config_d.totalWeights * config_d.bpb;
+            float *activations = biases + config_d.totalNeurons * config_d.bpb;
+
+#ifdef DEBUG
+            printf("Weights = %p\n", weights);
+            printf("biases  = %p\n", biases);
+            printf("activs  = %p\n", activations);
+#endif
+
+            // Copy this block's weights and biases to the shared arrays.
+            for (int i = 0; i < config_d.totalWeights * config_d.bpb; i += stride)
+            {
+                weights[i] = (allWeights)[block * config_d.totalWeights + i];
+            }
+            for (int i = 0; i < config_d.totalNeurons * config_d.bpb; i += stride)
+            {
+                biases[i] = (allBiases)[block * config_d.totalNeurons + i];
+            }
+
+            #define ws(i) weights + config_d.totalWeights * i
+            #define bs(i) biases + config_d.totalNeurons * i
+            #define activs(i) activations + config_d.totalNeurons * i
+            //#define actions(i) config_d.totalNeurons - config_d.layerShapes[config_d.numLayers - 1] + activs(i);
+
+            float *actions[MAX_BOTS_PER_SIM];
+
+            // // Populate the arrays created above
+            for (int i = 0; i < config_d.bpb; i++)
+            {
+            //     ws[i] = weights + config_d.totalWeights * i;
+            //     bs[i] = biases + config_d.totalNeurons * i;
+            //     activs[i] = activations + config_d.totalNeurons * i;
+
+            //     // TODO: check if this correctly offsets actions[i] to point to the last layer of bot_i's activations network.
+                actions[i] = activs(i) + config_d.totalNeurons - config_d.layerShapes[config_d.numLayers - 1];
+            }
+
+            __syncthreads();
+
+            int maxIters = config_d.maxIters;
+            bool finished = false;
+
+            int iter = 0; // current timestep of simulation we're on
+
+            // run the simulation loop.
+            while (!finished)
+            {
+                // Do something with the starting parameters here. Possibly call a sim function.
+                if (iter == 0)
+                {
+                    // Determine inputs for the bot(s)
+                    for (int i = 0; i < config_d.bpb; i++)
+                    {
+                        for (int j = tid; j < config_d.layerShapes[0]; j += stride)
+                        {
+                            // This line is a placeholder for now.
+                            (activs(i))[j] = 0.5f;
+                        }
+                    }
+                }
+
+                // It's important to remember that activs and nns are essentially 2d arrays. That's why indexing them is tricky and weird.
+                // Poll the NN for actions.
+                for (int bot = 0; bot < config_d.bpb; bot++)
+                {
+                    // All of these offsets are to account for the multiple layers in the network.
+                    int WO = 0; // weights offset
+                    int BO = 0; // biases offset
+                    int AO = 0; // activs offset
+                    int numBiases;
+                    int numWeights;
+                    for (int layer = 0; layer < config_d.numLayers - 1; layer++)
+                    {
+                        numBiases = config_d.layerShapes[layer];
+                        numWeights = numBiases * config_d.layerShapes[layer + 1];
+#ifdef DEBUG
+                        if (tid == 0)
+                        {
+                            printf("Weights of layer %d:\n", layer);
+                            for (int k = 0; k < numBiases; k++)
+                            {
+                                for (int l = 0; l < layerShapes[layer + 1]; l++)
+                                {
+                                    printf("%f, ", (nns[i] + LO + numBiases)[k * layerShapes[layer + 1] + l]);
+                                }
+                                printf("\n");
+                            }
+                            int cc = 0;
+                            for (int k = 0; k < numWeights; k++)
+                            {
+                                printf("%f, ", (nns[i] + LO + numBiases)[k]);
+                                cc++;
+                                if (cc % layerShapes[layer + 1] == 0)
+                                    printf("\n");
+                            }
+                            printf("\n");
+                        }
+
+#endif
+                        // forward_propagation(float* input, float* weights, float* biases, float* output, int input_size, int output_size)
+                        forward_propagation(activs(bot) + AO, ws(bot) + WO, bs(bot) + numBiases + BO, activs(bot) + AO + numBiases, numBiases, config_d.layerShapes[layer + 1]);
+                        
+
+                        //This register-less version had almost identical performance
+                        //forward_propagation(activs(bot) + numBiases * layer, ws(bot) + numWeights * layer, bs(bot) + numBiases * (layer + 1), activs(bot) + numBiases * (layer + 1), numBiases, config_d.layerShapes[layer + 1]);
+
+                        AO += numBiases;
+                        WO += numWeights;
+                        BO += numBiases;
+                    }
+                }
+
+                // update simulation/game state based on bot actions
+                (*sim)->eval(actions, gamestate);
+                
+                if((*sim)->checkFinished(gamestate) == 1){
+                    finished = true;
+                }
+
+                // if(checkWinCondition(<something>)
+                //	finished = true;
+
+                iter++;
+                if (iter >= maxIters)
+                {
+                    finished = true;
+                }
+            }
+#ifdef DEBUG
+            if (tid == 0 && blockIdx.x == 0)
+            {
+                printf("Activations:\n");
+                int AO = 0; // "activs offset"
+                for (int layer = 0; layer < numLayers; layer++)
+                {
+                    printf("Layer %d, size = %d, AO = %d\n", layer, layerShapes[layer], AO);
+                    for (int i = 0; i < layerShapes[layer]; i++)
+                    {
+                        printf("%f, ", activs[0][AO + i]);
+                    }
+                    AO += layerShapes[layer];
+                    printf("\n");
+                }
+                printf("\n");
+            }
+#endif
+        }
+        return;
+    }
 };
