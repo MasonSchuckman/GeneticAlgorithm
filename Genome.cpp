@@ -14,9 +14,7 @@ creates a Genome with a specific shape and random weights
  @param shape  an array describing how many neurons are in each layer of the neural network
  @param shapeLen  the length of the shape parameter
 */
-Genome::Genome(int *shape) {
-
-  int shapeLen = sizeof(shape) / sizeof(int);
+Genome::Genome(int *shape, int shapeLen) {
 
   // copying shape data
   this->shapeLen = shapeLen;
@@ -54,9 +52,7 @@ Genome::Genome(int *shape) {
  @param biases  an array containing all bias weights
  @param connections  an array containing all connection weights 
 */
-Genome::Genome(int *shape, float *biases, float *connections) {
-
-  int shapeLen = sizeof(shape) / sizeof(int);
+Genome::Genome(int *shape, int shapeLen, float *biases, float *connections) {
 
   // copying shape data
   this->shapeLen = shapeLen;
