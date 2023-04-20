@@ -1,5 +1,7 @@
 #include "Simulator.cuh"
 #include <random>
+#include <cmath>
+
 using std::vector;
 
 extern __constant__ SimConfig config_d;
@@ -152,7 +154,8 @@ void Simulator::copyFromGPU(float *&weights_h, float *&biases_h)
 
 #include <chrono>
 
-float mutateMagnitude = 1.0f;
+float mutateMagnitude = 1.0f; //starting magnitude
+float min_mutate_rate = .0000001f; //ending magnitude
 void Simulator::runSimulation(float *output_h)
 {
     int totalBots = bots.size();
@@ -164,20 +167,22 @@ void Simulator::runSimulation(float *output_h)
     // printf("Shared mem needed per block = %d KB\n", sharedMemNeeded * sizeof(float) / (2 << 10));
 
     // get random target coordinates
-    int minPos = -config.maxIters / 8;
-    int maxPos = config.maxIters / 8;
+    int minPos = -config.maxIters * 2;
+    int maxPos = config.maxIters * 2;
     std::random_device rd;                                 // obtain a random seed from hardware
     std::mt19937 eng(rd());                                // seed the generator
     std::uniform_int_distribution<> distr(minPos, maxPos); // define the range
     int targetX = distr(eng);
     int targetY = distr(eng);
+
+    double r = 150.0; // radius of circle
+    double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
+    // targetX = r * cos(angle); // compute x coordinate
+    // targetY = r * sin(angle); // compute y coordinate
+
     if (targetX == 0 && targetY == 0)
         targetX = 2;
     
-    targetX = 10;
-    targetY = 13;
-    
-
     float optimal = hypotf(targetX, targetY) / 2.0 * hypotf(targetX, targetY) * 4;
 
     // transfer target coordinates to GPU
@@ -223,14 +228,14 @@ void Simulator::runSimulation(float *output_h)
 
     */
 
-    float min_mutate_rate = .01;
+    
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
-        mutateMagnitude *= 0.988f;
+        mutateMagnitude *= 0.984f;
 
     // each block looks at 2 bots
     numBlocks = totalBots / 2; //(assumes even number of bots)
-    start_time = std::chrono::high_resolution_clock::now();
+    //start_time = std::chrono::high_resolution_clock::now();
     // if(iterationsCompleted < 4)
     
     Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, nextGenWeights_d, nextGenBiases_d, iterationsCompleted);
@@ -254,8 +259,10 @@ void Simulator::runSimulation(float *output_h)
 
     // Used to decide where to write nextGen population data to
     iterationsCompleted++;
-    if (iterationsCompleted % 10 == 0)
-        printf("iter %d, mutate scale = %f\n", iterationsCompleted, mutateMagnitude);
+    if (iterationsCompleted % 10 == 0){
+        printf("iter %d, mutate scale = %f.", iterationsCompleted, mutateMagnitude);
+        std::cout << " Generation took " << elapsed_time << " ms.\n";
+    }
 }
 
 void analyzeHistory(int numSimulations, int totalBots, float *output_h, int &finalBest)
@@ -297,7 +304,8 @@ void analyzeHistory(int numSimulations, int totalBots, float *output_h, int &fin
         printf("Iteration : [%d]\tTop Score : %f, by Bot : [%d]\tAverage score : %f\n", i, bestScores[i], bestIndexes[i], averageScores[i]);
     }
 
-    finalBest = bestIndexes[numSimulations - 2];
+    finalBest = bestIndexes[numSimulations - 1];
+    //finalBest = 0;
 
     delete[] bestIndexes;
     delete[] bestScores;

@@ -3,11 +3,11 @@
 // NOTE: this must be present in every derived simulation!
 extern __constant__ SimConfig config_d;
 
-__constant__ float MAX_SPEED = 4;
+__constant__ float MAX_SPEED = 100;
 
 // Dead zone around the target that counts as a hit
 __constant__ float epsilon = 0.05f;
-__constant__ int resetInterval = 2500000000; //Reset gamestate and change target pos every <resetInterval> iters
+__constant__ int resetInterval = 30; //Reset gamestate and change target pos every <resetInterval> iters
 
 #define ROTATION_ANGLE 3.141592654f / 2.0f
 

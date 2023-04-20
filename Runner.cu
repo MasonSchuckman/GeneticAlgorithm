@@ -121,7 +121,7 @@ void test_simulation_2()
     int numConnections = 0, numNeurons = 0;
     int *layerShapes = new int[numLayers];
     layerShapes[0] = 6;
-    layerShapes[1] = 16;
+    layerShapes[1] = 6;
     layerShapes[2] = 2;    
     getNetInfo(numConnections, numNeurons, numLayers, layerShapes);
 
@@ -134,8 +134,8 @@ void test_simulation_2()
         
     }
 
-    int maxIters = 50;
-    int totalBots = 1 << 13; //was15
+    int maxIters = 150;
+    int totalBots = 1 << 9; //was15
     int numStartingParams = 3; // TargetX, TargetY, OptimalScore 
     
     int directContest = 0;
@@ -157,7 +157,7 @@ void test_simulation_2()
 
     Simulator engine(bots, &sim, config);
 
-    engine.batchSimulate(2);
+    engine.batchSimulate(20000);
 
     
     for(int i = 0; i < totalBots; i++){

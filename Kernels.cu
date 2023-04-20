@@ -283,45 +283,7 @@ namespace Kernels
                 winnerBotOffset = offsetBot2;
             }
 
-            // if (block == 0)
-            // {
-            //     if (threadIdx.x == 0)
-            //     {
-            //         printf("Bot 1 score = %f, Bot 2 score = %f. Choosing offset %d\n", botScore1, botScore2, winnerBotOffset);
-            //     }
-            // }
-            // if(gid == 0){
-            //     printf("pre change next gen weights:\n");
-            //     for(int i = 0; i < 4; i++){
-            //         printf("%f, ", nextGenWeights[i]);
-            //     }
-            //     printf("\n");
-
-            //     printf("Winner (%d) weights:\n", winnerBotOffset);
-            //     for(int i = 0; i < 4; i++){
-            //         printf("%f, ", allWeights[i + winnerBotOffset * config_d.totalWeights]);
-            //     }
-            // }
-
-            // if(block == 0){
-            //     if(winnerBotOffset != offsetBot1){
-            //         for (int i = tid; i < config_d.totalWeights; i += stride)
-            //         {
-            //             if((allWeights)[i + offsetBot1 * config_d.totalWeights] != (allWeights)[i + offsetBot2 * config_d.totalWeights])
-            //             {
-            //                 printf("Bots weights differ at index %d : %f,%f\n", i, (allWeights)[i + offsetBot1 * config_d.totalWeights], (allWeights)[i + offsetBot2 * config_d.totalWeights]);
-            //             }
-            //         }
-
-            //         for (int i = tid; i < config_d.totalNeurons; i += stride)
-            //         {
-            //             if((allBiases)[i + offsetBot1 * config_d.totalNeurons]!= (allBiases)[i + offsetBot2 * config_d.totalNeurons])
-            //             {
-            //                 printf("Bots biases differ at index %d : %f,%f\n", i, (allBiases)[i + offsetBot1 * config_d.totalNeurons], (allBiases)[i + offsetBot2 * config_d.totalNeurons]);
-            //             }
-            //         }
-            //     }
-            // }
+            
             __syncthreads();
             // Write next gen bot one's data
             for (int i = tid; i < config_d.totalWeights; i += stride)
@@ -350,14 +312,6 @@ namespace Kernels
                 (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
             }
         }
-
-        // if(gid == 0){
-        //     printf("post change next gen weights:\n");
-        //     for(int i = 0; i < 4; i++){
-        //         printf("%f, ", nextGenWeights[i]);
-        //     }
-        //     printf("\n");
-        // }
         __syncthreads();
 
         return;
@@ -640,13 +594,6 @@ __device__ int counter=0;
             printf("activs  = %p\n", activations);
 #endif
 
-            // if(gid == 0){
-            //     printf("Weights inside kernel (%d): \n", config_d.totalWeights);
-            //     for(int i = 0; i < 4; i++){
-            //         printf("%f, ", (allWeights)[block * config_d.totalWeights + i]);
-            //     }
-            //     printf("\n");
-            // }
             __syncthreads();
             // Copy this block's weights and biases to the shared arrays.
             for (int i = tid; i < config_d.totalWeights * config_d.bpb; i += stride)
@@ -697,9 +644,13 @@ __device__ int counter=0;
                 {
                     activs[0][tid] = gamestate[tid];
                 }
-                if(tid == 0)
+                if(tid == 0){
                     gamestate[7] = iter;
 
+                    //TESTING: not giving velocity as an input:
+                    activs[0][0] = 0;
+                    activs[0][1] = 0;
+                }
                 // It's important to remember that activs and ws and bs are essentially 2d arrays. That's why indexing them is tricky and weird.
                 // Poll the NN for actions.
 
@@ -745,8 +696,8 @@ __device__ int counter=0;
                     if(gamestate[6] == 0)
                         output[block] = 0;
                     else if (tid == 0)
-                        output[block] = -gamestate[6]; // Uses totalDist as a metric
-                        //output[block] = (startingParams[2] / gamestate[6]); // Uses efficiency as a metric
+                        //output[block] = -gamestate[6]; // Uses totalDist as a metric
+                        output[block] = (startingParams[2] / gamestate[6]); // Uses efficiency as a metric
                     
                     if(gid == 0){
                         if(counter % 10 == 0)
