@@ -8,7 +8,7 @@ class Bot{
 public:
 
     Bot(int * layerShapes, int numLayers){
-        this->genes = new Genome(layerShapes);
+        this->genes = new Genome(layerShapes, numLayers);
     }
 
     ~Bot(){

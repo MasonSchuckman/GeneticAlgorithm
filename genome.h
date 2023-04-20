@@ -34,8 +34,8 @@ public:
   float *connections;
   int numConnections;
 
-  Genome(int *shape);
-  Genome(int *shape, float *biases, float *connections);
+  Genome(int *shape, int shapeLen);
+  Genome(int *shape, int shapeLen, float *biases, float *connections);
   Genome(Genome *other);
   ~Genome();
 
