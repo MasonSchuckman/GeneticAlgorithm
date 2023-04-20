@@ -15,9 +15,10 @@ namespace Kernels
 
     __global__ void simulateShared_noStaticArrays(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output);
 
+    __global__ void simulateShared2(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output);
 
     __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome,
-                           float *nextGenWeights, float *nextGenBiases);
+                           float *nextGenWeights, float *nextGenBiases, int iter);
 };
 
 #endif

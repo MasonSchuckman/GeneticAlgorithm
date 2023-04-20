@@ -1,10 +1,10 @@
-#include "Simulation.cuh"
-#include "BasicSimulation.cuh"
+#include "SimulationList.cuh"
 #include "Kernels.cuh"
 
 
 #include "Simulation.cuh"
 #include "Simulator.cuh"
+#include "TargetSimulation.cuh"
 
 #include <iostream>
 #include <vector>
@@ -78,11 +78,70 @@ void test_simulation_1()
         
     }
 
-    int maxIters = 500;
+    int maxIters = 5;
     int totalBots = 1 << 15;
     int numStartingParams = 1;
+    int directContest = 0;
+    int botsPerTeam = 0;
+
+    SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams, directContest, botsPerTeam);
+    for (int i = 0; i < numLayers; i++)
+    {
+        config.layerShapes[i] = layerShapes[i];
+    }
     
-    SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams);
+    vector<Bot*> bots;
+    for(int i = 0; i < totalBots; i++){
+        bots.push_back(new Bot(layerShapes, numLayers));
+    }
+
+    printf("Created bots.\n");
+
+
+    Simulator engine(bots, &sim, config);
+
+    engine.batchSimulate(1);
+
+    
+    for(int i = 0; i < totalBots; i++){
+        delete bots[i];
+    }
+
+    delete [] layerShapes;
+
+}
+
+void test_simulation_2()
+{
+    // Define which simulation we're running
+    TargetSimulation sim;
+
+    // Define the neural net configuration for our bots
+    int numLayers = 3;
+    int numConnections = 0, numNeurons = 0;
+    int *layerShapes = new int[numLayers];
+    layerShapes[0] = 6;
+    layerShapes[1] = 16;
+    layerShapes[2] = 2;    
+    getNetInfo(numConnections, numNeurons, numLayers, layerShapes);
+
+
+    // Define the rest of the simulation configuration
+    int botsPerSim = 1;
+
+    if(botsPerSim > MAX_BOTS_PER_SIM){
+        printf("Increase MAX_BOTS_PER_SIM and run again.\n");
+        
+    }
+
+    int maxIters = 50;
+    int totalBots = 1 << 13; //was15
+    int numStartingParams = 3; // TargetX, TargetY, OptimalScore 
+    
+    int directContest = 0;
+    int botsPerTeam = 0;
+
+    SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams, directContest, botsPerTeam);
     for (int i = 0; i < numLayers; i++)
     {
         config.layerShapes[i] = layerShapes[i];
@@ -109,12 +168,13 @@ void test_simulation_1()
 
 }
 
+
 int main()
 {   
     cudaSetDevice(0);
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    test_simulation_1();    
+    test_simulation_2();    
     auto end_time = std::chrono::high_resolution_clock::now();
 
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
