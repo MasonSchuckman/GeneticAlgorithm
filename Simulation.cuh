@@ -12,10 +12,9 @@
 
 // These are needed for compile time understanding of static arrays in kernels.
 // The code would be much uglier without them.
-const int MAX_LAYERS = 3;
+const int MAX_LAYERS = 4;
 const int MAX_BOTS_PER_SIM = 1;
 
-// Max layers = 20 right now.
 struct SimConfig{
     SimConfig(){}
 
@@ -64,5 +63,29 @@ public:
     SimConfig* config;
 
 };
+
+// CPU version of sim config. Contains EVERYTHING that could go into a json file.
+struct FullSimConfig{
+    Simulation * sim;
+    SimConfig config;
+
+    int totalBots;
+    int generations;
+    float baseMutationRate;
+    float minMutationRate;
+    float mutationDecayRate;
+
+    FullSimConfig(Simulation * sim_, SimConfig config_, int totalBots_, int generations_, float baseMutationRate_,
+    float minMutationRate_, float mutationDecayRate_)
+        : sim(sim_), config(config_), totalBots(totalBots_), generations(generations_), baseMutationRate(baseMutationRate_)
+        , minMutationRate(minMutationRate_), mutationDecayRate(mutationDecayRate_) {}
+
+    ~FullSimConfig(){
+        delete sim;
+    }
+};
+
+
+
 
 #endif

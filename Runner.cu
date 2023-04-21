@@ -9,8 +9,82 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <math.h>
+
+#include <fstream>
+#include "json.hpp"
+using json = nlohmann::json;
+
 
 using std::vector;
+
+void getNetInfo(int &numConnections, int &numNeurons, std::vector<int> layerShapes)
+{
+    // Calculate how many connections and neurons there are based on layerShapes_h so we can create the networks_h array.
+    for (int i = 0; i < layerShapes.size(); i++)
+    {
+        if (i != layerShapes.size() - 1)
+            numConnections += layerShapes[i] * layerShapes[i + 1]; // effectively numWeights
+        numNeurons += layerShapes[i];                                // effectively numBiases
+    }
+}
+
+FullSimConfig setupSimulation(const std::string& filename) {
+    std::ifstream file(filename);
+    json configFile;
+
+    // Parse the JSON file
+    try {
+        file >> configFile;
+    } catch (const json::parse_error& e) {
+        std::cerr << "Failed to parse config file " << filename << ": " << e.what() << std::endl;
+        exit(1);
+    }
+
+    // Read the simulation type from the configFile
+    std::string simType = configFile["simulation"].get<std::string>();
+    Simulation * sim;
+    if (simType == "TargetSimulation") {
+        sim = new TargetSimulation;
+    } else if (simType == "typeB") {
+        //sim = TargetSimulation::TypeB;
+    } else {
+        std::cerr << "Unknown simulation type: " << simType << std::endl;
+        exit(1);
+    }
+
+    // Read the neural net configuration from the configFile
+    int numLayers = configFile["neural_net"]["num_layers"].get<int>();    
+    std::vector<int> layerShapes = configFile["neural_net"]["layer_shapes"].get<std::vector<int>>();
+    int numConnections = 0;
+    int numNeurons = 0;
+    getNetInfo(numConnections, numNeurons, layerShapes);
+
+    // Read the rest of the simulation configuration from the config
+    int botsPerSim = configFile["bots_per_sim"].get<int>();
+    int maxIters = configFile["max_iters"].get<int>();
+
+    //Note: the totalBots we put in the json is log_2 of what we simulate.
+    int totalBots = configFile["total_bots"].get<int>();
+    totalBots = (int) std::pow(2, totalBots);
+
+    int numStartingParams = configFile["num_starting_params"].get<int>();
+    int directContest = configFile["direct_contest"].get<int>();
+    int botsPerTeam = configFile["bots_per_team"].get<int>();
+
+    int generations = configFile["generations"].get<int>();
+
+    float baseMutationRate = configFile["base_mutation_rate"].get<float>();
+    float minMutationRate = configFile["min_mutation_rate"].get<float>();
+    float mutationDecayRate = configFile["mutation_decay_rate"].get<float>();
+
+    SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams, directContest, botsPerTeam);
+    for(int i = 0; i < layerShapes.size(); i++)
+        config.layerShapes[i] = layerShapes[i];
+
+    // Create and return the SimConfig object
+    return FullSimConfig(sim, config, totalBots, generations, baseMutationRate, minMutationRate, mutationDecayRate);
+}
 
 // Define constant GPU memory for the config of our simulation.
 // Note: This CAN be set at runtime
@@ -44,16 +118,7 @@ void launchKernel(Simulation *derived, SimConfig &config)
     // Code to launch the CUDA kernel with the configured parameters and function pointer
 }
 
-void getNetInfo(int &numConnections, int &numNeurons, int numLayers, int *& layerShapes)
-{
-    // Calculate how many connections and neurons there are based on layerShapes_h so we can create the networks_h array.
-    for (int i = 0; i < numLayers; i++)
-    {
-        if (i != numLayers - 1)
-            numConnections += layerShapes[i] * layerShapes[i + 1]; // effectively numWeights
-        numNeurons += layerShapes[i];                                // effectively numBiases
-    }
-}
+
 
 void test_simulation_1()
 {
@@ -63,11 +128,12 @@ void test_simulation_1()
     // Define the neural net configuration for our bots
     int numLayers = 3;
     int numConnections = 0, numNeurons = 0;
-    int *layerShapes = new int[numLayers];
-    layerShapes[0] = 8;
-    layerShapes[1] = 32;
-    layerShapes[2] = 8;    
-    getNetInfo(numConnections, numNeurons, numLayers, layerShapes);
+    vector<int> layerShapes;
+    layerShapes.push_back(8);
+    layerShapes.push_back(32);
+    layerShapes.push_back(8);
+      
+    getNetInfo(numConnections, numNeurons, layerShapes);
 
 
     // Define the rest of the simulation configuration
@@ -92,7 +158,7 @@ void test_simulation_1()
     
     vector<Bot*> bots;
     for(int i = 0; i < totalBots; i++){
-        bots.push_back(new Bot(layerShapes, numLayers));
+        bots.push_back(new Bot(layerShapes));
     }
 
     printf("Created bots.\n");
@@ -107,65 +173,27 @@ void test_simulation_1()
         delete bots[i];
     }
 
-    delete [] layerShapes;
+    
 
 }
 
 void test_simulation_2()
 {
-    // Define which simulation we're running
-    TargetSimulation sim;
+    FullSimConfig fullConfig = setupSimulation("config.json");
 
-    // Define the neural net configuration for our bots
-    int numLayers = 3;
-    int numConnections = 0, numNeurons = 0;
-    int *layerShapes = new int[numLayers];
-    layerShapes[0] = 6;
-    layerShapes[1] = 8;
-    layerShapes[2] = 2;    
-    getNetInfo(numConnections, numNeurons, numLayers, layerShapes);
-
-
-    // Define the rest of the simulation configuration
-    int botsPerSim = 1;
-
-    if(botsPerSim > MAX_BOTS_PER_SIM){
-        printf("Increase MAX_BOTS_PER_SIM and run again.\n");
-        
-    }
-
-    int maxIters = 150;
-    int totalBots = 1 << 12; //was15
-    int numStartingParams = 3; // TargetX, TargetY, OptimalScore 
-    
-    int directContest = 0;
-    int botsPerTeam = 0;
-
-    SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams, directContest, botsPerTeam);
-    for (int i = 0; i < numLayers; i++)
-    {
-        config.layerShapes[i] = layerShapes[i];
-    }
-    
     vector<Bot*> bots;
-    for(int i = 0; i < totalBots; i++){
-        bots.push_back(new Bot(layerShapes, numLayers));
+    for(int i = 0; i < fullConfig.totalBots; i++){
+        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
     }
 
-    printf("Created bots.\n");
+    Simulator engine(bots, fullConfig.sim, fullConfig.config);
 
-
-    Simulator engine(bots, &sim, config);
-
-    engine.batchSimulate(2000);
+    engine.batchSimulate(1000);
 
     
-    for(int i = 0; i < totalBots; i++){
+    for(int i = 0; i < fullConfig.totalBots; i++){
         delete bots[i];
     }
-
-    delete [] layerShapes;
-
 }
 
 

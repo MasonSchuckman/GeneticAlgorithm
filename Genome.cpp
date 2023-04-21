@@ -44,6 +44,7 @@ Genome::Genome(int *shape, int shapeLen) {
     connections[i] = ((float)rand()/RAND_MAX) * 3 - 1.5;
 }
 
+
 /**
  create a genome with a specific shape and specific weights
 

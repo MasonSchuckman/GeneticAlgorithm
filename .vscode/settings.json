@@ -2,6 +2,14 @@
     "files.associations": {
         "chrono": "cpp",
         "cmath": "cpp",
-        "iterator": "cpp"
+        "iterator": "cpp",
+        "istream": "cpp",
+        "memory": "cpp",
+        "type_traits": "cpp",
+        "xlocmes": "cpp",
+        "xlocmon": "cpp",
+        "xlocnum": "cpp",
+        "xloctime": "cpp",
+        "vector": "cpp"
     }
 }

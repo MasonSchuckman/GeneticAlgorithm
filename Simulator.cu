@@ -167,15 +167,19 @@ void Simulator::runSimulation(float *output_h)
     // printf("Shared mem needed per block = %d KB\n", sharedMemNeeded * sizeof(float) / (2 << 10));
 
     // get random target coordinates
-    int minPos = -config.maxIters * 2;
-    int maxPos = config.maxIters * 2;
+    int minPos = -2;
+    int maxPos = 2;
     std::random_device rd;                                 // obtain a random seed from hardware
     std::mt19937 eng(rd());                                // seed the generator
     std::uniform_int_distribution<> distr(minPos, maxPos); // define the range
-    int targetX = distr(eng);
-    int targetY = distr(eng);
+    float targetX = distr(eng);
+    float targetY = distr(eng);
 
-    double r = 150.0; // radius of circle
+    //random starting pos
+    float startingX = distr(eng);
+    float startingY = distr(eng);
+
+    double r = 10.0; // radius of circle
     double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
     targetX = r * cos(angle); // compute x coordinate
     targetY = r * sin(angle); // compute y coordinate
@@ -183,7 +187,7 @@ void Simulator::runSimulation(float *output_h)
     if (targetX == 0 && targetY == 0)
         targetX = 2;
     
-    float optimal = hypotf(targetX, targetY) / 2.0 * hypotf(targetX, targetY) * 4;
+    float optimal = hypotf(targetX, targetY) / 2.0 * hypotf(targetX, targetY) * 4 / 10;
 
     // transfer target coordinates to GPU
     float *startingParams_h = new float[config.numStartingParams];
@@ -191,6 +195,8 @@ void Simulator::runSimulation(float *output_h)
     startingParams_h[0] = targetX;
     startingParams_h[1] = targetY;
     startingParams_h[2] = optimal;
+    startingParams_h[3] = startingX;
+    startingParams_h[4] = startingY;
 
     check(cudaMemcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float), cudaMemcpyHostToDevice));
     delete[] startingParams_h;
@@ -231,7 +237,7 @@ void Simulator::runSimulation(float *output_h)
     
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
-        mutateMagnitude *= 0.988f;
+        mutateMagnitude *= 0.982f;
 
     // each block looks at 2 bots
     numBlocks = totalBots / 2; //(assumes even number of bots)

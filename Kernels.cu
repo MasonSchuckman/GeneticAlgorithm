@@ -569,8 +569,8 @@ __device__ int counter=0;
             {
                 gamestate[0] = 0;
                 gamestate[1] = 0;
-                gamestate[2] = 0;
-                gamestate[3] = 0;
+                gamestate[2] = startingParams[3];
+                gamestate[3] = startingParams[4];
                 gamestate[4] = startingParams[0];
                 gamestate[5] = startingParams[1];
                 
