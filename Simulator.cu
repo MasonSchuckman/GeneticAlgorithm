@@ -155,7 +155,7 @@ void Simulator::copyFromGPU(float *&weights_h, float *&biases_h)
 #include <chrono>
 
 float mutateMagnitude = 1.0f; //starting magnitude
-float min_mutate_rate = .0000001f; //ending magnitude
+float min_mutate_rate = .000001f; //ending magnitude
 void Simulator::runSimulation(float *output_h)
 {
     int totalBots = bots.size();
@@ -177,8 +177,8 @@ void Simulator::runSimulation(float *output_h)
 
     double r = 150.0; // radius of circle
     double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
-    // targetX = r * cos(angle); // compute x coordinate
-    // targetY = r * sin(angle); // compute y coordinate
+    targetX = r * cos(angle); // compute x coordinate
+    targetY = r * sin(angle); // compute y coordinate
 
     if (targetX == 0 && targetY == 0)
         targetX = 2;
@@ -231,14 +231,14 @@ void Simulator::runSimulation(float *output_h)
     
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
-        mutateMagnitude *= 0.984f;
+        mutateMagnitude *= 0.988f;
 
     // each block looks at 2 bots
     numBlocks = totalBots / 2; //(assumes even number of bots)
     //start_time = std::chrono::high_resolution_clock::now();
-    // if(iterationsCompleted < 4)
     
-    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, nextGenWeights_d, nextGenBiases_d, iterationsCompleted);
+    int shift = (int) (((double)rand() / RAND_MAX) * totalBots) % totalBots;
+    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, nextGenWeights_d, nextGenBiases_d, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 
@@ -268,7 +268,7 @@ void Simulator::runSimulation(float *output_h)
 void analyzeHistory(int numSimulations, int totalBots, float *output_h, int &finalBest)
 {
 
-    int printInterval = 10;
+    int printInterval = 100;
     int *bestIndexes = new int[numSimulations];
     float *bestScores = new float[numSimulations];
     float *averageScores = new float[numSimulations];

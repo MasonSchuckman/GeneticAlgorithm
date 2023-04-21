@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "chrono": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "iterator": "cpp"
     }
 }

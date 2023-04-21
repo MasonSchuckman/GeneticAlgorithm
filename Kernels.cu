@@ -250,7 +250,7 @@ namespace Kernels
     // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
     // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
     __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome,
-                           float *nextGenWeights, float *nextGenBiases, const int iter)
+                           float *nextGenWeights, float *nextGenBiases, const int shift)
     {
         int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
         int tid = threadIdx.x;                           // thread id (within a block)
@@ -262,19 +262,19 @@ namespace Kernels
         if (block < n / 2)
         {
             curandState_t state;
-            curand_init(blockIdx.x + iter, threadIdx.x, 0, &state);
+            curand_init(blockIdx.x + shift, threadIdx.x, 0, &state);
 
             float rand;
 
             // calcuate the offset for this block's bot(s)
             int offsetBot1 = block * 2;
-            int offsetBot2 = (block * 2 + iter * 2 + 1) % n;
+            int offsetBot2 = (block * 2 + shift * 2 + 1) % n;
 
             float botScore1 = simulationOutcome[offsetBot1];
             float botScore2 = simulationOutcome[offsetBot2];
 
             int winnerBotOffset;
-            if ((botScore1 + 0.00001) > botScore2)
+            if (botScore1 > botScore2)
             {
                 winnerBotOffset = offsetBot1;
             }
@@ -648,8 +648,8 @@ __device__ int counter=0;
                     gamestate[7] = iter;
 
                     //TESTING: not giving velocity as an input:
-                    activs[0][0] = 0;
-                    activs[0][1] = 0;
+                    // activs[0][0] = 0;
+                    // activs[0][1] = 0;
                 }
                 // It's important to remember that activs and ws and bs are essentially 2d arrays. That's why indexing them is tricky and weird.
                 // Poll the NN for actions.
