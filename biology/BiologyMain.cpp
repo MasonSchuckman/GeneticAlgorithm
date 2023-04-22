@@ -1,30 +1,44 @@
 #include "Genome.h"
+#include "Species.h"
+#include "Specimen.h"
 #include "Taxonomy.h"
+
+#include <cmath>
 
 using std::cout;
 using std::endl;
 
-Genome** generateGenomes(int count, int *shape, int shapeLen);
+Specimen** generatePopulation(int count, int *shape, int shapeLen);
 void mutatingDistance(Genome* toMutate, int epochs);
+std::string prettyDistribution(std::map<Species*, float>* composition);
 
 int main() {
 
-    int SHAPE[] = {2,2};
+    int SHAPE[] = {2,2,2};
     int SHAPE_LENGTH = sizeof(SHAPE) / sizeof(int);
-    int COUNT = 5;
+    int COUNT = 25;
     
-    Genome** genomes = generateGenomes(COUNT, SHAPE, SHAPE_LENGTH);
-    for(int i = 0; i < COUNT; i++) {
-        for(int j = 0; j < COUNT; j++) {
-            float d = Taxonomy::distance(genomes[i], genomes[j]);
-            std::cout << "dist " << i << "," << j << ": " << d << endl;
-        }
+    Specimen** genesisPopulation = generatePopulation(COUNT, SHAPE, SHAPE_LENGTH);
+
+    Taxonomy history(genesisPopulation, COUNT);
+
+    auto composition = history.speciesComposition();
+    cout << prettyDistribution(composition) << endl;
+
+}
+
+std::string prettyDistribution(std::map<Species*, float>* composition) {
+
+    int DECIMAL_DIGITS_PRECISION = 2;
+    int OFFSET_FACTOR = pow(10, DECIMAL_DIGITS_PRECISION);
+
+    std::string toReturn = "distribution: ";
+    for (auto i = composition->begin(); i != composition->end(); i++) {
+        
+        int integralPercentage = i->second*(100.0 * OFFSET_FACTOR);
+        toReturn += std::to_string(integralPercentage / OFFSET_FACTOR) + "." + std::to_string(integralPercentage % OFFSET_FACTOR) + "%, ";
     }
-
-    //mutatingDistance(genomes[0], 20);
-
-    cout << "original: " << endl << genomes[0]->bodyString() << endl;
-
+    return toReturn;
 }
 
 
@@ -34,19 +48,22 @@ void mutatingDistance(Genome* toMutate, int epochs) {
 
     for(int i = 1; i <= epochs; i++) {
         cout << endl;
-        child = child->mitosis(50,0.1,0.03);
+        child = child->mitosis(0.5,0.1,0.03);
         cout << "epoch " << i << ":" << endl;
         cout << "genome body: " << endl << child->bodyString() << endl;
-        cout << "distance: " << Taxonomy::distance(toMutate, child) << endl;
+        cout << "distance: " << Genome::distance(toMutate, child) << endl;
 
     }
 }
 
-Genome** generateGenomes(int count, int *shape, int shapeLen) {
-    Genome** genomes = new Genome*[count];
+Specimen** generatePopulation(int count, int *shape, int shapeLen) {
 
-    for(int i = 0; i < count; i++) 
-        genomes[i] = new Genome(shape, shapeLen);
+    Specimen** population = new Specimen*[count];
+
+    for(int i = 0; i < count; i++) {
+        Genome* nextGenome = new Genome(shape, shapeLen);
+        population[i] = new Specimen(nextGenome, (Specimen*) nullptr);
+    }
     
-    return genomes;
+    return population;
 }

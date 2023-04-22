@@ -239,3 +239,28 @@ std::string Genome::bodyString() {
   }
   return toReturn;
 }
+
+// gets the euclidean distance, treating the two genomes as points
+// in n-dimensional space (where n = numNeurons + numConnections)
+float Genome::distance(Genome *first, Genome *second) {
+
+  // incompatible neural network shapes
+  if (first->shapeLen != second->shapeLen)
+    return -1;
+
+  // incompatible neural network shapes cont.
+  for (int i = 0; i < first->shapeLen; i++)
+    if (first->shape[i] != second->shape[i])
+      return -1;
+
+  // diff = (a2-a1)^2 + (b2-b1)^2 + ... + (z2-z1)^2
+  float diff = 0;
+  for (int neuron = 0; neuron < first->numNeurons; neuron++) 
+    diff += std::pow(first->biases[neuron] - second->biases[neuron], 2);
+
+  for (int neuron = 0; neuron < first->numConnections; neuron++) 
+    diff += std::pow(first->connections[neuron] - second->connections[neuron], 2);
+
+
+  return std::sqrt(diff);
+}

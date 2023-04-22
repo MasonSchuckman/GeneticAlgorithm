@@ -24,6 +24,7 @@ genomes offer several utility functions, including:
   - bodyString(), yielding a string with the contents of every weight of every connection / bias of the neural network
 */
 class Genome {
+
 public:
   int *shape;
   int shapeLen;
@@ -44,6 +45,8 @@ public:
 
   std::string shapeString();
   std::string bodyString();
+
+  static float distance(Genome *first, Genome *second);
 };
 
 #endif

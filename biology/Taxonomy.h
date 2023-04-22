@@ -1,20 +1,25 @@
 #ifndef TAXONOMY_H
 #define TAXONOMY_H
 #include "Genome.h"
+#include "Species.h"
 
 #include <cmath>
 #include <iostream>
+#include <vector>
+#include <map>
 
-
-/**
-
-*/
 class Taxonomy {
+private:
+  std::vector<Specimen*> generation;
+  int year;
 
 public:
-  static float distance(Genome *first, Genome *second);
-  Taxonomy(Genome **genomes, int genomeCount, float threshold);
-  Taxonomy(Taxonomy *previous, Genome **genomes, int genomeCount);
+  Taxonomy(Specimen **genesisGeneration, int genesisCount);
+
+  void incrementGeneration(Specimen **nextGeneration, int generationCount, float progenitorThreshold);
+
+  std::map<Species*, float>* speciesComposition();
 };
+
 
 #endif
