@@ -152,10 +152,214 @@ void Simulator::copyFromGPU(float *&weights_h, float *&biases_h)
     check(cudaMemcpy(biases_h, nextGenBiases_d, totalBots * config.totalNeurons * sizeof(float), cudaMemcpyDeviceToHost));
 }
 
+#include <fstream>
+void writeWeightsAndBiasesAll(float *weights_h, float *biases_h, int TOTAL_BOTS, int totalWeights, int totalNeurons, int numLayers, int *layerShapes) {
+    std::ofstream outfile("allBots.data", std::ios::out | std::ios::binary); //this might be more space efficient
+    //std::ofstream outfile("allBots.data");
+    // outfile << "all bots:\n";
+    // Write the total number of bots
+    outfile.write(reinterpret_cast<const char*>(&TOTAL_BOTS), sizeof(int));
+
+    // Write the total number of weights and neurons
+    outfile.write(reinterpret_cast<const char*>(&totalWeights), sizeof(int));
+    outfile.write(reinterpret_cast<const char*>(&totalNeurons), sizeof(int));
+
+    // Write the number of layers and their shapes
+    outfile.write(reinterpret_cast<const char*>(&numLayers), sizeof(int));
+    for (int i = 0; i < numLayers; i++) {
+        outfile.write(reinterpret_cast<const char*>(&layerShapes[i]), sizeof(int));
+    }
+
+    // Write the weights and biases for each bot
+    for (int bot = 0; bot < TOTAL_BOTS; bot++) {
+        // Write the weights for this bot
+        for (int i = 0; i < totalWeights; i++) {
+            float weight = weights_h[bot * totalWeights + i];
+            outfile.write(reinterpret_cast<const char*>(&weight), sizeof(float));
+        }
+        
+
+        // Write the biases for this bot
+        int biasOffset = bot * totalNeurons;
+        for (int i = 0; i < totalNeurons; i++) {
+            float bias = biases_h[biasOffset + i];
+            outfile.write(reinterpret_cast<const char*>(&bias), sizeof(float));
+        }
+        
+    }
+
+    outfile.close();
+}
+
+void write_weights_and_biases(float* weights, float* biases, int numLayers, int* layerShapes, int totalWeights, int totalNeurons, int lastGenBest) {
+    std::ofstream outfile("bestBot.data");
+    outfile << "net_weights = np.array([";
+    int WO = 0;
+    for (int layer = 0; layer < numLayers - 1; layer++)
+    {
+        int numWeightsInLayer = layerShapes[layer] * layerShapes[layer + 1];
+        outfile << "[";
+        for (int i = 0; i < numWeightsInLayer; i++)
+        {
+            outfile << weights[lastGenBest * totalWeights + WO + i];
+            if (i != numWeightsInLayer - 1)
+                outfile << ", ";
+        }
+        WO += numWeightsInLayer;
+        outfile << "]";
+        if (layer != numLayers - 2)
+            outfile << ",\n";
+    }
+    outfile << "])\n";
+
+    int BO = layerShapes[0];
+    outfile << "net_biases = np.array([";
+    for (int layer = 1; layer < numLayers; layer++)
+    {
+        outfile << "[";
+        for (int i = 0; i < layerShapes[layer]; i++)
+        {
+            outfile << biases[lastGenBest * totalNeurons + BO + i];
+            if (i != layerShapes[layer] - 1)
+                outfile << ", ";
+        }
+        BO += layerShapes[layer];
+        outfile << "]";
+        if (layer != numLayers - 1)
+            outfile << ",\n";
+    }
+    outfile << "])\n";
+    outfile.close();
+}
+
+
+#include <sstream>
+void readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int * layerShapes) {
+    std::ifstream infile("allBots.data", std::ios::in | std::ios::binary);
+    if (!infile.is_open()) {
+        std::cerr << "Failed to open file\n";
+        exit(1);
+    }
+
+    // Read the total number of bots
+    infile.read(reinterpret_cast<char*>(&TOTAL_BOTS), sizeof(int));
+
+    // Read the total number of weights and neurons
+    infile.read(reinterpret_cast<char*>(&totalWeights), sizeof(int));
+    infile.read(reinterpret_cast<char*>(&totalNeurons), sizeof(int));
+
+    // Read the number of layers and their shapes
+    infile.read(reinterpret_cast<char*>(&numLayers), sizeof(int));
+    layerShapes = new int[numLayers];
+    for (int i = 0; i < numLayers; i++) {
+        infile.read(reinterpret_cast<char*>(&layerShapes[i]), sizeof(int));
+    }
+
+    // Allocate memory for the weights and biases
+    weights_h = new float[TOTAL_BOTS * totalWeights];
+    biases_h = new float[TOTAL_BOTS * totalNeurons];
+
+    // Read the weights and biases for each bot
+    for (int bot = 0; bot < TOTAL_BOTS; bot++) {
+        // Read the weights for each layer
+        for (int i = 0; i < totalWeights; i++) {
+            float weight;
+            infile.read(reinterpret_cast<char*>(&weight), sizeof(float));
+            weights_h[bot * totalWeights + i] = weight;
+        }
+        
+        // Read the biases for each layer
+        for (int i = 0; i < totalNeurons; i++) {
+            float bias;
+            infile.read(reinterpret_cast<char*>(&bias), sizeof(float));
+            biases_h[bot * totalNeurons + i] = bias;
+        }
+    }
+
+    infile.close();
+}
+
+void read_weights_and_biases(float* weights, float* biases, int numLayers, int* layerShapes, int totalWeights, int totalNeurons, int lastGenBest) {
+    std::ifstream infile("bestBot.data");
+    std::string line;
+    std::vector<float> weights_vec;
+    std::vector<float> biases_vec;
+    bool reading_weights = false;
+    bool reading_biases = false;
+    int WO = 0;
+    int BO = layerShapes[0];
+    int layer = 0;
+
+    while (std::getline(infile, line)) {
+        std::istringstream iss(line);
+        std::string token;
+
+        while (std::getline(iss, token, '[')) {
+            if (token.find("net_weights") != std::string::npos) {
+                reading_weights = true;
+                continue;
+            }
+            else if (token.find("net_biases") != std::string::npos) {
+                reading_biases = true;
+                continue;
+            }
+            if (!reading_weights && !reading_biases) {
+                continue;
+            }
+            else if (reading_weights && token.find("]") != std::string::npos) {
+                reading_weights = false;
+                layer++;
+            }
+            else if (reading_biases && token.find("]") != std::string::npos) {
+                reading_biases = false;
+                layer++;
+            }
+            else {
+                std::istringstream inner_iss(token);
+                std::string inner_token;
+
+                while (std::getline(inner_iss, inner_token, ',')) {
+                    if (reading_weights) {
+                        weights_vec.push_back(std::stof(inner_token));
+                    }
+                    else if (reading_biases) {
+                        biases_vec.push_back(std::stof(inner_token));
+                    }
+                }
+            }
+        }
+    }
+
+    int weight_index = lastGenBest * totalWeights;
+    int bias_index = lastGenBest * totalNeurons;
+    WO = 0;
+    BO = layerShapes[0];
+
+    for (int layer = 0; layer < numLayers - 1; layer++) {
+        int numWeightsInLayer = layerShapes[layer] * layerShapes[layer + 1];
+
+        for (int i = 0; i < numWeightsInLayer; i++) {
+            weights[weight_index + WO + i] = weights_vec[WO + i];
+        }
+        WO += numWeightsInLayer;
+    }
+
+    for (int layer = 1; layer < numLayers; layer++) {
+        int numBiasesInLayer = layerShapes[layer];
+
+        for (int i = 0; i < numBiasesInLayer; i++) {
+            biases[bias_index + BO + i] = biases_vec[BO + i];
+        }
+        BO += numBiasesInLayer;
+    }
+
+    infile.close();
+}
+
+
 #include <chrono>
 
-float mutateMagnitude = 1.0f; //starting magnitude
-float min_mutate_rate = .000001f; //ending magnitude
+
 void Simulator::runSimulation(float *output_h)
 {
     int totalBots = bots.size();
@@ -179,7 +383,7 @@ void Simulator::runSimulation(float *output_h)
     float startingX = distr(eng);
     float startingY = distr(eng);
 
-    double r = 10.0; // radius of circle
+    double r = 10.0 + iterationsCompleted / 50; // radius of circle
     double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
     targetX = r * cos(angle); // compute x coordinate
     targetY = r * sin(angle); // compute y coordinate
@@ -237,13 +441,14 @@ void Simulator::runSimulation(float *output_h)
     
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
-        mutateMagnitude *= 0.982f;
+        mutateMagnitude *= mutateDecayRate;
 
     // each block looks at 2 bots
     numBlocks = totalBots / 2; //(assumes even number of bots)
     //start_time = std::chrono::high_resolution_clock::now();
     
     int shift = (int) (((double)rand() / RAND_MAX) * totalBots) % totalBots;
+    shift = iterationsCompleted;
     Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, nextGenWeights_d, nextGenBiases_d, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
@@ -360,7 +565,6 @@ void Simulator::batchSimulate(int numSimulations)
     for (int layer = 0; layer < config.numLayers - 1; layer++)
     {
         int numWeightsInLayer = config.layerShapes[layer] * config.layerShapes[layer + 1];
-        // printf("Layer %d, size = %d, WO = %d\n", layer, config.layerShapes[layer], WO);
         printf("[");
         for (int i = 0; i < numWeightsInLayer; i++)
         {
@@ -380,7 +584,6 @@ void Simulator::batchSimulate(int numSimulations)
     int BO = config.layerShapes[0];
     for (int layer = 1; layer < config.numLayers; layer++)
     {
-        // printf("Layer %d, size = %d, WO = %d\n", layer, config.layerShapes[layer], WO);
         printf("[");
         for (int i = 0; i < config.layerShapes[layer]; i++)
         {
@@ -395,6 +598,28 @@ void Simulator::batchSimulate(int numSimulations)
     }
     printf("])\n");
     
+
+    write_weights_and_biases(weights_h, biases_h, config.numLayers, config.layerShapes, config.totalWeights, config.totalNeurons, lastGenBest);
+    writeWeightsAndBiasesAll(weights_h, biases_h, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);
+    
+    float * savedWeights;
+    float * savedBiases;
+
+    readWeightsAndBiasesAll(savedWeights, savedBiases, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);
+
+    int passed = 1;
+    for(int i = 0; i < config.totalWeights * totalBots; i++){
+        if(savedWeights[i] != weights_h[i]){
+            printf("iter %d\tsaved : %f\ttrue : %f\n",i , savedWeights[i], weights_h[i]);
+            passed = 0;
+        }
+    }
+    printf("PASSED TEST? %d\n", passed);
+
+    delete [] savedWeights;
+    delete [] savedBiases;
+    
+
 
     // Do something with the output data....
 

@@ -648,8 +648,8 @@ __device__ int counter=0;
                     gamestate[7] = iter;
 
                     //TESTING: not giving velocity as an input:
-                    // activs[0][0] = 0;
-                    // activs[0][1] = 0;
+                    activs[0][0] = 0;
+                    activs[0][1] = 0;
                 }
                 // It's important to remember that activs and ws and bs are essentially 2d arrays. That's why indexing them is tricky and weird.
                 // Poll the NN for actions.

@@ -179,7 +179,7 @@ void test_simulation_1()
 
 void test_simulation_2()
 {
-    FullSimConfig fullConfig = setupSimulation("config.json");
+    FullSimConfig fullConfig = setupSimulation("TargetSimConfig.json");
 
     vector<Bot*> bots;
     for(int i = 0; i < fullConfig.totalBots; i++){
@@ -187,8 +187,10 @@ void test_simulation_2()
     }
 
     Simulator engine(bots, fullConfig.sim, fullConfig.config);
-
-    engine.batchSimulate(1000);
+    engine.min_mutate_rate = fullConfig.minMutationRate;
+    engine.mutateMagnitude = fullConfig.baseMutationRate;
+    engine.mutateDecayRate = fullConfig.mutationDecayRate;
+    engine.batchSimulate(fullConfig.generations);
 
     
     for(int i = 0; i < fullConfig.totalBots; i++){

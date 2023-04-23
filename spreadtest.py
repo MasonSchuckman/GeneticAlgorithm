@@ -1,13 +1,14 @@
 from collections import Counter
 import random
 
-size = 2**5
+scale = 15
+size = 2**scale
 starting = [i for i in range(size)]
 print('Iter 0')
 print(starting)
 
 
-iters = 5
+iters = scale
 blocks = int(size / 2)
 next = [0] * size
 

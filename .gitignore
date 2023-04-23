@@ -18,6 +18,7 @@
 *.exe
 *.exp
 *.lib
+testNN*.py
 
 # Build results
 [Dd]ebug/

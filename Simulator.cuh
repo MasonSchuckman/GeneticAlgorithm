@@ -46,6 +46,9 @@ public:
 
     Bot * getBest();
 
+    float mutateMagnitude = 1.0f; //starting magnitude
+    float min_mutate_rate = .000001f; //ending magnitude
+    float mutateDecayRate = 0.99f;
 private:
 
     void formatBotData(int *& layerShapes_h, float *&startingParams_h, 
@@ -61,6 +64,7 @@ private:
     
     int iterationsCompleted = 0;
 
+    
     /*
     Pointers to device memory should be private and persist as we're doing simulation.
     This way we don't need to constantly re allocate device memory.
