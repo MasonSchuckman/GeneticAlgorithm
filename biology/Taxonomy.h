@@ -8,6 +8,10 @@
 #include <vector>
 #include <map>
 
+#define Composition std::tuple<Species*, float>
+#define CompositionGradient std::vector<Composition>*
+
+
 class Taxonomy {
 private:
   std::vector<Specimen*> generation;
@@ -18,8 +22,10 @@ public:
 
   void incrementGeneration(Specimen **nextGeneration, int generationCount, float progenitorThreshold);
   int getYear();
-  
-  std::map<Species*, float>* speciesComposition();
+
+  std::vector<std::tuple<Species*, float>>* speciesComposition();
+  static std::string compositionString(CompositionGradient composition);
+  static std::string compositionGraph(CompositionGradient composition);
 };
 
 
