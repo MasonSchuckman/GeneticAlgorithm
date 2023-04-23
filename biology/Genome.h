@@ -37,16 +37,16 @@ public:
 
   Genome(int *shape, int shapeLen);
   Genome(int *shape, int shapeLen, float *biases, float *connections);
-  Genome(Genome *other);
+  Genome(const Genome *other);
   ~Genome();
 
-  Genome *mitosis(float percentage, float staticStepSize, float dynamicStepSize);
-  Genome *meiosis(Genome *parent2);
+  Genome *mitosis(float percentage, float staticStepSize, float dynamicStepSize) const;
+  Genome *meiosis(const Genome *parent2) const;
 
-  std::string shapeString();
-  std::string bodyString();
+  std::string shapeString() const;
+  std::string bodyString() const;
 
-  static float distance(Genome *first, Genome *second);
+  static float distance(const Genome *first, const Genome *second);
 };
 
 #endif

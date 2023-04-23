@@ -19,8 +19,20 @@ Taxonomy::Taxonomy(Specimen **genesisGeneration, int genesisCount) {
     }
 }
 
+int Taxonomy::getYear() {
+    return year;
+}
+
 void Taxonomy::incrementGeneration(Specimen **nextGeneration, int generationCount, float progenitorThreshold) {
     
+    this->year++;
+    this->generation.clear();
+    
+    // copying specimen to current generation
+    for(int i = 0; i < generationCount; i++) {
+        Specimen* nextSpecimen = nextGeneration[i];
+        this->generation.push_back(nextSpecimen);
+    }
 }
 
 std::map<Species*, float>* Taxonomy::speciesComposition() {
@@ -36,7 +48,7 @@ std::map<Species*, float>* Taxonomy::speciesComposition() {
         if(composition->find(species) != composition->end()) 
             density = composition->at(species);
         
-        composition->insert({species, density + percentPerSpecimen});
+        composition->insert_or_assign(species, density + percentPerSpecimen);
     }
 
     return composition;

@@ -5,9 +5,12 @@
 #include "Specimen.h"
 #include <string>
 
-class Species {
 
+class Species {
+private:
+  static int currentID;
 public:
+  const int id = currentID++;
   const int speciationYear;
   const Specimen* progenitor;
 

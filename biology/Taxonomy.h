@@ -17,7 +17,8 @@ public:
   Taxonomy(Specimen **genesisGeneration, int genesisCount);
 
   void incrementGeneration(Specimen **nextGeneration, int generationCount, float progenitorThreshold);
-
+  int getYear();
+  
   std::map<Species*, float>* speciesComposition();
 };
 
