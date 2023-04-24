@@ -1,6 +1,5 @@
 #include "Taxonomy.h"
 
-
 Taxonomy::Taxonomy(Specimen **genesisGeneration, int genesisCount) {
 
     this->year = 0;
@@ -8,8 +7,7 @@ Taxonomy::Taxonomy(Specimen **genesisGeneration, int genesisCount) {
     // creating a new species for each new specimen
     for(int i = 0; i < genesisCount; i++) {
         Specimen* nextSpecimen = genesisGeneration[i];
-        Species* newSpecies = new Species(nextSpecimen, year);
-        nextSpecimen->species = newSpecies;
+        makeProgenitor(nextSpecimen);
     }
 
     // copying specimen to current generation
@@ -23,6 +21,46 @@ int Taxonomy::getYear() {
     return year;
 }
 
+void Taxonomy::pruneSpecimen(Specimen* toPrune) {
+    if(toPrune->species->progenitor != toPrune)
+        delete toPrune;
+}
+
+
+Species* Taxonomy::makeProgenitor(Specimen* specimen) {
+    Species* newSpecies = new Species(specimen, this->year);
+    specimen->species = newSpecies;
+
+    if(specimen->parent != nullptr) 
+        specimen->parent->species->addDescendantSpecies(newSpecies);
+    
+    return newSpecies;
+}
+
+Species* inheritSpecies(Specimen* specimen, Species* species) {
+    specimen->species = species;
+    return species;
+}
+
+Species* Taxonomy::assignSpecies(Specimen* specimen, float progenitorThreshold) {
+
+    if(specimen->parent == nullptr)
+        return makeProgenitor(specimen);
+
+    Species* parentSpecies = specimen->parent->species;
+
+    if(Specimen::distance(parentSpecies->progenitor, specimen) <= progenitorThreshold)
+        return inheritSpecies(specimen, parentSpecies);
+    
+    for(Species* existingProgenitor : parentSpecies->descendantSpecies) 
+        if(Specimen::distance(existingProgenitor->progenitor, specimen) <= progenitorThreshold)
+            return inheritSpecies(specimen, existingProgenitor);
+
+    Species* newSpecies = makeProgenitor(specimen);
+    return newSpecies;
+}
+
+
 void Taxonomy::incrementGeneration(Specimen **nextGeneration, int generationCount, float progenitorThreshold) {
     
     this->year++;
@@ -31,6 +69,7 @@ void Taxonomy::incrementGeneration(Specimen **nextGeneration, int generationCoun
     // copying specimen to current generation
     for(int i = 0; i < generationCount; i++) {
         Specimen* nextSpecimen = nextGeneration[i];
+        assignSpecies(nextSpecimen, progenitorThreshold);
         this->generation.push_back(nextSpecimen);
     }
 }
@@ -63,24 +102,29 @@ CompositionGradient Taxonomy::speciesComposition() {
     return toReturn;
 }
 
-std::string Taxonomy::compositionGraph(CompositionGradient composition) {
+std::string Taxonomy::compositionGraph(const CompositionGradient composition) {
 
     const int CHARS_TILL_100PERCENT = 40;
+
     std::string toReturn = "///|"; 
     for(int i = 1; i <= CHARS_TILL_100PERCENT; i++)
             toReturn += "-";
     toReturn += "|\n";
 
+    int index = 0;
+    float totalPercentage = 0;
     for (auto i : *composition) {
+
         std::string speciesID = std::to_string(std::get<0>(i)->id);
         int digits = speciesID.length();
 
         toReturn += ("     " + speciesID).substr(digits+2,digits+5);
         toReturn += "|";
 
-        int integralPercentage = std::get<1>(i)*(CHARS_TILL_100PERCENT * 1.0);
+        totalPercentage += std::get<1>(i);
+        int charsNeeded = std::get<1>(i)*(CHARS_TILL_100PERCENT * 1.0);
 
-        for(int tickCount = 0; tickCount < integralPercentage; tickCount++) 
+        for(int tickCount = 0; tickCount < charsNeeded; tickCount++) 
             toReturn += "*";
         toReturn += "\n";
     }
@@ -90,11 +134,13 @@ std::string Taxonomy::compositionGraph(CompositionGradient composition) {
     }
     toReturn += "|\n";
     toReturn += "     ^ = " + std::to_string(500.0/CHARS_TILL_100PERCENT) + "%";
+    toReturn += "    showing ~" + std::to_string((int)(totalPercentage*100)) + "% of popl.";
+
 
     return toReturn;
 }
 
-std::string Taxonomy::compositionString(CompositionGradient composition) {
+std::string Taxonomy::compositionString(const CompositionGradient composition) {
 
     int DECIMAL_DIGITS_PRECISION = 1;
     int OFFSET_FACTOR = pow(10, DECIMAL_DIGITS_PRECISION);
