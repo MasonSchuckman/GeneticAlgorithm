@@ -1,18 +1,16 @@
 
-
 def importFromFile(filename):
     geneFile = open(filename+".gene", "r")
     contents = geneFile.read().split('\n')
     contents = [l.split() for l in contents]
 
     shape = list(map(int, contents[1][1:]))
-    type = contents[2][0]
+    type = contents[2][1]
     cons  = list(map(float, contents[3][1:]))
     bias  = list(map(float, contents[4][1:]))
     geneFile.close()
 
     return shape, type, cons, bias
-
 
 def exportToFile(filename, genome):
     shape, type, cons, bias = genome
@@ -28,9 +26,4 @@ def exportToFile(filename, genome):
     geneFile.close()
 
 
-
-res = importFromFile('biology/test')
-print(res)
-
-exportToFile("out", res)
 
