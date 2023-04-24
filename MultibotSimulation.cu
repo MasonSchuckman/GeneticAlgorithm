@@ -4,7 +4,7 @@
 extern __constant__ SimConfig config_d;
 
 __constant__ float MAX_SPEED2 = 5.0f;
-__constant__ float MAX_ACCEL = 0.30f;
+__constant__ float MAX_ACCEL = 1.00f;
 
 #define degrees 90.0f
 #define ROTATION_ANGLE degrees * 3.141592654f / 180.0f // 90 degrees
@@ -20,15 +20,16 @@ Gamestate description
 0 : iteration
 1 : Ax
 2 : Ay
-3 : Bx
-4 : By
-5 : Avx
-6 : Avy
+3 : Avx
+4 : Avy
+
+5 : Bx
+6 : By
 7 : Bvx
 8 : Bvy
 
-11 : B_total_dist
-12 : A_total_dist
+11 : A_total_dist
+12 : B_total_dist
 
 13 : targetX
 14 : targetY
@@ -47,14 +48,14 @@ __device__ void MultibotSimulation::setupSimulation(const float *startingParams,
         gamestate[1] = startingParams[3];
         gamestate[2] = startingParams[4];
 
-        // pos B
-        gamestate[3] = startingParams[3];
-        gamestate[4] = startingParams[4];
-
         // Vel A
-        gamestate[5] = 0;
-        gamestate[6] = 0;
+        gamestate[3] = 0;
+        gamestate[4] = 0;
 
+        // pos B
+        gamestate[5] = startingParams[3];
+        gamestate[6] = startingParams[4];
+      
         // Vel B
         gamestate[7] = 0;
         gamestate[8] = 0;
@@ -70,36 +71,105 @@ __device__ void MultibotSimulation::setupSimulation(const float *startingParams,
     __syncthreads();
 }
 
-__device__ void MultibotSimulation::setActivations(float *gamestate, float *activs, int iter)
+__device__ void MultibotSimulation::setActivations(float *gamestate, float ** activs, int iter)
 {
+    int bot = -1;    
     int tid = threadIdx.x;
-    const int numInputs = 8; // not including target pos
-    if (tid < numInputs)
-    {
-        activs[tid] = gamestate[tid + 1]; //+1 since iter is 0.
+    const int numBotVars = 4;
+
+    if(tid < numBotVars){
+        bot = 0;
+    }else if(tid < numBotVars * 2){
+        bot = 1;
     }
-    if (tid == 0)
+    
+    if(bot == 0){
+        // if(tid == 0)
+        // printf("%d setting bot %d activ %d with gamestate[%d]\n", tid, bot, tid, tid + 1);
+        activs[bot][tid] = gamestate[tid + 1]; //+1 since iter is 0.
+        activs[bot][tid + numBotVars] = gamestate[tid + numBotVars + 1];
+        //activs[bot][tid + numBotVars] = 0;
+
+    }else if(bot == 1){
+             
+        activs[bot][tid - numBotVars] = gamestate[tid + 1]; //+1 since iter is 0.
+        activs[bot][tid] = gamestate[tid - numBotVars + 1];
+        //activs[bot][tid] = 0;
+    }
+    
+
+    if (tid < 2)
     {
+        bot = tid;
         gamestate[0] = iter;
 
         // Input the target position
-        activs[8] = gamestate[13];
-        activs[9] = gamestate[14];
+        activs[bot][8] = gamestate[13];
+        activs[bot][9] = gamestate[14];
     }
+    // int tid = threadIdx.x;
+    // if(tid == 0){
+    //     //do bot 1
+    //     for(int i = 0; i < 8; i++){
+    //         activs[0][i] = gamestate[i + 1];
+    //     }
+
+    //     //do bot 2
+    //     int c = 0;
+    //     for(int i = 0; i < 4; i++){
+    //         activs[1][c] = gamestate[i + 1 + 4];
+    //         c++;
+    //     }
+    //     for(int i = 0; i < 4; i++){
+    //         activs[1][c] = gamestate[i + 1];
+    //         c++;
+    //     }
+
+    //     gamestate[0] = iter;
+
+    // //     // Input the target position
+    //     activs[0][8] = gamestate[13];
+    //     activs[0][9] = gamestate[14];
+
+    //     activs[1][8] = gamestate[13];
+    //     activs[1][9] = gamestate[14];
+
+        
+    // }
+
+    // if(tid == 0 && blockIdx.x == 0){
+    //     printf("Game state:\n");
+    //     for(int i = 0; i < 8; i++)
+    //         printf("%f, ", gamestate[i + 1]);
+    //     printf("\n");
+
+    //     printf("Bot 0 activs:\n");
+    //     for(int i = 0; i < 8; i++)
+    //         printf("%f, ", activs[0][i]);
+    //     printf("\n");
+
+    //     printf("Bot 1 activs:\n");
+    //     for(int i = 0; i < 8; i++)
+    //         printf("%f, ", activs[1][i]);
+    //     printf("\n");
+    // }
     __syncthreads();
 }
 
 __device__ void MultibotSimulation::eval(float **actions, float *gamestate)
 {
+    const int numBotVars = 4;
     int tid = threadIdx.x;
-    int bot = 0;
+    int velOffset = 3; // + 3 = 1 (iter) + 2 (pos indecies)
+    int posOffset = 1;
+    int bot = -1;
+    
     if (tid < 2)
         bot = 0;
-    else
+    else if(tid < 4)
         bot = 1;
 
-    int posOffset = 1;
-    int velOffset = 5;
+    
 
     int direction = tid % 2; // which direction (x or y) this thread updates
 
@@ -108,19 +178,20 @@ __device__ void MultibotSimulation::eval(float **actions, float *gamestate)
     {
         // Allows precise movement in either direction.
         float preference = actions[bot][direction];
+        // if(tid == 0 && blockIdx.x == 0){
+        //     printf("\nOutput1 : %f, %f", actions[0][0], actions[0][1]);
+        //     printf("\tOutput2 : %f, %f\n", actions[1][0], actions[1][1]);
+        // }
         float accel = preference * MAX_ACCEL;
 
         // Bound the acceleration change
         accel = fminf(MAX_ACCEL, fmaxf(-MAX_ACCEL, accel));
 
         // Update the bot's velocity
-        gamestate[bot * 2 + direction + velOffset] += accel;
+        gamestate[bot * numBotVars + direction + velOffset] += accel; 
+        //gamestate[bot * numBotVars + direction + velOffset] = accel; 
 
        
-
-        // if(gamestate[tid] > MAX_SPEED && blockIdx.x == 0){
-        //     printf("ERROR IN EVAL. activation = %f\n", actions[0][tid]);
-        // }
     }
 
     __syncthreads();
@@ -130,22 +201,23 @@ __device__ void MultibotSimulation::eval(float **actions, float *gamestate)
     {
         bot = tid;
 
-        float Avx = gamestate[bot * 2 + velOffset + 0];
-        float Avy = gamestate[bot * 2 + velOffset + 1];
+        float Avx = gamestate[bot * numBotVars + velOffset + 0];
+        float Avy = gamestate[bot * numBotVars + velOffset + 1];
 
         // Make sure the speed doesn't go above max speed
         float speed = hypotf(Avx, Avy);
         if (speed > MAX_SPEED2)
         {
             float f = MAX_SPEED2 / speed;
-            gamestate[bot * 2 + velOffset + 0] *= f;
-            gamestate[bot * 2 + velOffset + 1] *= f;
+            gamestate[bot * numBotVars + velOffset + 0] *= f;
+            gamestate[bot * numBotVars + velOffset + 1] *= f;
         }
 
         // Update the bot's position
-        gamestate[bot * 2 + posOffset + 0] += gamestate[bot * 2 + velOffset + 0];
-        gamestate[bot * 2 + posOffset + 1] += gamestate[bot * 2 + velOffset + 1];
+        gamestate[bot * numBotVars + posOffset + 0] += gamestate[bot * numBotVars + velOffset + 0];
+        gamestate[bot * numBotVars + posOffset + 1] += gamestate[bot * numBotVars + velOffset + 1];
     }
+
     __syncthreads();
 }
 
@@ -156,9 +228,11 @@ __device__ int MultibotSimulation::checkFinished(float *gamestate)
     {
         int bot = tid;
         int posOffset = 1;
+        const int numBotVars = 4;
 
-        float dx = gamestate[13] - gamestate[bot * 2 + posOffset + 0];
-        float dy = gamestate[14] - gamestate[bot * 2 + posOffset + 1];
+        
+        float dx = gamestate[13] - gamestate[bot * numBotVars + posOffset + 0];
+        float dy = gamestate[14] - gamestate[bot * numBotVars + posOffset + 1];
         float dist = hypotf(dx, dy);
 
         gamestate[bot + 11] += dist; // 11 = distOffset
@@ -168,12 +242,16 @@ __device__ int MultibotSimulation::checkFinished(float *gamestate)
             //   printf("%d at target on iter %f\n", blockIdx.x, gamestate[0]);
         }
 
-        if (dist < .5f && threadIdx.x == 0 && gamestate[0] > 55)
-        {
-            //printf("dist = %f, iter = %d\n", dist, gamestate[0]);
-        }
-
-        __syncthreads();
+        // if (dist < .5f && threadIdx.x == 0 && gamestate[0] > 30)
+        // {
+        //     printf("dist = %f, iter = %d, bot = %d\n", dist, (int)gamestate[0], blockIdx.x);
+        //     printf("Game state:\n");
+        //     for(int i = 0; i < 15; i++)
+        //         printf("%f, ", gamestate[i]);
+        //     printf("\n");
+        // }
+    }
+    __syncthreads();
 
         // Check if we need to reset the sim this iteration
         // if (((int)gamestate[7] + 1) % resetInterval == 0)
@@ -194,7 +272,7 @@ __device__ int MultibotSimulation::checkFinished(float *gamestate)
         //         gamestate[5] = new_y;
         //     }
         // }
-    }
+    
 
     __syncthreads();
 

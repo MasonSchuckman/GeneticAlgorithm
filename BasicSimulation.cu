@@ -9,7 +9,7 @@ __device__ void BasicSimulation::setupSimulation(const float * startingParams, f
 }
 
 //Called at the beginning of each sim iteration. 
-__device__ void BasicSimulation::setActivations(float * gamestate, float * activs, int iter){
+__device__ void BasicSimulation::setActivations(float * gamestate, float ** activs, int iter){
 
 }
 

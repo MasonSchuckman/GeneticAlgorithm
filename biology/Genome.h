@@ -1,7 +1,7 @@
 #ifndef GENOME_H
 #define GENOME_H
 #include <iostream>
-
+#include "math.h"
 // string type
 #include <string>
 

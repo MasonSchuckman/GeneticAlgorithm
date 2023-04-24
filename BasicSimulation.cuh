@@ -14,7 +14,7 @@ public:
     __device__ void setupSimulation(const float * startingParams, float * gamestate);
 
     //Called at the beginning of each sim iteration. 
-    __device__ void setActivations(float * gamestate, float * activs, int iter);
+    __device__ void setActivations(float * gamestate, float ** activs, int iter);
 
     __device__ void eval(float ** actions, float * gamestate);
 

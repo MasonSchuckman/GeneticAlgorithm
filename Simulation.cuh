@@ -56,7 +56,7 @@ public:
     __device__ virtual void setupSimulation(const float * startingParams, float * gamestate) = 0;
 
     //Called at the beginning of each sim iteration. 
-    __device__ virtual void setActivations(float * gamestate, float * activs, int iter) = 0;
+    __device__ virtual void setActivations(float * gamestate, float ** activs, int iter) = 0;
 
 
     //return 1 if simulation is finished.

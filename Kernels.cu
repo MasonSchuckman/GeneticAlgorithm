@@ -287,7 +287,9 @@ namespace Kernels
             {
                 winnerBotOffset = offsetBot2;
             }
-
+            // if(tid == 0 && block == 0){
+            //     printf("bot 1 = %d, bot 2 = %d, scores : %f, %f\n", offsetBot1, offsetBot2, botScore1, botScore2);
+            // }
             
             __syncthreads();
             // Write next gen bot one's data
@@ -316,8 +318,32 @@ namespace Kernels
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
                 (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
             }
+
+            __syncthreads();
+
+            // if(gid == 0){
+            //     printf("pre mutate bot 1:\n");
+            //     for(int i = 0; i < config_d.totalNeurons; i++){
+            //         printf("%f, ", (allBiases)[i + winnerBotOffset * config_d.totalNeurons]);
+            //     }                printf("\n");
+
+            //     printf("post mutate bot 1:\n");
+            //     for(int i = 0; i < config_d.totalNeurons; i++){
+            //         printf("%f, ", (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons]);
+            //     }
+            //     printf("\n");
+            //     printf("post mutate bot 2:\n");
+            //     for(int i = 0; i < config_d.totalNeurons; i++){
+            //         printf("%f, ",  (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] );
+            //     }                printf("\n");
+            //     printf("\n");
+
+            // }
         }
+        
         __syncthreads();
+
+        
 
         return;
     }
@@ -572,8 +598,8 @@ namespace Kernels
 
             // hard coding this makes things *much* simpler. We can change it if needed.
             __shared__ float gamestate[64];
-            // hard coding for TargetSimulation
             (*sim)->setupSimulation(startingParams, gamestate);
+
 
             // shared mem layout is w1,w2...,w_bpt,b1,b2,...,b_bpt,a_1,a_2,...,a_bpt
             // declare our block of shared memory
@@ -594,12 +620,15 @@ namespace Kernels
             // Copy this block's weights and biases to the shared arrays.
             for (int i = tid; i < config_d.totalWeights * config_d.bpb; i += stride)
             {
-                weights[i] = (allWeights)[block * config_d.totalWeights + i];
+                weights[i] = (allWeights)[block * config_d.totalWeights * config_d.bpb + i];
             }
             for (int i = tid; i < config_d.totalNeurons * config_d.bpb; i += stride)
             {
-                biases[i] = (allBiases)[block * config_d.totalNeurons + i];
+                biases[i] = (allBiases)[block * config_d.totalNeurons * config_d.bpb + i];
             }
+
+            __syncthreads();
+
 
             // Seperate the bot(s) data
             const float *ws[MAX_BOTS_PER_SIM]; // abbreviation for "bot weights"
@@ -610,6 +639,7 @@ namespace Kernels
             // This makes it easier to pass the bots' actions' for each iteration.
             float *actions[MAX_BOTS_PER_SIM];
 
+
             // Populate the arrays created above
             for (int i = 0; i < config_d.bpb; i++)
             {
@@ -619,9 +649,33 @@ namespace Kernels
 
                 // TODO: check if this correctly offsets actions[i] to point to the last layer of bot_i's activations network.
                 actions[i] = activs[i] + config_d.totalNeurons - config_d.layerShapes[config_d.numLayers - 1];
+                
             }
-
             __syncthreads();
+            // if(gid == 0){
+            //     printf("Bot 1 biases:\n");
+            //     for(int i = 0; i < config_d.totalNeurons; i++){
+            //         printf("%f, ", bs[0][i]);
+            //     }
+            //     printf("\n");
+
+            //     printf("Bot 2 biases:\n");
+            //     for(int i = 0; i < config_d.totalNeurons; i++){
+            //         printf("%f, ", bs[0][i]);
+            //     }
+            //     printf("\n");
+            // //    printf("global:\n");
+            // //    for(int i = 0; i < 2; i++){
+            // //     for(int j = 0; j < config_d.totalNeurons; i++){
+            // //         printf("%f, ", allBiases[i * config_d.totalNeurons + j]);
+            // //     }
+            // //     printf("\n");
+            // //    }
+            // // printf("\n\n\n");
+
+            // }
+
+            // __syncthreads();
 
             int maxIters = config_d.maxIters;
             bool finished = false;
@@ -631,15 +685,14 @@ namespace Kernels
             // run the simulation loop.
             while (!finished)
             {               
+                // Set the activations for this bot this iteration
+                (*sim)->setActivations(gamestate, activs, iter);
+                __syncthreads();
+
                 // It's important to remember that activs and ws and bs are essentially 2d arrays. That's why indexing them is tricky and weird.
                 // Poll the NN for actions.
                 for (int bot = 0; bot < config_d.bpb; bot++)
                 {
-                    // Set the activations for this bot this iteration
-                    (*sim)->setActivations(gamestate, activs[bot], iter);
-                    __syncthreads();
-
-
                     // All of these offsets are to account for the multiple layers in the network.
                     int WO = 0; // weights offset
                     int BO = 0; // biases offset
@@ -676,15 +729,18 @@ namespace Kernels
                 if (iter >= maxIters)
                 {
                     finished = true;
-                    if(gamestate[6] == 0)
+                    if(gamestate[11] == 0)
                         output[block] = 0;
-                    else if (tid == 0)
+                    else if (tid == 0){
                         //output[block] = -gamestate[6]; // Uses totalDist as a metric
                         //output[block] = (startingParams[2] / gamestate[6]); // Uses efficiency as a metric
                         //hard coding for multibot:
-                        output[block * 2] = (startingParams[2] / gamestate[11]); // Uses efficiency as a metric
-                        output[block * 2 + 1] = (startingParams[2] / gamestate[12]); // Uses efficiency as a metric
+                        // output[block * 2] = (startingParams[2] / gamestate[11]); // Uses efficiency as a metric
+                        // output[block * 2 + 1] = (startingParams[2] / gamestate[12]); // Uses efficiency as a metric
+                        output[block * 2] = -gamestate[11];
+                        output[block * 2 + 1] = -gamestate[12];
 
+                    }
                     if(gid == 0){
                         if(counter % 10 == 0)
                             printf("Block %d total dist = %f, efficiency = %f\n", blockIdx.x, gamestate[11], (startingParams[2] / gamestate[11]));

@@ -417,11 +417,12 @@ void Simulator::runSimulation(float *output_h)
     int totalBots = bots.size();
     int tpb = 32; // threads per block
     int numBlocks = (totalBots / config.bpb);
-    // printf("Num blocks = %d\n", numBlocks);
 
     int sharedMemNeeded = (config.totalWeights + config.totalNeurons * 2) * config.bpb;
-    // printf("Shared mem needed per block = %d KB\n", sharedMemNeeded * sizeof(float) / (2 << 10));
-
+    if(iterationsCompleted == 0){
+        printf("Num blocks = %d. Bots per sim = %d\n", numBlocks, config.bpb);
+        printf("Shared mem needed per block = %d KB\n", sharedMemNeeded * sizeof(float) / (2 << 10));
+    }
     // get random target coordinates
     int minPos = -2;
     int maxPos = 2;
@@ -435,16 +436,18 @@ void Simulator::runSimulation(float *output_h)
     float startingX = distr(eng);
     float startingY = distr(eng);
 
-    double r = 10.0 + iterationsCompleted / 120; // radius of circle
+    double r = 5.0 + iterationsCompleted / 10; // radius of circle
     double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
     targetX = r * cos(angle); // compute x coordinate
     targetY = r * sin(angle); // compute y coordinate
-    targetX = 10;
-    targetY = 0;
+    // targetX = 10;
+    // targetY = 0;
+    startingX = 0;
+    startingY = 0;
     if (targetX == 0 && targetY == 0)
         targetX = 2;
     
-    float optimal = hypotf(targetX, targetY) / 2.0 * hypotf(targetX, targetY) * 4 / 10;
+    float optimal = hypotf(targetX, targetY) / 2.0 * hypotf(targetX, targetY);
 
     // transfer target coordinates to GPU
     float *startingParams_h = new float[config.numStartingParams];

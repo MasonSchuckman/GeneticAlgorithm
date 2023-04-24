@@ -28,13 +28,13 @@ __device__ void TargetSimulation::setupSimulation(const float *startingParams, f
     __syncthreads();
 }
 
-__device__ void TargetSimulation::setActivations(float *gamestate, float *activs, int iter)
+__device__ void TargetSimulation::setActivations(float *gamestate, float ** activs, int iter)
 {
     int tid = threadIdx.x;
     const int numInputs = 6;
     if (tid < numInputs)
     {
-        activs[tid] = gamestate[tid];
+        activs[0][tid] = gamestate[tid];
     }
     if (tid == 0)
     {
