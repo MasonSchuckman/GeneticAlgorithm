@@ -11,6 +11,10 @@ public:
         this->genes = new Genome(layerShapes, numLayers);
     }
 
+    Bot(std::vector<int> layerShapes){
+        this->genes = new Genome(layerShapes.data(), layerShapes.size());
+    }
+
     ~Bot(){
         delete genes;
     }

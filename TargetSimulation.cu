@@ -3,13 +3,14 @@
 // NOTE: this must be present in every derived simulation!
 extern __constant__ SimConfig config_d;
 
-__constant__ float MAX_SPEED = 100;
+__constant__ float MAX_SPEED = 11;
 
 // Dead zone around the target that counts as a hit
 __constant__ float epsilon = 0.05f;
-__constant__ int resetInterval = 30; //Reset gamestate and change target pos every <resetInterval> iters
+__constant__ int resetInterval = 25; //Reset gamestate and change target pos every <resetInterval> iters
 
-#define ROTATION_ANGLE 3.141592654f / 2.0f
+#define degrees 90.0f
+#define ROTATION_ANGLE degrees * 3.141592654f / 180.0f //90 degrees
 
 __device__ void TargetSimulation::eval(float **actions, float *gamestate)
 {
@@ -79,11 +80,12 @@ __device__ int TargetSimulation::checkFinished(float *gamestate)
     // Check if we need to reset the sim this iteration
     if(((int)gamestate[7] + 1) % resetInterval == 0){
         if(threadIdx.x == 0){
-            // Reset vel and pos
-            for(int i = 0; i < 4; i++)
-                gamestate[i] = 0;
+            // // Reset vel and pos
+            // for(int i = 0; i < 4; i++)
+            //     gamestate[i] = 0;
 
             //"Rotate" the target position
+            
             float new_x = gamestate[4] * cosf(ROTATION_ANGLE) - gamestate[5] * sinf(ROTATION_ANGLE);
             float new_y = gamestate[4] * sinf(ROTATION_ANGLE) + gamestate[5] * cosf(ROTATION_ANGLE);
 

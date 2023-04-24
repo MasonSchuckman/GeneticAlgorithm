@@ -10,7 +10,7 @@
 
 // std::set
 #include <set>
-
+#include <vector>
 /**
 A single Bot's brain structure
 
