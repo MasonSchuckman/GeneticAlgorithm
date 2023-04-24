@@ -19,6 +19,7 @@
 *.exp
 *.lib
 testNN*.py
+*.gene
 
 # Build results
 [Dd]ebug/

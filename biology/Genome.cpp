@@ -16,6 +16,8 @@ creates a Genome with a specific shape and random weights
 */
 Genome::Genome(int *shape, int shapeLen) {
 
+  this->activation = "sigmoid";
+  
   // copying shape data
   this->shapeLen = shapeLen;
   this->shape = new int[shapeLen];
@@ -53,7 +55,7 @@ Genome::Genome(int *shape, int shapeLen) {
  @param biases  an array containing all bias weights
  @param connections  an array containing all connection weights 
 */
-Genome::Genome(int *shape, int shapeLen, float *biases, float *connections) {
+Genome::Genome(int *shape, int shapeLen, float *biases, float *connections, std::string activation) : activation(activation) {
 
   // copying shape data
   this->shapeLen = shapeLen;
@@ -279,6 +281,9 @@ Genome::Genome(std::string filename) {
   // reading in layer size
   geneFile >> garbage >> this->shapeLen;
 
+  // reading in activation func
+  geneFile >> garbage >> this->activation;
+
 
   // reading in shape
   geneFile >> garbage;
@@ -323,6 +328,8 @@ void Genome::exportWeights(std::string filename) const {
     throw std::invalid_argument("unable to export genome weights to "+fullName);
 
   geneFile << "layers " << this->shapeLen << std::endl;
+
+  geneFile << "type " << this->activation << std::endl;
   
   geneFile << "shape";
   for(int i = 0; i < this->shapeLen; i++)

@@ -39,9 +39,11 @@ public:
   float *connections;
   int numConnections;
 
+  std::string activation;
+
   Genome(std::string gene);
   Genome(int *shape, int shapeLen);
-  Genome(int *shape, int shapeLen, float *biases, float *connections);
+  Genome(int *shape, int shapeLen, float *biases, float *connections, std::string activation);
   Genome(const Genome *other);
   ~Genome();
 
