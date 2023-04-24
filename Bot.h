@@ -1,7 +1,7 @@
 #ifndef BOT_H
 #define BOT_H
 
-#include "Genome.h"
+#include "biology\Genome.h"
 
 
 class Bot{

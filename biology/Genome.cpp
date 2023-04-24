@@ -88,7 +88,7 @@ Genome::Genome(int *shape, int shapeLen, float *biases, float *connections) {
 
  @param other  the genome to be copied when making this one
 */
-Genome::Genome(Genome *other) {
+Genome::Genome(const Genome *other) {
 
   // copying lengths
   this->shapeLen = other->shapeLen;
@@ -116,7 +116,7 @@ Genome::Genome(Genome *other) {
  @param staticStepSize  a consistent mutation step size (range: -staticStepSize < adjust < staticStepSize)
  @param dynamicStepSize  a mutation step size determined based on the weight (range: -dynamicStepSize*weight < adjust < dynamicStepSize*weight)
 */
-Genome *Genome::mitosis(float percentage, float staticStepSize, float dynamicStepSize) {
+Genome *Genome::mitosis(float percentage, float staticStepSize, float dynamicStepSize) const {
   Genome *child = new Genome(this);
 
   // deciding how many neurons / connections we want to mutate
@@ -158,7 +158,7 @@ Genome *Genome::mitosis(float percentage, float staticStepSize, float dynamicSte
 
  @param other  the second parent to be used to produce the child
 */
-Genome *Genome::meiosis(Genome *parent2) {
+Genome *Genome::meiosis(const Genome *parent2) const {
 
   // starting with a perfect copy of the current parent
   Genome *child = new Genome(this);
@@ -185,7 +185,7 @@ Genome *Genome::meiosis(Genome *parent2) {
 /**
  returns a string representing the shape of the genome's corresponding Neural Network
 */
-std::string Genome::shapeString() {
+std::string Genome::shapeString() const {
   std::string toReturn = "";
 
   for(int i = 0; i < shapeLen; i++)
@@ -199,7 +199,7 @@ std::string Genome::shapeString() {
  returns a string containing all of the connection and bias weights belonging to the genome
  separated + labeled with layer and connection names
 */
-std::string Genome::bodyString() {
+std::string Genome::bodyString() const {
   if(shapeLen == 0)
     return "empty network (no layers)";
 
@@ -239,4 +239,29 @@ std::string Genome::bodyString() {
     connectionOffset += layerSize * shape[i-1];
   }
   return toReturn;
+}
+
+// gets the euclidean distance, treating the two genomes as points
+// in n-dimensional space (where n = numNeurons + numConnections)
+float Genome::distance(const Genome *first, const Genome *second) {
+
+  // incompatible neural network shapes
+  if (first->shapeLen != second->shapeLen)
+    return -1;
+
+  // incompatible neural network shapes cont.
+  for (int i = 0; i < first->shapeLen; i++)
+    if (first->shape[i] != second->shape[i])
+      return -1;
+
+  // diff = (a2-a1)^2 + (b2-b1)^2 + ... + (z2-z1)^2
+  float diff = 0;
+  for (int neuron = 0; neuron < first->numNeurons; neuron++) 
+    diff += std::pow(first->biases[neuron] - second->biases[neuron], 2);
+
+  for (int neuron = 0; neuron < first->numConnections; neuron++) 
+    diff += std::pow(first->connections[neuron] - second->connections[neuron], 2);
+
+
+  return std::sqrt(diff);
 }
