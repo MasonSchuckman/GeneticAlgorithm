@@ -24,8 +24,10 @@ struct SimConfig{
     int totalWeights,
     int bpb, //Bots per Block (bots per simulation)
     int maxIters,
-    int numStartingParams) : numLayers{numLayers}, totalNeurons{totalNeurons}, totalWeights{totalWeights}, bpb{bpb}, 
-    maxIters{maxIters}, numStartingParams{numStartingParams}{};
+    int numStartingParams,
+    int directContest,
+    int botsPerTeam) : numLayers{numLayers}, totalNeurons{totalNeurons}, totalWeights{totalWeights}, bpb{bpb}, 
+    maxIters{maxIters}, numStartingParams{numStartingParams}, directContest{directContest}, botsPerTeam{botsPerTeam}{};
 
     int numLayers;
     int totalNeurons;
@@ -33,7 +35,10 @@ struct SimConfig{
     int bpb; //Bots per Block (bots per simulation)
     int maxIters;
     int numStartingParams;
-    
+
+    int directContest; //true if we have 2+ bots competing in a block
+    int botsPerTeam; //only relavent if directContest=1. How many bots are on each team. (Assumed 2 teams per block if direct contest = 1)
+
     // Making this statically allocated might have unforseen consequences, idk.
     int layerShapes[MAX_LAYERS];
     

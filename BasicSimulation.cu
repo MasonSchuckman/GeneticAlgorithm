@@ -6,7 +6,9 @@ extern __constant__ SimConfig config_d;
 __device__ void BasicSimulation::eval(float **actions, float *gamestate)
 {
     int tid = threadIdx.x;
-
+    if(tid == 0){
+        printf("in basic eval\n");
+    }
     for (int bot = 0; bot < config_d.bpb; bot++)
     {
         // if (tid == 0)

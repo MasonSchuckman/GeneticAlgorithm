@@ -3,12 +3,13 @@
 
 #pragma once
 
-#include "TargetSimulation.cuh"
+#include "Simulation.cuh"
+
 
 class TargetSimulation : public Simulation {
 public:
-    __host__ __device__ BasicSimulation(){}    
-    __host__ __device__ ~BasicSimulation(){}
+    __host__ __device__ TargetSimulation(){}    
+    __host__ __device__ ~TargetSimulation(){}
 
     
     __device__ void eval(float ** actions, float * gamestate);

@@ -54,8 +54,13 @@ private:
     void copyToGPU(int *& layerShapes_h, float *&startingParams_h, 
         float *&output_h, float *&weights_h, float *&biases_h);
 
-    void runSimulation(float * & output_h);
+    void copyFromGPU(float *&weights_h, float *&biases_h);
+
+
+    void runSimulation(float * output_h);
     
+    int iterationsCompleted = 0;
+
     /*
     Pointers to device memory should be private and persist as we're doing simulation.
     This way we don't need to constantly re allocate device memory.
