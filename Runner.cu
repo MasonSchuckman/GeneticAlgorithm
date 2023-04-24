@@ -29,7 +29,7 @@ void getNetInfo(int &numConnections, int &numNeurons, std::vector<int> layerShap
     }
 }
 
-FullSimConfig setupSimulation(const std::string& filename) {
+FullSimConfig readSimConfig(const std::string& filename) {
     std::ifstream file(filename);
     json configFile;
 
@@ -46,8 +46,8 @@ FullSimConfig setupSimulation(const std::string& filename) {
     Simulation * sim;
     if (simType == "TargetSimulation") {
         sim = new TargetSimulation;
-    } else if (simType == "typeB") {
-        //sim = TargetSimulation::TypeB;
+    } else if (simType == "MultibotSimulation") {
+        sim = new MultibotSimulation;
     } else {
         std::cerr << "Unknown simulation type: " << simType << std::endl;
         exit(1);
@@ -56,6 +56,7 @@ FullSimConfig setupSimulation(const std::string& filename) {
     // Read the neural net configuration from the configFile
     int numLayers = configFile["neural_net"]["num_layers"].get<int>();    
     std::vector<int> layerShapes = configFile["neural_net"]["layer_shapes"].get<std::vector<int>>();
+    std::vector<int> layerTypes = configFile["neural_net"]["layer_types"].get<std::vector<int>>();
     int numConnections = 0;
     int numNeurons = 0;
     getNetInfo(numConnections, numNeurons, layerShapes);
@@ -77,13 +78,18 @@ FullSimConfig setupSimulation(const std::string& filename) {
     float baseMutationRate = configFile["base_mutation_rate"].get<float>();
     float minMutationRate = configFile["min_mutation_rate"].get<float>();
     float mutationDecayRate = configFile["mutation_decay_rate"].get<float>();
+    float shiftEffectiveness = configFile["shift_effectiveness"].get<float>();
 
+    int loadData = configFile["load_data"].get<int>();
     SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams, directContest, botsPerTeam);
+    
     for(int i = 0; i < layerShapes.size(); i++)
         config.layerShapes[i] = layerShapes[i];
+    for(int i = 0; i < layerShapes.size() - 1; i++)
+        config.layerTypes[i] = layerTypes[i];
 
     // Create and return the SimConfig object
-    return FullSimConfig(sim, config, totalBots, generations, baseMutationRate, minMutationRate, mutationDecayRate);
+    return FullSimConfig(sim, config, totalBots, generations, baseMutationRate, minMutationRate, mutationDecayRate, shiftEffectiveness, loadData);
 }
 
 // Define constant GPU memory for the config of our simulation.
@@ -179,7 +185,7 @@ void test_simulation_1()
 
 void test_simulation_2()
 {
-    FullSimConfig fullConfig = setupSimulation("TargetSimConfig.json");
+    FullSimConfig fullConfig = readSimConfig("TargetSimConfig.json");
 
     vector<Bot*> bots;
     for(int i = 0; i < fullConfig.totalBots; i++){
@@ -190,7 +196,14 @@ void test_simulation_2()
     engine.min_mutate_rate = fullConfig.minMutationRate;
     engine.mutateMagnitude = fullConfig.baseMutationRate;
     engine.mutateDecayRate = fullConfig.mutationDecayRate;
+    engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
+    
+    if(fullConfig.loadData == 1){
+        engine.loadData = 1;
+    }
+    
     engine.batchSimulate(fullConfig.generations);
+
 
     
     for(int i = 0; i < fullConfig.totalBots; i++){
@@ -199,12 +212,44 @@ void test_simulation_2()
 }
 
 
+void testMultibot()
+{
+    FullSimConfig fullConfig = readSimConfig("MultibotSimConfig.json");
+
+    vector<Bot*> bots;
+    for(int i = 0; i < fullConfig.totalBots; i++){
+        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
+    }
+
+    Simulator engine(bots, fullConfig.sim, fullConfig.config);
+    engine.min_mutate_rate = fullConfig.minMutationRate;
+    engine.mutateMagnitude = fullConfig.baseMutationRate;
+    engine.mutateDecayRate = fullConfig.mutationDecayRate;
+    engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
+    
+    if(fullConfig.loadData == 1){
+        engine.loadData = 1;
+    }
+    
+    engine.batchSimulate(fullConfig.generations);
+
+
+    
+    for(int i = 0; i < fullConfig.totalBots; i++){
+        delete bots[i];
+    }
+}
+
+
+
 int main()
 {   
     cudaSetDevice(0);
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    test_simulation_2();    
+    testMultibot();
+    //test_simulation_2();    
+
     auto end_time = std::chrono::high_resolution_clock::now();
 
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();

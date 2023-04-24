@@ -42,6 +42,8 @@ public:
 
     void simulate();
 
+    
+
     void batchSimulate(int numSimulations);
 
     Bot * getBest();
@@ -49,6 +51,9 @@ public:
     float mutateMagnitude = 1.0f; //starting magnitude
     float min_mutate_rate = .000001f; //ending magnitude
     float mutateDecayRate = 0.99f;
+    float shiftEffectiveness = 1.0f;
+    int loadData = 0;
+
 private:
 
     void formatBotData(int *& layerShapes_h, float *&startingParams_h, 
@@ -62,6 +67,11 @@ private:
 
     void runSimulation(float * output_h);
     
+    void readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int * layerShapes);
+
+    //Reads in saved weights and biases if it matches the current config
+    void loadData_(float *weights_h, float *biases_h);
+
     int iterationsCompleted = 0;
 
     
@@ -77,6 +87,7 @@ private:
 
     float* nextGenWeights_d;
     float* nextGenBiases_d;
+
 
     vector<Bot*> bots;
     Simulation * derived;

@@ -59,24 +59,29 @@ namespace Kernels
         }
 #endif // DEBUG
 
-        // TODO: Look into using different activation functions for different layers. (output should probably be sigmoid, others maybe ReLU)
         __syncthreads();
 
-        //  Apply activation function (sigmoid in this case)
+        //  Apply activation function
+        switch(config_d.layerTypes[layer]){
+            //linear
+            case 0 : break; 
 
-        // use ReLU for non output layers
-        if (layer != config_d.numLayers - 2)
-        {
-            for (int i = tid; i < output_size; i += stride)
-                output[i] = output[i] > 0 ? output[i] : 0; // max(output[i],0)
+            //ReLU
+            case 1 : {
+                for (int i = tid; i < output_size; i += stride)
+                    output[i] = output[i] > 0 ? output[i] : 0; // max(output[i],0)   
+            }
+            break;
 
-            // use sigmoud for the output layer
-        }
-        else
-        {
+            // Sigmoid
+            case 2 : {
+                for (int i = tid; i < output_size; i += stride)
+                    output[i] = 1.0f / (1.0f + expf(-output[i]));
+            }
+            break;
 
-            for (int i = tid; i < output_size; i += stride)
-                output[i] = 1.0f / (1.0f + expf(-output[i]));
+            // Default is linear
+            default : break;
         }
 
         __syncthreads();
@@ -336,6 +341,9 @@ namespace Kernels
             case 2:
                 (*sim) = new TargetSimulation();
                 break;
+            case 3:
+                (*sim) = new MultibotSimulation();
+                break;
             default:
                 printf("Invalid derived class ID. Did you update the kernel switch statement?\n");
                 break;
@@ -548,7 +556,7 @@ namespace Kernels
     }
 
 
-__device__ int counter=0;
+    __device__ int counter=0;
     __global__ void simulateShared2(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
     {
 
@@ -565,20 +573,8 @@ __device__ int counter=0;
             // hard coding this makes things *much* simpler. We can change it if needed.
             __shared__ float gamestate[64];
             // hard coding for TargetSimulation
-            if (tid == 0)
-            {
-                gamestate[0] = 0;
-                gamestate[1] = 0;
-                gamestate[2] = startingParams[3];
-                gamestate[3] = startingParams[4];
-                gamestate[4] = startingParams[0];
-                gamestate[5] = startingParams[1];
-                
-                gamestate[6] = 0; //total dist
-                
-                output[block] = 0;
-            }
-            __syncthreads();
+            (*sim)->setupSimulation(startingParams, gamestate);
+
             // shared mem layout is w1,w2...,w_bpt,b1,b2,...,b_bpt,a_1,a_2,...,a_bpt
             // declare our block of shared memory
             extern __shared__ float s[];
@@ -634,29 +630,16 @@ __device__ int counter=0;
 
             // run the simulation loop.
             while (!finished)
-            {
-                // Set the activations for this iteration
-
-
-                // hard coding for TargetSimulation:
-                const int numInputs = 6;
-                if (tid < numInputs)
-                {
-                    activs[0][tid] = gamestate[tid];
-                }
-                if(tid == 0){
-                    gamestate[7] = iter;
-
-                    //TESTING: not giving velocity as an input:
-                    activs[0][0] = 0;
-                    activs[0][1] = 0;
-                }
+            {               
                 // It's important to remember that activs and ws and bs are essentially 2d arrays. That's why indexing them is tricky and weird.
                 // Poll the NN for actions.
-
-                __syncthreads();
                 for (int bot = 0; bot < config_d.bpb; bot++)
                 {
+                    // Set the activations for this bot this iteration
+                    (*sim)->setActivations(gamestate, activs[bot], iter);
+                    __syncthreads();
+
+
                     // All of these offsets are to account for the multiple layers in the network.
                     int WO = 0; // weights offset
                     int BO = 0; // biases offset
@@ -697,11 +680,14 @@ __device__ int counter=0;
                         output[block] = 0;
                     else if (tid == 0)
                         //output[block] = -gamestate[6]; // Uses totalDist as a metric
-                        output[block] = (startingParams[2] / gamestate[6]); // Uses efficiency as a metric
-                    
+                        //output[block] = (startingParams[2] / gamestate[6]); // Uses efficiency as a metric
+                        //hard coding for multibot:
+                        output[block * 2] = (startingParams[2] / gamestate[11]); // Uses efficiency as a metric
+                        output[block * 2 + 1] = (startingParams[2] / gamestate[12]); // Uses efficiency as a metric
+
                     if(gid == 0){
                         if(counter % 10 == 0)
-                            printf("Block %d total dist = %f, efficiency = %f\n", blockIdx.x, gamestate[6], (startingParams[2] / gamestate[6]));
+                            printf("Block %d total dist = %f, efficiency = %f\n", blockIdx.x, gamestate[11], (startingParams[2] / gamestate[11]));
 
                         counter++;
 

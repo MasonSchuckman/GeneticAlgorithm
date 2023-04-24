@@ -3,5 +3,6 @@
 
 #include "BasicSimulation.cuh"
 #include "TargetSimulation.cuh"
+#include "MultibotSimulation.cuh"
 
 #endif

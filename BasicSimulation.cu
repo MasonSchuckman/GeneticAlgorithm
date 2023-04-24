@@ -3,6 +3,16 @@
 // NOTE: this must be present in every derived simulation!
 extern __constant__ SimConfig config_d;
 
+//Called at the beginning of the kernel. Used to do things like place the bots at their starting positions and such
+__device__ void BasicSimulation::setupSimulation(const float * startingParams, float * gamestate){
+
+}
+
+//Called at the beginning of each sim iteration. 
+__device__ void BasicSimulation::setActivations(float * gamestate, float * activs, int iter){
+
+}
+
 __device__ void BasicSimulation::eval(float **actions, float *gamestate)
 {
     int tid = threadIdx.x;

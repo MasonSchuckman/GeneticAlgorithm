@@ -1,15 +1,15 @@
-#ifndef TARGET_SIMULATION_CUH
-#define TARGET_SIMULATION_CUH
+#ifndef MULTIBOT_SIMULATION_CUH
+#define MULTIBOT_SIMULATION_CUH
 
 #pragma once
 
 #include "Simulation.cuh"
 
 
-class TargetSimulation : public Simulation {
+class MultibotSimulation : public Simulation {
 public:
-    __host__ __device__ TargetSimulation(){}    
-    __host__ __device__ ~TargetSimulation(){}
+    __host__ __device__ MultibotSimulation(){}    
+    __host__ __device__ ~MultibotSimulation(){}
 
     //Called at the beginning of the kernel. Used to do things like place the bots at their starting positions and such
     __device__ void setupSimulation(const float * startingParams, float * gamestate);
