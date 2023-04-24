@@ -20,6 +20,7 @@
 *.lib
 testNN*.py
 *.gene
+.vscode/*
 
 # Build results
 [Dd]ebug/

@@ -91,11 +91,12 @@ Genome::Genome(int *shape, int shapeLen, float *biases, float *connections, std:
  @param other  the genome to be copied when making this one
 */
 Genome::Genome(const Genome *other) {
-
+  
   // copying lengths
   this->shapeLen = other->shapeLen;
   this->numNeurons = other->numNeurons;
   this->numConnections = other->numConnections;
+  this->activation = other->activation;
 
   // copying array contents
   this->shape = new int[other->shapeLen];
@@ -269,12 +270,11 @@ float Genome::distance(const Genome *first, const Genome *second) {
 }
 
 Genome::Genome(std::string filename) {
-  std::string fullName = filename+".gene";
 
-  std::ifstream geneFile(fullName);
+  std::ifstream geneFile(filename);
 
   if (!geneFile.is_open()) 
-    throw std::invalid_argument("unable to import genome weights from "+fullName);
+    throw std::invalid_argument("unable to import genome weights from "+filename);
 
   std::string garbage;
 
@@ -320,12 +320,11 @@ Genome::Genome(std::string filename) {
 
 
 void Genome::exportWeights(std::string filename) const {
-  std::string fullName = filename+".gene";
 
-  std::ofstream geneFile(fullName);
+  std::ofstream geneFile(filename);
 
   if (!geneFile.is_open()) 
-    throw std::invalid_argument("unable to export genome weights to "+fullName);
+    throw std::invalid_argument("unable to export genome weights to "+filename);
 
   geneFile << "layers " << this->shapeLen << std::endl;
 
