@@ -1,6 +1,6 @@
 
-def importFromFile(filename):
-    geneFile = open(filename+".gene", "r")
+def importGene(filename):
+    geneFile = open(filename, "r")
     contents = geneFile.read().split('\n')
     contents = [l.split() for l in contents]
 
@@ -12,9 +12,9 @@ def importFromFile(filename):
 
     return shape, type, cons, bias
 
-def exportToFile(filename, genome):
+def exportGene(filename, genome):
     shape, type, cons, bias = genome
-    geneFile = open(filename+".gene", "w")
+    geneFile = open(filename, "w")
     geneFile.write(f"layers {len(shape)}\n")
     
     stringify = lambda x: " ".join([str(i) for i in x])
