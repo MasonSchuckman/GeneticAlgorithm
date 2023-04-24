@@ -11,6 +11,10 @@
 // std::set
 #include <set>
 #include <vector>
+
+// file io
+#include <fstream>
+
 /**
 A single Bot's brain structure
 
@@ -35,6 +39,7 @@ public:
   float *connections;
   int numConnections;
 
+  Genome(std::string gene);
   Genome(int *shape, int shapeLen);
   Genome(int *shape, int shapeLen, float *biases, float *connections);
   Genome(const Genome *other);
@@ -45,6 +50,8 @@ public:
 
   std::string shapeString() const;
   std::string bodyString() const;
+
+  void exportWeights(std::string filepath) const;
 
   static float distance(const Genome *first, const Genome *second);
 };
