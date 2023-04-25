@@ -3,8 +3,8 @@ import numpy as np
 import math
 
 # Define constants
-MAX_SPEED = 5
-MAX_ACCEL = 1.0
+MAX_SPEED = 50
+MAX_ACCEL = 10.0
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
 

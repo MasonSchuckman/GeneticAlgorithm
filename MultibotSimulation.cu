@@ -5,8 +5,8 @@
 // NOTE: this must be present in every derived simulation!
 extern __constant__ SimConfig config_d;
 
-__constant__ float MAX_SPEED2 = 5.0f;
-__constant__ float MAX_ACCEL = 1.00f;
+__constant__ float MAX_SPEED2 = 50.0f;
+__constant__ float MAX_ACCEL = 10.00f;
 
 #define degrees 90.0f
 #define ROTATION_ANGLE degrees * 3.141592654f / 180.0f // 90 degrees
@@ -101,8 +101,8 @@ __device__ void MultibotSimulation::setupSimulation(const float *startingParams,
         gamestate[4] = 0;
 
         // pos B
-        gamestate[5] = startingParams[3];
-        gamestate[6] = startingParams[4];
+        gamestate[5] = -startingParams[4];
+        gamestate[6] = -startingParams[3];
 
         // Vel B
         gamestate[7] = 0;
@@ -161,17 +161,19 @@ __device__ void MultibotSimulation::setActivations(float *gamestate, float **act
     {
         activs[bot][tid] = gamestate[tid + 1]; //+1 since iter is 0.
 
-        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x);        
+        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[15]);        
         activs[bot][tid + numBotVars] = gamestate[tid + numBotVars + 1] + rand;
-        //activs[bot][tid + numBotVars] = 0;
+        if((int)gamestate[15] % 20 == 0)
+            activs[bot][tid + numBotVars] = 0;
     }
     else if (bot == 1)
     {
         activs[bot][tid - numBotVars] = gamestate[tid + 1]; //+1 since iter is 0.
 
-        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x);
+        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[15]);
         activs[bot][tid] = gamestate[tid - numBotVars + 1] + rand;
-        //activs[bot][tid] = 0;
+        if((int)gamestate[15] % 20 == 0)
+            activs[bot][tid] = 0;
     }
 
     if (tid < 2)

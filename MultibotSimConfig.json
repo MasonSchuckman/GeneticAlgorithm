@@ -11,10 +11,10 @@
     "num_starting_params": 6,
     "direct_contest": 0,
     "bots_per_team": 0,
-    "generations" : 2000,
+    "generations" : 3000,
     "base_mutation_rate" : 0.1,
     "min_mutation_rate" : 0.000001,
-    "mutation_decay_rate" : 0.993,
+    "mutation_decay_rate" : 0.994,
     "shift_effectiveness" : 0.1,
     "load_data" : 0
 }
