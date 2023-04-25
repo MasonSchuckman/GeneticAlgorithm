@@ -50,6 +50,7 @@ __host__ void MultibotSimulation::getStartingParams(float *startingParams)
     startingParams[2] = optimal;
     startingParams[3] = startingX;
     startingParams[4] = startingY;
+    startingParams[5] = iterationsCompleted;
 
     iterationsCompleted++;
 }
@@ -78,6 +79,8 @@ Gamestate description
 
 13 : targetX
 14 : targetY
+
+15 : generation number
 
 */
 
@@ -112,6 +115,8 @@ __device__ void MultibotSimulation::setupSimulation(const float *startingParams,
         // Target location
         gamestate[13] = startingParams[0];
         gamestate[14] = startingParams[1];
+
+        gamestate[15] = startingParams[5]; //what generation we're on
     }
     __syncthreads();
 }
@@ -150,15 +155,15 @@ __device__ void MultibotSimulation::setActivations(float *gamestate, float **act
     // rand for adding noise to other bot's information
 
     float rand = 0;
-    float randomMagnitude = 30.0f;
-
+    float randomMagnitude = 100.0f / logf(gamestate[15] + 2.0f) + 100.0f / logf((float)(iter + 2));
+    
     if (bot == 0)
     {
         activs[bot][tid] = gamestate[tid + 1]; //+1 since iter is 0.
 
         rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x);        
         activs[bot][tid + numBotVars] = gamestate[tid + numBotVars + 1] + rand;
-        // activs[bot][tid + numBotVars] = 0;
+        //activs[bot][tid + numBotVars] = 0;
     }
     else if (bot == 1)
     {
@@ -166,7 +171,7 @@ __device__ void MultibotSimulation::setActivations(float *gamestate, float **act
 
         rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x);
         activs[bot][tid] = gamestate[tid - numBotVars + 1] + rand;
-        // activs[bot][tid] = 0;
+        //activs[bot][tid] = 0;
     }
 
     if (tid < 2)
@@ -197,21 +202,23 @@ __device__ void MultibotSimulation::eval(float **actions, float *gamestate)
 
     int direction = tid % 2; // which direction (x or y) this thread updates
 
-    // update velocities
-    if (tid < 4)
-    {
-        // Allows precise movement in either direction.
-        float preference = actions[bot][direction];
+    // // update velocities
+    // if (tid < 4)
+    // {
+    //     // Allows precise movement in either direction.
+    //     float preference = actions[bot][direction];
         
-        float accel = preference * MAX_ACCEL;
+    //     //float accel = preference * MAX_ACCEL;
 
-        // Bound the acceleration change
-        accel = fminf(MAX_ACCEL, fmaxf(-MAX_ACCEL, accel));
+    //     // Bound the acceleration change
+    //     //accel = fminf(MAX_ACCEL, fmaxf(-MAX_ACCEL, accel));
 
-        // Update the bot's velocity
-        gamestate[bot * numBotVars + direction + velOffset] += accel;
-        // gamestate[bot * numBotVars + direction + velOffset] = accel;
-    }
+    //     // Update the bot's velocity
+    //     //gamestate[bot * numBotVars + direction + velOffset] += accel;
+    //     // gamestate[bot * numBotVars + direction + velOffset] = accel;
+    // }
+
+
 
     __syncthreads();
 
@@ -219,7 +226,18 @@ __device__ void MultibotSimulation::eval(float **actions, float *gamestate)
     if (tid < 2)
     {
         bot = tid;
+        float accelX = actions[bot][0] * MAX_ACCEL;
+        float accelY = actions[bot][1] * MAX_ACCEL;
 
+        float accel = hypotf(accelX, accelY);
+        if(accel > MAX_ACCEL){
+            float f = MAX_ACCEL / accel;
+            accelX *= f;
+            accelY *= f;
+        }
+        
+        gamestate[bot * numBotVars + velOffset + 0] += accelX;
+        gamestate[bot * numBotVars + velOffset + 1] += accelY;
         float Avx = gamestate[bot * numBotVars + velOffset + 0];
         float Avy = gamestate[bot * numBotVars + velOffset + 1];
 
@@ -271,7 +289,7 @@ __device__ int MultibotSimulation::checkFinished(float *gamestate)
     }
     __syncthreads();
 
-    int resetInterval = 25;
+    int resetInterval = 2500;
     // Check if we need to reset the sim this iteration
     if (((int)gamestate[0] + 1) % resetInterval == 0)
     {

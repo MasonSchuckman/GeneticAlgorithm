@@ -175,9 +175,13 @@ def get_actions_multibot(state, net_weights, net_biases):
     gamestate[1] = output[1] * MAX_ACCEL
 
     #cap the acceleration
-    gamestate[0] = min(MAX_ACCEL, max(-MAX_ACCEL, gamestate[0]));
-    gamestate[1] = min(MAX_ACCEL, max(-MAX_ACCEL, gamestate[1]));
-
+    accel = math.hypot(gamestate[0], gamestate[1])
+    if accel > MAX_ACCEL:
+        f = MAX_ACCEL / accel
+        gamestate[0] *= f
+        gamestate[1] *= f
+    
+    
     print(gamestate)
     
     #return acceleration
@@ -225,7 +229,7 @@ while True:
         state.append(bots[i % 2]['velx'])
         state.append(bots[i % 2]['vely'])
 
-        otherInfo = True
+        otherInfo = False
 
         if otherInfo:
             state.append(bots[(i + 1) % 2]['posx'])
