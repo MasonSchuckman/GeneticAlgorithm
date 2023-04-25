@@ -116,20 +116,6 @@ __device__ void MultibotSimulation::setupSimulation(const float *startingParams,
     __syncthreads();
 }
 
-__device__ unsigned LCGStep(unsigned &z, unsigned A, unsigned C)
-{
-    return z = (A * z + C);
-}
-
-__device__ unsigned int lcg(unsigned int seed)
-{
-    const unsigned int a = 1664525;
-    const unsigned int c = 1013904223;
-    const unsigned int m = 4294967296; // 2^32
-    unsigned int x = seed;
-    x = (a * x + c) % m;
-    return x;
-}
 
 __device__ unsigned int xorshift(unsigned int x)
 {
@@ -139,15 +125,10 @@ __device__ unsigned int xorshift(unsigned int x)
     return x * 0x2545F491;
 }
 
+// Used for cheap (fast) random numbers in setActivations. Random numbers help the model fit to more general information.
 __device__ float rng(float a, float b, unsigned int seed)
-{
-    // unsigned r = seed;
-    // r = LCGStep(r, 1664525, 1013904223);
-    unsigned int r = xorshift(seed);
-    // unsigned int r = LCGStep(seed + 1);
-    //          if(threadIdx.x == 0 && blockIdx.x == 0)
-
-    // printf("r = %d or %x\n", r, r);
+{    
+    unsigned int r = xorshift(seed);   
     static const float m = 4294967296.0f; // 2^32
     return a + (b - a) * (static_cast<float>(r) / m);
 }
@@ -173,19 +154,14 @@ __device__ void MultibotSimulation::setActivations(float *gamestate, float **act
 
     if (bot == 0)
     {
-        // if(tid == 0)
-        // printf("%d setting bot %d activ %d with gamestate[%d]\n", tid, bot, tid, tid + 1);
         activs[bot][tid] = gamestate[tid + 1]; //+1 since iter is 0.
 
-        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x);
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        // printf("rand = %f\n", rand);
+        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x);        
         activs[bot][tid + numBotVars] = gamestate[tid + numBotVars + 1] + rand;
         // activs[bot][tid + numBotVars] = 0;
     }
     else if (bot == 1)
     {
-
         activs[bot][tid - numBotVars] = gamestate[tid + 1]; //+1 since iter is 0.
 
         rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x);
@@ -202,51 +178,7 @@ __device__ void MultibotSimulation::setActivations(float *gamestate, float **act
         activs[bot][8] = gamestate[13];
         activs[bot][9] = gamestate[14];
     }
-    // int tid = threadIdx.x;
-    // if(tid == 0){
-    //     //do bot 1
-    //     for(int i = 0; i < 8; i++){
-    //         activs[0][i] = gamestate[i + 1];
-    //     }
-
-    //     //do bot 2
-    //     int c = 0;
-    //     for(int i = 0; i < 4; i++){
-    //         activs[1][c] = gamestate[i + 1 + 4];
-    //         c++;
-    //     }
-    //     for(int i = 0; i < 4; i++){
-    //         activs[1][c] = gamestate[i + 1];
-    //         c++;
-    //     }
-
-    //     gamestate[0] = iter;
-
-    // //     // Input the target position
-    //     activs[0][8] = gamestate[13];
-    //     activs[0][9] = gamestate[14];
-
-    //     activs[1][8] = gamestate[13];
-    //     activs[1][9] = gamestate[14];
-
-    // }
-
-    // if(tid == 0 && blockIdx.x == 0){
-    //     printf("Game state:\n");
-    //     for(int i = 0; i < 8; i++)
-    //         printf("%f, ", gamestate[i + 1]);
-    //     printf("\n");
-
-    //     printf("Bot 0 activs:\n");
-    //     for(int i = 0; i < 8; i++)
-    //         printf("%f, ", activs[0][i]);
-    //     printf("\n");
-
-    //     printf("Bot 1 activs:\n");
-    //     for(int i = 0; i < 8; i++)
-    //         printf("%f, ", activs[1][i]);
-    //     printf("\n");
-    // }
+    
     __syncthreads();
 }
 
@@ -270,10 +202,7 @@ __device__ void MultibotSimulation::eval(float **actions, float *gamestate)
     {
         // Allows precise movement in either direction.
         float preference = actions[bot][direction];
-        // if(tid == 0 && blockIdx.x == 0){
-        //     printf("\nOutput1 : %f, %f", actions[0][0], actions[0][1]);
-        //     printf("\tOutput2 : %f, %f\n", actions[1][0], actions[1][1]);
-        // }
+        
         float accel = preference * MAX_ACCEL;
 
         // Bound the acceleration change
@@ -348,9 +277,7 @@ __device__ int MultibotSimulation::checkFinished(float *gamestate)
     {
         if (threadIdx.x == 0)
         {
-            // // Reset vel and pos
-            // for(int i = 0; i < 4; i++)
-            //     gamestate[i] = 0;
+            
 
             //"Rotate" the target position
 

@@ -155,10 +155,6 @@ namespace Kernels
             {
                 winnerBotOffset = offsetBot2;
             }
-            // if(tid == 0 && block == 0){
-            //     printf("bot 1 = %d, bot 2 = %d, scores : %f, %f\n", offsetBot1, offsetBot2, botScore1, botScore2);
-            // }
-            
             __syncthreads();
             // Write next gen bot one's data
             for (int i = tid; i < config_d.totalWeights; i += stride)
@@ -188,25 +184,6 @@ namespace Kernels
             }
 
             __syncthreads();
-
-            // if(gid == 0){
-            //     printf("pre mutate bot 1:\n");
-            //     for(int i = 0; i < config_d.totalNeurons; i++){
-            //         printf("%f, ", (allBiases)[i + winnerBotOffset * config_d.totalNeurons]);
-            //     }                printf("\n");
-
-            //     printf("post mutate bot 1:\n");
-            //     for(int i = 0; i < config_d.totalNeurons; i++){
-            //         printf("%f, ", (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons]);
-            //     }
-            //     printf("\n");
-            //     printf("post mutate bot 2:\n");
-            //     for(int i = 0; i < config_d.totalNeurons; i++){
-            //         printf("%f, ",  (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] );
-            //     }                printf("\n");
-            //     printf("\n");
-
-            // }
         }
         
         __syncthreads();
@@ -334,31 +311,7 @@ namespace Kernels
                 
             }
             __syncthreads();
-            // if(gid == 0){
-            //     printf("Bot 1 biases:\n");
-            //     for(int i = 0; i < config_d.totalNeurons; i++){
-            //         printf("%f, ", bs[0][i]);
-            //     }
-            //     printf("\n");
-
-            //     printf("Bot 2 biases:\n");
-            //     for(int i = 0; i < config_d.totalNeurons; i++){
-            //         printf("%f, ", bs[0][i]);
-            //     }
-            //     printf("\n");
-            // //    printf("global:\n");
-            // //    for(int i = 0; i < 2; i++){
-            // //     for(int j = 0; j < config_d.totalNeurons; i++){
-            // //         printf("%f, ", allBiases[i * config_d.totalNeurons + j]);
-            // //     }
-            // //     printf("\n");
-            // //    }
-            // // printf("\n\n\n");
-
-            // }
-
-            // __syncthreads();
-
+            
             int maxIters = config_d.maxIters;
             bool finished = false;
 

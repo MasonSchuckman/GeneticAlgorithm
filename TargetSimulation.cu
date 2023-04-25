@@ -16,9 +16,9 @@ __constant__ int resetInterval = 40; // Reset gamestate and change target pos ev
 __host__ void TargetSimulation::getStartingParams(float * startingParams){
     static int iterationsCompleted = 0;
     //printf("iters completed = %d\n", iterationsCompleted);
-    iterationsCompleted++;
-
     
+
+
     // get random target coordinates
     int minPos = -2;
     int maxPos = 2;
@@ -52,6 +52,8 @@ __host__ void TargetSimulation::getStartingParams(float * startingParams){
     startingParams[2] = optimal;
     startingParams[3] = startingX;
     startingParams[4] = startingY;
+
+    iterationsCompleted++;
 }
 
 

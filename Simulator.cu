@@ -432,8 +432,6 @@ void Simulator::runSimulation(float *output_h)
 
     auto start_time = std::chrono::high_resolution_clock::now();
     // Launch a kernel on the GPU with one block for each simulation/contest
-    // Kernels::simulateShared<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
-    // Kernels::simulateShared_noStaticArrays<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
     Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -491,7 +489,7 @@ void Simulator::runSimulation(float *output_h)
 
     // Used to decide where to write nextGen population data to
     iterationsCompleted++;
-    if (iterationsCompleted % 10 == 0){
+    if (iterationsCompleted % 25 == 0){
         printf("iter %d, mutate scale = %f. Shift = %d", iterationsCompleted, mutateMagnitude, shift);
         std::cout << " Generation took " << elapsed_time << " ms.\n";
     }
