@@ -1,4 +1,5 @@
 #include "TargetSimulation.cuh"
+#include <random>
 
 // NOTE: this must be present in every derived simulation!
 extern __constant__ SimConfig config_d;
@@ -11,6 +12,48 @@ __constant__ int resetInterval = 40; // Reset gamestate and change target pos ev
 
 #define degrees 90.0f
 #define ROTATION_ANGLE degrees * 3.141592654f / 180.0f // 90 degrees
+
+__host__ void TargetSimulation::getStartingParams(float * startingParams){
+    static int iterationsCompleted = 0;
+    //printf("iters completed = %d\n", iterationsCompleted);
+    iterationsCompleted++;
+
+    
+    // get random target coordinates
+    int minPos = -2;
+    int maxPos = 2;
+    std::random_device rd;                                 // obtain a random seed from hardware
+    std::mt19937 eng(rd());                                // seed the generator
+    std::uniform_int_distribution<> distr(minPos, maxPos); // define the range
+    float targetX = distr(eng);
+    float targetY = distr(eng);
+
+    //random starting pos
+    float startingX = distr(eng);
+    float startingY = distr(eng);
+
+    double r = 5.0 + iterationsCompleted / 10; // radius of circle
+    double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
+    targetX = r * cos(angle); // compute x coordinate
+    targetY = r * sin(angle); // compute y coordinate
+    // targetX = 10;
+    // targetY = 0;
+    startingX = 0;
+    startingY = 0;
+    if (targetX == 0 && targetY == 0)
+        targetX = 2;
+    
+    float optimal = hypotf(targetX, targetY) / 2.0 * hypotf(targetX, targetY);
+
+    // transfer target coordinates to GPU
+    
+    startingParams[0] = targetX;
+    startingParams[1] = targetY;
+    startingParams[2] = optimal;
+    startingParams[3] = startingX;
+    startingParams[4] = startingY;
+}
+
 
 __device__ void TargetSimulation::setupSimulation(const float *startingParams, float *gamestate)
 {
@@ -132,6 +175,26 @@ __device__ int TargetSimulation::checkFinished(float *gamestate)
 
     // return dist < epsilon;
     return false;
+}
+
+__device__ void TargetSimulation::setOutput(float * output, float * gamestate, const float * startingParams_d){
+    static int counter = 0;
+
+    if (threadIdx.x == 0)
+    {
+        if (gamestate[6] != 0)
+            output[blockIdx.x] = -gamestate[6];
+        else
+            output[blockIdx.x] = 0;
+
+        if (blockIdx.x == 0)
+        {
+            if (counter % 25 == 0)
+                printf("Block %d total dist = %f, efficiency = %f\n", blockIdx.x, gamestate[6], (startingParams_d[2] / gamestate[6]));
+
+            counter++;
+        }
+    }
 }
 
 __host__ int TargetSimulation::getID()

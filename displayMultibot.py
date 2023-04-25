@@ -3,7 +3,7 @@ import numpy as np
 import math
 
 # Define constants
-MAX_SPEED = 25
+MAX_SPEED = 5
 MAX_ACCEL = 1.0
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
@@ -154,40 +154,6 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
 
     return output
 
-
-# Define function to query neural network for actions
-def get_actions_target(bot_velx, bot_vely, bot_posx, bot_posy, targetX, targetY, net_weights, net_biases):
-    inputs = np.array([bot_velx, bot_vely, bot_posx, bot_posy, targetX, targetY])
-    prevLayer = inputs
-    numHiddenLayers = len(layershapes) - 2
-    hidden_outputs = [None] * numHiddenLayers
-    #forward prop for the hidden layers
-    for i in range(numHiddenLayers):
-        #print("iter={}, inshape = {}, outshape = {}".format(i, layershapes[i], layershapes[i + 1]))
-
-        hidden_outputs[i] = forward_propagation(prevLayer, net_weights[i], net_biases[i + 1], layershapes[i], layershapes[i + 1],  i)
-        prevLayer = hidden_outputs[i]
-
-    output = forward_propagation(prevLayer, net_weights[numLayers - 2], net_biases[numLayers - 1], layershapes[numLayers - 2], layershapes[numLayers - 1], numLayers - 1)
-
-    # Compute bot velocity based on output    
-    gamestate = [None] * 2
-
-    # gamestate[0] = output[0] * MAX_SPEED
-    # gamestate[1] = output[2] * MAX_SPEED
-
-    gamestate[0] = (output[0] - output[1]) * MAX_SPEED
-    gamestate[1] = (output[2] - output[3]) * MAX_SPEED
-    #gamestate = (output - 0.5) * MAX_SPEED * 2
-    print(gamestate)
-    speed = math.hypot(gamestate[0], gamestate[1]);
-    if(speed > MAX_SPEED):
-        f = MAX_SPEED / speed;
-        gamestate[0] *= f;
-        gamestate[1] *= f;
-    
-    return gamestate
-
 def get_actions_multibot(state, net_weights, net_biases):
     inputs = np.array(state)
     prevLayer = inputs
@@ -242,23 +208,7 @@ while True:
             pygame.quit()
             quit()
 
-    #state of the sim on this iter
-    state = []
-
-    state.append(bots[0]['posx'])
-    state.append(bots[0]['posy'])
-
-    state.append(bots[1]['posx'])
-    state.append(bots[1]['posy'])
-
-    state.append(bots[0]['velx'])
-    state.append(bots[0]['vely'])
-
-    state.append(bots[1]['velx'])
-    state.append(bots[1]['vely'])
-
-    state.append(targets[0]['x'])
-    state.append(targets[0]['y'])
+    
 
     # Get actions from neural networks
     for i in range(NUM_BOTS):
@@ -266,6 +216,32 @@ while True:
         target = targets[i]
         network = networks[i]
         
+        #state of the sim on this iter
+        state = []
+
+        state.append(bots[i % 2]['posx'])
+        state.append(bots[i % 2]['posy'])
+
+        state.append(bots[i % 2]['velx'])
+        state.append(bots[i % 2]['vely'])
+
+        otherInfo = True
+
+        if otherInfo:
+            state.append(bots[(i + 1) % 2]['posx'])
+            state.append(bots[(i + 1) % 2]['posy'])    
+
+            state.append(bots[(i + 1) % 2]['velx'])
+            state.append(bots[(i + 1) % 2]['vely'])
+        else:
+            state.append(0)
+            state.append(0)
+            state.append(0)
+            state.append(0)
+
+        state.append(targets[0]['x'])
+        state.append(targets[0]['y'])
+
         acceleration = get_actions_multibot(state, network['weights'], network['biases'])
         
 
@@ -301,4 +277,4 @@ while True:
 
     # Update display
     pygame.display.update()
-    clock.tick(30)
+    clock.tick(60)

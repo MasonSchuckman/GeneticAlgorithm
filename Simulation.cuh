@@ -48,6 +48,7 @@ public:
     __host__ __device__ Simulation() {}
     __host__ __device__ virtual ~Simulation() {}
 
+    __host__ virtual void getStartingParams(float * startingParams) = 0;
     // actions and gamestate are both shared memory variables. The exact way they're used is
     // simulation dependent.
     __device__ virtual void eval(float ** actions, float * gamestate) = 0;
@@ -63,6 +64,7 @@ public:
     __device__ virtual int checkFinished(float * gamestate) = 0;
     //__device__ virtual void determineOutcome(float * gamestate) = 0; //TODO: determine if this is needed
 
+    __device__ virtual void setOutput(float * output, float * gamestate, const float * startingParams_d) = 0;
 
     //NOTE: The ID this function returns MUST be unique for each derived class!
     __host__ virtual int getID() = 0;

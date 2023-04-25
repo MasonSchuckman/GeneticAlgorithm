@@ -423,49 +423,13 @@ void Simulator::runSimulation(float *output_h)
         printf("Num blocks = %d. Bots per sim = %d\n", numBlocks, config.bpb);
         printf("Shared mem needed per block = %d KB\n", sharedMemNeeded * sizeof(float) / (2 << 10));
     }
-    // get random target coordinates
-    int minPos = -2;
-    int maxPos = 2;
-    std::random_device rd;                                 // obtain a random seed from hardware
-    std::mt19937 eng(rd());                                // seed the generator
-    std::uniform_int_distribution<> distr(minPos, maxPos); // define the range
-    float targetX = distr(eng);
-    float targetY = distr(eng);
-
-    //random starting pos
-    float startingX = distr(eng);
-    float startingY = distr(eng);
-
-    double r = 5.0 + iterationsCompleted / 10; // radius of circle
-    double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
-    targetX = r * cos(angle); // compute x coordinate
-    targetY = r * sin(angle); // compute y coordinate
-    // targetX = 10;
-    // targetY = 0;
-    startingX = 0;
-    startingY = 0;
-    if (targetX == 0 && targetY == 0)
-        targetX = 2;
     
-    float optimal = hypotf(targetX, targetY) / 2.0 * hypotf(targetX, targetY);
-
-    // transfer target coordinates to GPU
-    float *startingParams_h = new float[config.numStartingParams];
-    
-    startingParams_h[0] = targetX;
-    startingParams_h[1] = targetY;
-    startingParams_h[2] = optimal;
-    startingParams_h[3] = startingX;
-    startingParams_h[4] = startingY;
+    float * startingParams_h = new float[config.numStartingParams];
+    derived->getStartingParams(startingParams_h);
 
     check(cudaMemcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float), cudaMemcpyHostToDevice));
     delete[] startingParams_h;
 
-    if (iterationsCompleted % 10 == 0)
-    {
-        printf("\nTarget at (%d, %d)\n", (int)targetX, (int)targetY);
-        printf("Optimal dist = %f\n", optimal * 4);
-    }
     auto start_time = std::chrono::high_resolution_clock::now();
     // Launch a kernel on the GPU with one block for each simulation/contest
     // Kernels::simulateShared<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);

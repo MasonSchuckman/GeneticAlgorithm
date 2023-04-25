@@ -11,6 +11,9 @@ public:
     __host__ __device__ TargetSimulation(){}    
     __host__ __device__ ~TargetSimulation(){}
 
+    __host__ void getStartingParams(float * startingParams);
+
+
     //Called at the beginning of the kernel. Used to do things like place the bots at their starting positions and such
     __device__ void setupSimulation(const float * startingParams, float * gamestate);
 
@@ -20,6 +23,8 @@ public:
     __device__ void eval(float ** actions, float * gamestate);
 
     __device__ int checkFinished(float * gamestate);
+
+    __device__ void setOutput(float * output, float * gamestate, const float * startingParams_d);
 
     __host__ int getID();
 
