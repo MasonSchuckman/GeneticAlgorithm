@@ -13,6 +13,9 @@ __constant__ float MAX_ROT_SPEED = 30f;
 #define ROTATION_ANGLE degrees * 3.141592654f / 180.0f // 90 degrees
 
 #define actor_state_len 5
+#define actor_size .5f
+#define goal_height 5
+#define goal_dist 20
 enum actor_state_offset {x_offset, y_offset, vel_offset, dir_offset, score_offset}
 #define gen_num 15
 
@@ -175,14 +178,6 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
     int tid = threadIdx.x;
     int bot = -1;
 
-    if (tid < 2) bot = tid;
-
-    // Update direction & velocity
-    if(bot != -1) {
-    }
-
-    __syncthreads();
-
     // update the bots' position
     if (tid < 2)
     {
@@ -198,6 +193,8 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
 
         gamestate[bot * actor_state_len + vel_offset] += accel;
         float dir = gamestate[bot * actor_state_len + dir_offset] + omega;
+        if (dir < 0) dir += 360;
+        if (dir > 360) dir -= 360;
         gamestate[bot * actor_state_len + dir_offset] = dir;
         
         speed = gamestate[bot * actor_state_len + vel_offset];
@@ -214,61 +211,61 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
     }
 
     __syncthreads();
+
+    // Kick ball
+    if (tid < 2) {
+        bot = tid;
+
+        float ballx = gamestate[2 * actor_state_len + x_offset];
+        float bally = gamestate[2 * actor_state_len + y_offset];
+
+        if (hypotf(
+                ballx - gamestate[bot * actor_state_len + x_offset],
+                bally - gamestate[bot * actor_state_len + y_offset]
+            ) < actor_size) {
+            gamestate[2 * actor_state_len + dir_offset] = gamestate[bot * actor_state_len + dir_offset];
+            gamestate[2 * actor_state_len + vel_offset] = gamestate[bot * actor_state_len + vel_offset];
+        }
+    }
+
+    __syncthreads();
+
+    if (tid == 0) {
+        float ballx = gamestate[2 * actor_state_len + x_offset];
+        float bally = gamestate[2 * actor_state_len + y_offset];
+        float ballDir = gamestate[2 * actor_state_len + dir_offset];
+        
+        // Either bounce or score
+        if (abs(ballx) > goal_dist) {
+            // Goal
+            if (abs(bally) < goal_height) {
+                // Bot 0 wants to score to the right
+                int scorer = bally > 0;
+                gamestate[bot * actor_state_len + score_offset] += 100;
+                gamestate(2 * actor_state_len + x_offset) = 0;
+                gamestate(2 * actor_state_len + y_offset) = 0;
+                gamestate(2 * actor_state_len + vel_offset) = 0;
+                gamestate(2 * actor_state_len + dir_offset) = 0;
+            } else 
+            {
+                ballDir = 180 - ballDir;
+                if (ballDir < 0) ballDir += 180;
+                gamestate(2 * actor_state_len + dir_offset) = ballDir;
+            }
+        }
+        if (abs(bally) > goal_dist) {
+            ballDir = 360 - ballDir;
+            gamestate(2 * actor_state_len + dir_offset) = ballDir;
+        }
+    }
+
+    __syncthreads();
 }
 
+// Game doesn't end on its own
 __device__ int AirHockeySimulation::checkFinished(float *gamestate)
 {
-    int tid = threadIdx.x;
-    if (tid < 2)
-    {
-        int bot = tid;
-        int posOffset = 1;
-        const int numBotVars = 4;
-
-        float dx = gamestate[13] - gamestate[bot * numBotVars + posOffset + 0];
-        float dy = gamestate[14] - gamestate[bot * numBotVars + posOffset + 1];
-        float dist = hypotf(dx, dy);
-
-        gamestate[bot + 11] += dist; // 11 = distOffset
-
-        if (dist < 0.5f && threadIdx.x == 0)
-        {
-            //   printf("%d at target on iter %f\n", blockIdx.x, gamestate[0]);
-        }
-
-        // if (dist < .5f && threadIdx.x == 0 && gamestate[0] > 30)
-        // {
-        //     printf("dist = %f, iter = %d, bot = %d\n", dist, (int)gamestate[0], blockIdx.x);
-        //     printf("Game state:\n");
-        //     for(int i = 0; i < 15; i++)
-        //         printf("%f, ", gamestate[i]);
-        //     printf("\n");
-        // }
-    }
     __syncthreads();
-
-    int resetInterval = 2500;
-    // Check if we need to reset the sim this iteration
-    if (((int)gamestate[0] + 1) % resetInterval == 0)
-    {
-        if (threadIdx.x == 0)
-        {
-            
-
-            //"Rotate" the target position
-
-            float new_x = gamestate[13] * cosf(ROTATION_ANGLE) - gamestate[14] * sinf(ROTATION_ANGLE);
-            float new_y = gamestate[13] * sinf(ROTATION_ANGLE) + gamestate[14] * cosf(ROTATION_ANGLE);
-
-            // Update the coordinates
-            gamestate[13] = new_x;
-            gamestate[14] = new_y;
-        }
-    }
-
-    __syncthreads();
-
-    // return dist < epsilon;
     return false;
 }
 
