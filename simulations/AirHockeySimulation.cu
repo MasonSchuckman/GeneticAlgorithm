@@ -7,12 +7,14 @@ extern __constant__ SimConfig config_d;
 
 __constant__ float MAX_SPEED2 = 50.0f;
 __constant__ float MAX_ACCEL = 10.00f;
+__constant__ float MAX_ROT_SPEED = 30f;
 
 #define degrees 90.0f
 #define ROTATION_ANGLE degrees * 3.141592654f / 180.0f // 90 degrees
 
 #define actor_state_len 5
-enum actor_state_offset {x_offset, y_offset, x_vel_offset, y_vel_offset, score_offset}
+enum actor_state_offset {x_offset, y_offset, vel_offset, dir_offset, score_offset}
+#define gen_num 15
 
 __host__ void AirHockeySimulation::getStartingParams(float *startingParams)
 {
@@ -60,7 +62,7 @@ __host__ void AirHockeySimulation::getStartingParams(float *startingParams)
 
 /*
 Two bots in this simulation. Calling them A and B.
-The two bots control themselves via acceleration. They have 2 output neurons with (likely) linear activation.
+The two bots control themselves via acceleration & direction. They have 2 output neurons with (likely) linear activation.
 This simulation is mainly to verify a single block can handle multiple bots.
 Ax refers to A's x coordinate.
 Avx is A's x velocity
@@ -69,42 +71,40 @@ Gamestate description
 0-4: BotA data
 5-9: BotB data
 10-14: Ball data (ball 'score' is Game Tick)
+15: generation number
 
 */
 
-// Right now both bots start in the same locaiton. Might change in future
+// Bots start at ~ -10 and 10.  More starting positions may be used in the future
 __device__ void AirHockeySimulation::setupSimulation(const float *startingParams, float *gamestate)
 {
     if (threadIdx.x == 0)
     {
-        // iter
-        gamestate[0] = 0;
+        // Bot A State
+        // 5 Units away (to the left)
+        gamestate[0 + x_offset] = -5;
+        gamestate[0 + y_offset] = 0;
+        gamestate[0 + vel_offset] = 0;
+        gamestate[0 + dir_offset] = 0;
+        gamestate[0 + score_offset] = 0;
 
-        // pos A
-        gamestate[1] = startingParams[3];
-        gamestate[2] = startingParams[4];
 
-        // Vel A
-        gamestate[3] = 0;
-        gamestate[4] = 0;
+        // Bot B State
+        // 5 Units away (up and to the right)
+        gamestate[actor_state_len + x_offset] = 4;
+        gamestate[actor_state_len + y_offset] = 3;
+        gamestate[actor_state_len + vel_offset] = 0;
+        gamestate[actor_state_len + dir_offset] = 0;
+        gamestate[actor_state_len + score_offset] = 0;
 
-        // pos B
-        gamestate[5] = -startingParams[4];
-        gamestate[6] = -startingParams[3];
+        // ball state
+        gamestate[actor_state_len * 2 + x_offset] = 0;
+        gamestate[actor_state_len * 2 + y_offset] = 0;
+        gamestate[actor_state_len * 2 + vel_offset] = 0;
+        gamestate[actor_state_len * 2 + dir_offset] = 0;
+        gamestate[actor_state_len * 2 + score_offset] = 0; // Iteration number
 
-        // Vel B
-        gamestate[7] = 0;
-        gamestate[8] = 0;
-
-        // Distances
-        gamestate[11] = 0;
-        gamestate[12] = 0;
-
-        // Target location
-        gamestate[13] = startingParams[0];
-        gamestate[14] = startingParams[1];
-
-        gamestate[15] = startingParams[5]; //what generation we're on
+        gamestate[gen_num] = 0; //what generation we're on
     }
     __syncthreads();
 }
@@ -130,48 +130,41 @@ __device__ void AirHockeySimulation::setActivations(float *gamestate, float **ac
 {
     int bot = -1;
     int tid = threadIdx.x;
-    const int numBotVars = 4;
 
-    if (tid < numBotVars)
+    if (tid < actor_state_len)
     {
         bot = 0;
     }
-    else if (tid < numBotVars * 2)
+    else if (tid < actor_state_len * 2)
     {
         bot = 1;
     }
+    int otherBot = !bot;
     // rand for adding noise to other bot's information
 
     float rand = 0;
     float randomMagnitude = 100.0f / logf(gamestate[15] + 2.0f) + 100.0f / logf((float)(iter + 2));
     
-    if (bot == 0)
+    if (bot == 0 || bot == 1)
     {
-        activs[bot][tid] = gamestate[tid + 1]; //+1 since iter is 0.
+        activs[bot][tid - actor_state_len * bot] = gamestate[tid];
 
         rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[15]);        
-        activs[bot][tid + numBotVars] = gamestate[tid + numBotVars + 1] + rand;
-        if((int)gamestate[15] % 20 == 0)
-            activs[bot][tid + numBotVars] = 0;
-    }
-    else if (bot == 1)
-    {
-        activs[bot][tid - numBotVars] = gamestate[tid + 1]; //+1 since iter is 0.
-
-        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[15]);
-        activs[bot][tid] = gamestate[tid - numBotVars + 1] + rand;
-        if((int)gamestate[15] % 20 == 0)
-            activs[bot][tid] = 0;
+        activs[bot][tid + actor_state_len] = gamestate[tid + actor_state_len * otherBot] + rand;
     }
 
     if (tid < 2)
     {
         bot = tid;
-        gamestate[0] = iter;
 
-        // Input the target position
-        activs[bot][8] = gamestate[13];
-        activs[bot][9] = gamestate[14];
+        // Input the ball data
+        int ball_offset = actor_state_len * 2;
+        actives[bot][ball_offset + x_offset] = gamestate[ball_offset + x_offset];
+        actives[bot][ball_offset + y_offset] = gamestate[ball_offset + y_offset] = 0;
+        actives[bot][ball_offset + vel_offset] = gamestate[ball_offset + vel_offset] = 0;
+        actives[bot][ball_offset + dir_offset] = gamestate[ball_offset + dir_offset] = 0;
+        // Iteration number
+        actives[bot][ball_offset + score_offset] = gamestate[ball_offset + score_offset] = iter;
     }
     
     __syncthreads();
@@ -179,36 +172,14 @@ __device__ void AirHockeySimulation::setActivations(float *gamestate, float **ac
 
 __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
 {
-    const int numBotVars = 4;
     int tid = threadIdx.x;
-    int velOffset = 3; // + 3 = 1 (iter) + 2 (pos indecies)
-    int posOffset = 1;
     int bot = -1;
 
-    if (tid < 2)
-        bot = 0;
-    else if (tid < 4)
-        bot = 1;
+    if (tid < 2) bot = tid;
 
-    int direction = tid % 2; // which direction (x or y) this thread updates
-
-    // // update velocities
-    // if (tid < 4)
-    // {
-    //     // Allows precise movement in either direction.
-    //     float preference = actions[bot][direction];
-        
-    //     //float accel = preference * MAX_ACCEL;
-
-    //     // Bound the acceleration change
-    //     //accel = fminf(MAX_ACCEL, fmaxf(-MAX_ACCEL, accel));
-
-    //     // Update the bot's velocity
-    //     //gamestate[bot * numBotVars + direction + velOffset] += accel;
-    //     // gamestate[bot * numBotVars + direction + velOffset] = accel;
-    // }
-
-
+    // Update direction & velocity
+    if(bot != -1) {
+    }
 
     __syncthreads();
 
@@ -216,33 +187,30 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
     if (tid < 2)
     {
         bot = tid;
-        float accelX = actions[bot][0] * MAX_ACCEL;
-        float accelY = actions[bot][1] * MAX_ACCEL;
 
-        float accel = hypotf(accelX, accelY);
-        if(accel > MAX_ACCEL){
-            float f = MAX_ACCEL / accel;
-            accelX *= f;
-            accelY *= f;
-        }
+        float accel = actions[bot][0] * MAX_ACCELL;
+        // clamped
+        accel = fminf(MAX_ACCEL, fmaxf(-MAX_ACCEL, accel)); 
+        // Not actually omega, omega is rotational acceleration but we're just using rotational velocity
+        float omega = actions[bot][1] * MAX_ROTAION_SPEED;
+        // clamped
+        omega = fminf(MAX_ROTAION_SPEED, fmaxf(-MAX_ROTAION_SPEED, omega));
+
+        gamestate[bot * actor_state_len + vel_offset] += accel;
+        float dir = gamestate[bot * actor_state_len + dir_offset] + omega;
+        gamestate[bot * actor_state_len + dir_offset] = dir;
         
-        gamestate[bot * numBotVars + velOffset + 0] += accelX;
-        gamestate[bot * numBotVars + velOffset + 1] += accelY;
-        float Avx = gamestate[bot * numBotVars + velOffset + 0];
-        float Avy = gamestate[bot * numBotVars + velOffset + 1];
-
-        // Make sure the speed doesn't go above max speed
-        float speed = hypotf(Avx, Avy);
-        if (speed > MAX_SPEED2)
-        {
-            float f = MAX_SPEED2 / speed;
-            gamestate[bot * numBotVars + velOffset + 0] *= f;
-            gamestate[bot * numBotVars + velOffset + 1] *= f;
-        }
+        speed = gamestate[bot * actor_state_len + vel_offset];
+        gamestate[bot * actor_state_len + vel_offset] = 
+            fminf(MAX_ROTAION_SPEED, fmaxf(-MAX_ROTAION_SPEED, speed));
+        gamestate[bot * actor_state_len + vel_offset] = speed;
+        
+        float dx = speed * cos(radians(dir));
+        float dy = speed * sin(radians(dir));
 
         // Update the bot's position
-        gamestate[bot * numBotVars + posOffset + 0] += gamestate[bot * numBotVars + velOffset + 0];
-        gamestate[bot * numBotVars + posOffset + 1] += gamestate[bot * numBotVars + velOffset + 1];
+        gamestate[bot * actor_state_len + x_offset] += dx;
+        gamestate[bot * actor_state_len + y_offset] += dy;
     }
 
     __syncthreads();
