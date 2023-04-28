@@ -8,8 +8,8 @@
 
 class AirHockeySimulation : public Simulation {
 public:
-    __host__ __device__ MultibotSimulation(){}    
-    __host__ __device__ ~MultibotSimulation(){}
+    __host__ __device__ AirHockeySimulation(){}    
+    __host__ __device__ ~AirHockeySimulation(){}
 
     __host__ void getStartingParams(float * startingParams);
 
