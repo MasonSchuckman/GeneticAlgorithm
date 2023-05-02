@@ -167,6 +167,10 @@ __device__ void AirHockeySimulation::setActivations(float *gamestate, float **ac
 
 __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
 {
+    // 1 point for being closest to the ball
+    // 100 points for ball touch
+    // 10000 points for goal
+
     int tid = threadIdx.x;
     int bot = -1;
 
@@ -204,6 +208,20 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
 
     __syncthreads();
 
+    {
+        float ballx = gamestate[2 * actor_state_len + x_offset];
+        float bally = gamestate[2 * actor_state_len + y_offset];
+        float botDist[2];
+        for (int i = 0; i < 2; i++) {
+            botDist[i] = hypotf(
+                ballx - gamestate[i * actor_state_len + x_offset], 
+                bally - gamestate[i * actor_state_len + y_offset]);
+        }
+        // Bot 0 has a slight disadvantage
+        int closestBot = botDist[1] < botDist[0];
+        gamestate[closestBot * actor_state_len + score_offset] += 1;
+    }
+
     // Kick ball
     if (tid < 2) {
         bot = tid;
@@ -217,7 +235,7 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
             ) < actor_size) {
             gamestate[2 * actor_state_len + dir_offset] = gamestate[bot * actor_state_len + dir_offset];
             gamestate[2 * actor_state_len + vel_offset] = gamestate[bot * actor_state_len + vel_offset] + .1f;
-            gamestate[bot * actor_state_len + score_offset] += 2;
+            gamestate[bot * actor_state_len + score_offset] += 100;
         }
     }
 
@@ -234,6 +252,26 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
             if (abs(bally) < goal_height) {
                 // Bot 0 wants to score to the right
                 int scorer = bally > 0;
+                gamestate[scorer * actor_state_len + score_offset] += 10000;
+
+                // Bot A State
+                // 5 Units away (to the left)
+                gamestate[0 + x_offset] = -5;
+                gamestate[0 + y_offset] = 0;
+                gamestate[0 + vel_offset] = 0;
+                gamestate[0 + dir_offset] = 0;
+                gamestate[0 + score_offset] = 0;
+
+
+                // Bot B State
+                // 5 Units away (up and to the right)
+                gamestate[actor_state_len + x_offset] = 4;
+                gamestate[actor_state_len + y_offset] = 3;
+                gamestate[actor_state_len + vel_offset] = 0;
+                gamestate[actor_state_len + dir_offset] = 0;
+                gamestate[actor_state_len + score_offset] = 0;
+
+                // Ball state
                 gamestate[bot * actor_state_len + score_offset] += 100;
                 gamestate[2 * actor_state_len + x_offset] = 0;
                 gamestate[2 * actor_state_len + y_offset] =  0;
@@ -272,20 +310,13 @@ __device__ void AirHockeySimulation::setOutput(float *output, float *gamestate, 
 
     if (threadIdx.x == 0)
     {
-        if (gamestate[11] != 0)
-            output[blockIdx.x * 2] = -gamestate[11];
-        else
-            output[blockIdx.x * 2] = 0;
-
-        if (gamestate[12] != 0)
-            output[blockIdx.x * 2 + 1] = -gamestate[12];
-        else
-            output[blockIdx.x * 2 + 1] = 0;
+        output[blockIdx.x * 2] = gamestate[0 * actor_state_len + score_offset];
+        output[blockIdx.x * 2 + 1] = gamestate[1 * actor_state_len + score_offset];
 
         if (blockIdx.x == 0)
         {
             if (counter % 25 == 0)
-                printf("Block %d total dist = %f, efficiency = %f, counter = %d\n", blockIdx.x, gamestate[11], (startingParams_d[2] / gamestate[11]), counter);
+                printf("Block %d AScore = %f, BScore = %f, counter = %d\n", blockIdx.x, gamestate[score_offset], gamestate[actor_state_len + score_offset], counter);
 
             counter++;
         }
