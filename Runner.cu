@@ -276,12 +276,81 @@ void testPong()
     }
 }
 
-int main()
+void testAirHockey()
+{
+    FullSimConfig fullConfig = readSimConfig("AirHockeySimConfig.json");
+
+    vector<Bot*> bots;
+    for (int i = 0; i < fullConfig.totalBots; i++)
+    {
+        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
+    }
+
+    Simulator engine(bots, fullConfig.sim, fullConfig.config);
+    engine.min_mutate_rate = fullConfig.minMutationRate;
+    engine.mutateMagnitude = fullConfig.baseMutationRate;
+    engine.mutateDecayRate = fullConfig.mutationDecayRate;
+    engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
+
+    if (fullConfig.loadData == 1)
+    {
+        engine.loadData = 1;
+    }
+
+    engine.batchSimulate(fullConfig.generations);
+
+    for (int i = 0; i < fullConfig.totalBots; i++)
+    {
+        delete bots[i];
+    }
+}
+
+void testSim(std::string configFile)
+{
+    std::cout << "Testing " << configFile << std::endl;
+
+    FullSimConfig fullConfig = readSimConfig(configFile);
+
+    vector<Bot*> bots;
+    for (int i = 0; i < fullConfig.totalBots; i++)
+    {
+        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
+    }
+
+    Simulator engine(bots, fullConfig.sim, fullConfig.config);
+    engine.min_mutate_rate = fullConfig.minMutationRate;
+    engine.mutateMagnitude = fullConfig.baseMutationRate;
+    engine.mutateDecayRate = fullConfig.mutationDecayRate;
+    engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
+
+    if (fullConfig.loadData == 1)
+    {
+        engine.loadData = 1;
+    }
+
+    engine.batchSimulate(fullConfig.generations);
+
+    for (int i = 0; i < fullConfig.totalBots; i++)
+    {
+        delete bots[i];
+    }
+}
+
+int main(int argc, char* argv[])
 {
     cudaSetDevice(0);
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    testPong();
+    if (argc == 1) {
+        std::cout << "Testing Multibot\n";
+        testMultibot();
+    }
+    else {
+        std::cout << "Test user specified file\n";
+        testSim(argv[1]);
+    }
+    //testAirHockey();
+    //testPong();
     //testMultibot();
     // test_simulation_2();
 
