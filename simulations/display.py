@@ -5,7 +5,7 @@ import math
 from portGene import importGene, exportGene
 
 # Define constants
-MAX_SPEED = 10
+MAX_SPEED = 25
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
 
@@ -137,12 +137,13 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
     output[:] += np.dot(inputs, weights)
 
     # Apply activation function (ReLU for non-output layers, sigmoid for output layer)
-    if layer != len(layershapes) - 1:
-        output[output < 0] = 0
-    else:
-        #print('sigmoid')
-        output[:] = 1.0 / (1.0 + np.exp(-output))
-        
+    # if layer != len(layershapes) - 1:
+    #     output[output < 0] = 0
+    # else:
+    #     #print('sigmoid')
+    #     output[:] = 1.0 / (1.0 + np.exp(-output))
+    # if layer != len(layershapes) - 1:
+    #     output[output < 0] = 0
 
     return output
 
@@ -163,8 +164,15 @@ def get_actions(bot_velx, bot_vely, bot_posx, bot_posy, targetX, targetY, net_we
     output = forward_propagation(prevLayer, net_weights[numLayers - 2], net_biases[numLayers - 1], layershapes[numLayers - 2], layershapes[numLayers - 1], numLayers - 1)
 
     # Compute bot velocity based on output    
-    gamestate = (output - 0.5) * MAX_SPEED * 2
+    gamestate = [None] * 2
+    
+    # gamestate[0] = output[0] * MAX_SPEED
+    # gamestate[1] = output[2] * MAX_SPEED
 
+    gamestate[0] = (output[0] - output[1]) * MAX_SPEED
+    gamestate[1] = (output[2] - output[3]) * MAX_SPEED
+    #gamestate = (output - 0.5) * MAX_SPEED * 2
+    print(gamestate)
     speed = math.hypot(gamestate[0], gamestate[1]);
     if(speed > MAX_SPEED):
         f = MAX_SPEED / speed;
@@ -178,8 +186,8 @@ def get_actions(bot_velx, bot_vely, bot_posx, bot_posy, targetX, targetY, net_we
 # Read in the bots' networks
 layershapes, allWeights, allBiases = readWeightsAndBiasesAll()
 
-NUM_BOTS = 2
-
+NUM_BOTS = 10
+bestoffset = 0
 # Define initial bot states, target positions and networks
 bots = []
 targets = []
@@ -189,7 +197,7 @@ for i in range(NUM_BOTS):
     bots.append(bot)
     target = {'x': 0, 'y': 0}
     targets.append(target)
-    network = {'weights': allWeights[i], 'biases': allBiases[i]}
+    network = {'weights': allWeights[i + bestoffset], 'biases': allBiases[i + bestoffset]}
     networks.append(network)
 
 # Main game loop

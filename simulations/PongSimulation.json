@@ -1,0 +1,20 @@
+{
+    "simulation": "PongSimulation",
+    "neural_net": {
+        "num_layers": 3,
+        "layer_shapes": [8,8,1],
+        "layer_types" : [0,0]
+    },
+    "bots_per_sim": 2,
+    "max_iters": 1000,
+    "total_bots": 14,
+    "num_starting_params": 9,
+    "direct_contest": 0,
+    "bots_per_team": 0,
+    "generations" : 2000,
+    "base_mutation_rate" : 0.4,
+    "min_mutation_rate" : 0.000001,
+    "mutation_decay_rate" : 0.995,
+    "shift_effectiveness" : 0.02,
+    "load_data" : 0
+}

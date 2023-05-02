@@ -13,7 +13,7 @@
 // These are needed for compile time understanding of static arrays in kernels.
 // The code would be much uglier without them.
 const int MAX_LAYERS = 4;
-const int MAX_BOTS_PER_SIM = 1;
+const int MAX_BOTS_PER_SIM = 2;
 
 struct SimConfig{
     SimConfig(){}
@@ -40,7 +40,7 @@ struct SimConfig{
 
     // Making this statically allocated might have unforseen consequences, idk.
     int layerShapes[MAX_LAYERS];
-    
+    int layerTypes[MAX_LAYERS];
 };
 
 class Simulation {
@@ -48,14 +48,23 @@ public:
     __host__ __device__ Simulation() {}
     __host__ __device__ virtual ~Simulation() {}
 
+    __host__ virtual void getStartingParams(float * startingParams) = 0;
     // actions and gamestate are both shared memory variables. The exact way they're used is
     // simulation dependent.
     __device__ virtual void eval(float ** actions, float * gamestate) = 0;
+
+    //Called at the beginning of the kernel. Used to do things like place the bots at their starting positions and such
+    __device__ virtual void setupSimulation(const float * startingParams, float * gamestate) = 0;
+
+    //Called at the beginning of each sim iteration. 
+    __device__ virtual void setActivations(float * gamestate, float ** activs, int iter) = 0;
+
 
     //return 1 if simulation is finished.
     __device__ virtual int checkFinished(float * gamestate) = 0;
     //__device__ virtual void determineOutcome(float * gamestate) = 0; //TODO: determine if this is needed
 
+    __device__ virtual void setOutput(float * output, float * gamestate, const float * startingParams_d) = 0;
 
     //NOTE: The ID this function returns MUST be unique for each derived class!
     __host__ virtual int getID() = 0;
@@ -74,11 +83,13 @@ struct FullSimConfig{
     float baseMutationRate;
     float minMutationRate;
     float mutationDecayRate;
+    float shiftEffectiveness;
 
+    int loadData;
     FullSimConfig(Simulation * sim_, SimConfig config_, int totalBots_, int generations_, float baseMutationRate_,
-    float minMutationRate_, float mutationDecayRate_)
+    float minMutationRate_, float mutationDecayRate_, float shiftEffectiveness_, int loadData_)
         : sim(sim_), config(config_), totalBots(totalBots_), generations(generations_), baseMutationRate(baseMutationRate_)
-        , minMutationRate(minMutationRate_), mutationDecayRate(mutationDecayRate_) {}
+        , minMutationRate(minMutationRate_), mutationDecayRate(mutationDecayRate_), shiftEffectiveness(shiftEffectiveness_), loadData(loadData_) {}
 
     ~FullSimConfig(){
         delete sim;

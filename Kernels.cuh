@@ -1,7 +1,7 @@
 #ifndef KERNELS_CUH
 #define KERNELS_CUH
-#include "Simulation.cuh"
-#include "BasicSimulation.cuh"
+#include "SimulationList.cuh"
+
 
 namespace Kernels
 {

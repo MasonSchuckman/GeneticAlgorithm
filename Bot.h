@@ -1,8 +1,8 @@
 #ifndef BOT_H
 #define BOT_H
 
-#include "biology\Genome.h"
-
+#include "biology/Genome.h"
+//#include "Genome.h"
 
 class Bot{
 public:
