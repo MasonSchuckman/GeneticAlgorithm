@@ -18,6 +18,7 @@ extern __device__ float rng(float a, float b, unsigned int seed);
 #define toRads 3.141592654f / 180.0f
 #define ROTATION_ANGLE degrees * toRads
 
+#define OUT_OF_BOUNDS_DIST = 5
 #define actor_state_len 5
 #define actor_size .5f
 #define goal_height 5
@@ -142,6 +143,7 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 
 		activs[bot][tid + actor_state_len] = gamestate[tid + actor_state_len * otherBot];
 	}
+	__syncthreads();
 
 	if (tid < 2)
 	{
@@ -168,7 +170,13 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 
 	int tid = threadIdx.x;
 	int bot = -1;
-
+    if(tid == 0 && blockIdx.x == 0 && gamestate[14] > 95){
+        printf("Gamestate:\n");
+        for(int i = 0; i < 15; i++){
+            printf("%f, ", gamestate[i]);
+        }
+        printf("\n");
+    }
 	// update the bots' position
 	if (tid < 2)
 	{
@@ -216,7 +224,7 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 		int closestBot = botDist[1] < botDist[0];
 		gamestate[closestBot * actor_state_len + score_offset] += 1;
 	}
-
+    __syncthreads();
 	// Kick ball
 	if (tid < 2) {
 		bot = tid;
@@ -238,30 +246,40 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 
 
 	if (tid == 0) {
-		float ballx = gamestate[2 * actor_state_len + x_offset];
-		float bally = gamestate[2 * actor_state_len + y_offset];
-		float ballDir = gamestate[2 * actor_state_len + dir_offset];
+        float ballx = gamestate[2 * actor_state_len + x_offset];
+        float bally = gamestate[2 * actor_state_len + y_offset];
+        float ballSpeed = gamestate[2 * actor_state_len + vel_offset];
+        float ballDir = gamestate[2 * actor_state_len + dir_offset];
 
-		// Either bounce or score
-		if (abs(ballx) > goal_dist) {
-			// Goal
-			if (abs(bally) < goal_height) {
-				// Bot 0 wants to score to the right
-				int scorer = bally > 0;
-				gamestate[scorer * actor_state_len + score_offset] += 10000;
-			}
-			else
-			{
-				ballDir = 180 - ballDir;
-				if (ballDir < 0) ballDir += 180;
-				gamestate[2 * actor_state_len + dir_offset] = ballDir;
-			}
-		}
-		if (abs(bally) > goal_dist) {
-			ballDir = 360 - ballDir;
-			gamestate[2 * actor_state_len + dir_offset] = ballDir;
-		}
-	}
+        // Either bounce or score
+        if (abs(ballx) > goal_dist) {
+            // Goal
+            if (abs(bally) < goal_height) {
+                // Bot 0 wants to score to the right
+                int scorer = bally > 0;
+                gamestate[scorer * actor_state_len + score_offset] += 10000;
+            }
+            else
+            {
+                ballDir = 180 - ballDir;
+                if (ballDir < 0) ballDir += 180;
+                gamestate[2 * actor_state_len + dir_offset] = ballDir;
+            }
+        }
+        if (abs(bally) > goal_dist) {
+            ballDir = 360 - ballDir;
+            gamestate[2 * actor_state_len + dir_offset] = ballDir;
+        }
+
+
+        float dx = ballSpeed * cosf(ballDir * toRads);
+        float dy = ballSpeed * sinf(ballDir * toRads);
+
+        ballx += dx;
+        bally += dy;
+        gamestate[2 * actor_state_len + x_offset] = ballx;
+        gamestate[2 * actor_state_len + y_offset] = bally;
+    }
 
 	__syncthreads();
 }
