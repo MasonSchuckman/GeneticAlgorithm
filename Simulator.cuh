@@ -8,8 +8,7 @@
 #include <stdio.h>
 
 #include "Bot.h"
-#include "Simulation.cuh"
-#include "BasicSimulation.cuh"
+#include "SimulationList.cuh"
 #include "Kernels.cuh"
 
 #include <iostream>

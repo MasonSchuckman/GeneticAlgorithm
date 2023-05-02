@@ -5,18 +5,24 @@
 // NOTE: this must be present in every derived simulation!
 extern __constant__ SimConfig config_d;
 
-__constant__ float MAX_SPEED2 = 50.0f;
-__constant__ float MAX_ACCEL = 10.00f;
-__constant__ float MAX_ROT_SPEED = 30f;
+extern __device__ unsigned int xorshift(unsigned int x);
+
+// Used for cheap (fast) random numbers in setActivations. Random numbers help the model fit to more general information.
+extern __device__ float rng(float a, float b, unsigned int seed);
+
+extern __constant__ float MAX_SPEED2;
+extern __constant__ float MAX_ACCEL;
+__constant__ float MAX_ROT_SPEED = 30.0f;
 
 #define degrees 90.0f
-#define ROTATION_ANGLE degrees * 3.141592654f / 180.0f // 90 degrees
+#define toRads 3.141592654f / 180.0f
+#define ROTATION_ANGLE degrees * toRads
 
 #define actor_state_len 5
 #define actor_size .5f
 #define goal_height 5
 #define goal_dist 20
-enum actor_state_offset {x_offset, y_offset, vel_offset, dir_offset, score_offset}
+enum actor_state_offset {x_offset, y_offset, vel_offset, dir_offset, score_offset};
 #define gen_num 15
 
 __host__ void AirHockeySimulation::getStartingParams(float *startingParams)
@@ -113,21 +119,7 @@ __device__ void AirHockeySimulation::setupSimulation(const float *startingParams
 }
 
 
-__device__ unsigned int xorshift(unsigned int x)
-{
-    x ^= x >> 12;
-    x ^= x << 25;
-    x ^= x >> 27;
-    return x * 0x2545F491;
-}
 
-// Used for cheap (fast) random numbers in setActivations. Random numbers help the model fit to more general information.
-__device__ float rng(float a, float b, unsigned int seed)
-{    
-    unsigned int r = xorshift(seed);   
-    static const float m = 4294967296.0f; // 2^32
-    return a + (b - a) * (static_cast<float>(r) / m);
-}
 
 __device__ void AirHockeySimulation::setActivations(float *gamestate, float **activs, int iter)
 {
@@ -162,12 +154,12 @@ __device__ void AirHockeySimulation::setActivations(float *gamestate, float **ac
 
         // Input the ball data
         int ball_offset = actor_state_len * 2;
-        actives[bot][ball_offset + x_offset] = gamestate[ball_offset + x_offset];
-        actives[bot][ball_offset + y_offset] = gamestate[ball_offset + y_offset] = 0;
-        actives[bot][ball_offset + vel_offset] = gamestate[ball_offset + vel_offset] = 0;
-        actives[bot][ball_offset + dir_offset] = gamestate[ball_offset + dir_offset] = 0;
+        activs[bot][ball_offset + x_offset] = gamestate[ball_offset + x_offset];
+        activs[bot][ball_offset + y_offset] = gamestate[ball_offset + y_offset] = 0;
+        activs[bot][ball_offset + vel_offset] = gamestate[ball_offset + vel_offset] = 0;
+        activs[bot][ball_offset + dir_offset] = gamestate[ball_offset + dir_offset] = 0;
         // Iteration number
-        actives[bot][ball_offset + score_offset] = gamestate[ball_offset + score_offset] = iter;
+        activs[bot][ball_offset + score_offset] = gamestate[ball_offset + score_offset] = iter;
     }
     
     __syncthreads();
@@ -183,13 +175,13 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
     {
         bot = tid;
 
-        float accel = actions[bot][0] * MAX_ACCELL;
+        float accel = actions[bot][0] * MAX_ACCEL;
         // clamped
         accel = fminf(MAX_ACCEL, fmaxf(-MAX_ACCEL, accel)); 
         // Not actually omega, omega is rotational acceleration but we're just using rotational velocity
-        float omega = actions[bot][1] * MAX_ROTAION_SPEED;
+        float omega = actions[bot][1] * MAX_ROT_SPEED;
         // clamped
-        omega = fminf(MAX_ROTAION_SPEED, fmaxf(-MAX_ROTAION_SPEED, omega));
+        omega = fminf(MAX_ROT_SPEED, fmaxf(-MAX_ROT_SPEED, omega));
 
         gamestate[bot * actor_state_len + vel_offset] += accel;
         float dir = gamestate[bot * actor_state_len + dir_offset] + omega;
@@ -197,13 +189,13 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
         if (dir > 360) dir -= 360;
         gamestate[bot * actor_state_len + dir_offset] = dir;
         
-        speed = gamestate[bot * actor_state_len + vel_offset];
+        float speed = gamestate[bot * actor_state_len + vel_offset];
         gamestate[bot * actor_state_len + vel_offset] = 
-            fminf(MAX_ROTAION_SPEED, fmaxf(-MAX_ROTAION_SPEED, speed));
+            fminf(MAX_ROT_SPEED, fmaxf(-MAX_ROT_SPEED, speed));
         gamestate[bot * actor_state_len + vel_offset] = speed;
         
-        float dx = speed * cos(radians(dir));
-        float dy = speed * sin(radians(dir));
+        float dx = speed * cos(dir * toRads);
+        float dy = speed * sin(dir * toRads);
 
         // Update the bot's position
         gamestate[bot * actor_state_len + x_offset] += dx;
@@ -243,20 +235,20 @@ __device__ void AirHockeySimulation::eval(float **actions, float *gamestate)
                 // Bot 0 wants to score to the right
                 int scorer = bally > 0;
                 gamestate[bot * actor_state_len + score_offset] += 100;
-                gamestate(2 * actor_state_len + x_offset) = 0;
-                gamestate(2 * actor_state_len + y_offset) = 0;
-                gamestate(2 * actor_state_len + vel_offset) = 0;
-                gamestate(2 * actor_state_len + dir_offset) = 0;
+                gamestate[2 * actor_state_len + x_offset] = 0;
+                gamestate[2 * actor_state_len + y_offset] =  0;
+                gamestate[2 * actor_state_len + vel_offset] = 0;
+                gamestate[2 * actor_state_len + dir_offset] = 0;
             } else 
             {
                 ballDir = 180 - ballDir;
                 if (ballDir < 0) ballDir += 180;
-                gamestate(2 * actor_state_len + dir_offset) = ballDir;
+                gamestate[2 * actor_state_len + dir_offset] = ballDir;
             }
         }
         if (abs(bally) > goal_dist) {
             ballDir = 360 - ballDir;
-            gamestate(2 * actor_state_len + dir_offset) = ballDir;
+            gamestate[2 * actor_state_len + dir_offset] = ballDir;
         }
     }
 
@@ -302,5 +294,5 @@ __device__ void AirHockeySimulation::setOutput(float *output, float *gamestate, 
 
 __host__ int AirHockeySimulation::getID()
 {
-    return 4;
+    return 5;
 }

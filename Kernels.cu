@@ -1,4 +1,3 @@
-#include "Simulation.cuh"
 #include "SimulationList.cuh"
 #include <curand_kernel.h>
 
@@ -145,7 +144,8 @@ namespace Kernels
 
             float botScore1 = simulationOutcome[offsetBot1];
             float botScore2 = simulationOutcome[offsetBot2];
-
+            if(botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
+            printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, offsetBot1, offsetBot2);
             int winnerBotOffset;
             if (botScore1 > botScore2)
             {
@@ -214,6 +214,12 @@ namespace Kernels
                 break;
             case 3:
                 (*sim) = new MultibotSimulation();
+                break;
+            case 4:
+                (*sim) = new PongSimulation();
+                break;
+            case 5:
+                (*sim) = new AirHockeySimulation();
                 break;
             default:
                 printf("Invalid derived class ID. Did you update the kernel switch statement?\n");
@@ -361,11 +367,14 @@ namespace Kernels
 
                 __syncthreads();
                 iter++;
-                if (iter >= maxIters)
+                if (iter >= maxIters || finished)
                 {
                     finished = true;
                     (*sim)->setOutput(output, gamestate, startingParams);                    
                     __syncthreads();
+                    // if(threadIdx.x == 0 && output[blockIdx.x * 2] == 0 || output[blockIdx.x * 2 + 1] == 0){
+                    //     printf("block %d is zero at iter %f\n", blockIdx.x, startingParams[8]);
+                    // }
                 }
             }
 
