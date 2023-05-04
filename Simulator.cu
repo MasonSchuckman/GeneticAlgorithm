@@ -615,7 +615,10 @@ void Simulator::batchSimulate(int numSimulations)
     for(int i = 0; i < totalBots; i++)
         previousGeneration[i] = bots.at(i);
 
+
     // Invoke the kernel
+
+    std::cout << "total weights: " << config.totalNeurons + config.totalWeights << std::endl;
     for (int i = 0; i < numSimulations; i++)
     {
         // Only pass the location to where this iteration is writing
@@ -627,25 +630,37 @@ void Simulator::batchSimulate(int numSimulations)
 
 
         Specimen** nextGeneration = new Specimen*[totalBots];
-        for(int i = 0; i < totalBots; i++) {
-            Genome* nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[i*config.totalNeurons], &weights_h[i*config.totalWeights], "sigmoid");
-            Specimen* nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[i]]);
+        for(int j = 0; j < totalBots; j++) {
+            Genome* nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[j*config.totalNeurons], &weights_h[j*config.totalWeights], "sigmoid");
+            Specimen* nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[j]]);
             
-            nextGeneration[i] = nextSpecimen;
+            nextGeneration[j] = nextSpecimen;
         }
+        
+        // //if (mutateMagnitude > min_mutate_rate)
+        // if(PROGENITOR_THRESHOLD > MIN_THRESHOLD)
+        //     PROGENITOR_THRESHOLD *= std::sqrt(mutateDecayRate);
 
-        float PROGENITOR_THRESHOLD = 100;
+        // bigger constant = harder to make a new species
+        float MAGIC_CONSTANT = 5;
+        float PROGENITOR_THRESHOLD = 0;
+
+        for(int b = 0; b < totalBots; b++) {
+            PROGENITOR_THRESHOLD += Genome::distance(nextGeneration[b]->genome, previousGeneration[b]->genome);
+        } 
+        PROGENITOR_THRESHOLD /= totalBots;
+        PROGENITOR_THRESHOLD *= MAGIC_CONSTANT;
+
         history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
 
-        for(int i = 0; i < totalBots; i++) 
-            history->pruneSpecimen(previousGeneration[i]);
+        if(history->getYear() % 100 == 0)
+            historyGraph(history);
+
+        for(int j = 0; j < totalBots; j++) 
+            history->pruneSpecimen(previousGeneration[j]);
         
         delete previousGeneration;
         previousGeneration = nextGeneration;
-
-        if(history->getYear() % 25 == 0)
-            historyGraph(history);
-
         //printAncestry(previousGeneration[0]->species, 0);
     }
     printf("Ran simulation.\n");
