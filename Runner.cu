@@ -1,6 +1,9 @@
 #include "SimulationList.cuh"
 #include "Kernels.cuh"
 #include "Simulator.cuh"
+#include "biology/Taxonomy.h"
+#include "biology/Specimen.h"
+#include "biology/Genome.h"
 
 #include <iostream>
 #include <vector>
@@ -136,6 +139,7 @@ void launchKernel(Simulation *derived, SimConfig &config)
     // Code to launch the CUDA kernel with the configured parameters and function pointer
 }
 
+/*
 void test_simulation_1()
 {
     // Define which simulation we're running
@@ -304,20 +308,26 @@ void testAirHockey()
         delete bots[i];
     }
 }
-
-void testSim(std::string configFile)
+*/
+Taxonomy* testSim(std::string configFile)
 {
     std::cout << "Testing " << configFile << std::endl;
 
     FullSimConfig fullConfig = readSimConfig(configFile);
 
-    vector<Bot*> bots;
+    //vector<Bot*> bots;
+    vector<Specimen*> bots;
     for (int i = 0; i < fullConfig.totalBots; i++)
     {
-        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
+        Genome* nextGenome = new Genome(fullConfig.config.layerShapes, fullConfig.config.numLayers);
+        Specimen* nextCreature = new Specimen(nextGenome, nullptr);
+        bots.push_back(nextCreature);
+        //bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
     }
 
-    Simulator engine(bots, fullConfig.sim, fullConfig.config);
+    Taxonomy* history = new Taxonomy(bots.data(), fullConfig.totalBots);
+
+    Simulator engine(bots, fullConfig.sim, fullConfig.config, history);
     engine.min_mutate_rate = fullConfig.minMutationRate;
     engine.mutateMagnitude = fullConfig.baseMutationRate;
     engine.mutateDecayRate = fullConfig.mutationDecayRate;
@@ -334,20 +344,24 @@ void testSim(std::string configFile)
     {
         delete bots[i];
     }
+    return history;
 }
 
 int main(int argc, char* argv[])
 {
+
     cudaSetDevice(0);
 
     auto start_time = std::chrono::high_resolution_clock::now();
+
+    Taxonomy* resultsHistory;
     if (argc == 1) {
         std::cout << "Testing Multibot\n";
-        testMultibot();
+        resultsHistory = testSim("MultibotSimConfig.json");
     }
     else {
         std::cout << "Test user specified file\n";
-        testSim(argv[1]);
+        resultsHistory = testSim(argv[1]);
     }
     //testAirHockey();
     //testPong();

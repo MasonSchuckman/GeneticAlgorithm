@@ -16,6 +16,8 @@ creates a Genome with a specific shape and random weights
 */
 Genome::Genome(int *shape, int shapeLen) {
 
+  this->activation = "sigmoid";
+  
   // copying shape data
   this->shapeLen = shapeLen;
   this->shape = new int[shapeLen];
@@ -53,7 +55,7 @@ Genome::Genome(int *shape, int shapeLen) {
  @param biases  an array containing all bias weights
  @param connections  an array containing all connection weights 
 */
-Genome::Genome(int *shape, int shapeLen, float *biases, float *connections) {
+Genome::Genome(int *shape, int shapeLen, float *biases, float *connections, std::string activation) : activation(activation) {
 
   // copying shape data
   this->shapeLen = shapeLen;
@@ -89,11 +91,12 @@ Genome::Genome(int *shape, int shapeLen, float *biases, float *connections) {
  @param other  the genome to be copied when making this one
 */
 Genome::Genome(const Genome *other) {
-
+  
   // copying lengths
   this->shapeLen = other->shapeLen;
   this->numNeurons = other->numNeurons;
   this->numConnections = other->numConnections;
+  this->activation = other->activation;
 
   // copying array contents
   this->shape = new int[other->shapeLen];
@@ -264,4 +267,83 @@ float Genome::distance(const Genome *first, const Genome *second) {
 
 
   return std::sqrt(diff);
+}
+
+Genome::Genome(std::string filename) {
+
+  std::ifstream geneFile(filename);
+
+  if (!geneFile.is_open()) 
+    throw std::invalid_argument("unable to import genome weights from "+filename);
+
+  std::string garbage;
+
+  // reading in layer size
+  geneFile >> garbage >> this->shapeLen;
+
+  // reading in activation func
+  geneFile >> garbage >> this->activation;
+
+
+  // reading in shape
+  geneFile >> garbage;
+  this->shape = new int[this->shapeLen];
+  for(int i = 0; i < this->shapeLen; i++) 
+    geneFile >> this->shape[i];
+
+
+  // calculating array sizes for weights and biases
+  this->numConnections = 0;
+  for (int i = 0; i < this->shapeLen-1; i++)
+    this->numConnections += this->shape[i] * this->shape[i + 1];
+  
+  this->numNeurons = 0;
+  for (int i = 0; i < this->shapeLen; i++)
+    this->numNeurons += this->shape[i];
+
+
+  // reading in connection weights
+  geneFile >> garbage;  
+  this->connections = new float[numConnections];
+  for(int i = 0; i < this->numConnections; i++)
+    geneFile >> this->connections[i];
+
+
+  // reading in bias weights
+  geneFile >> garbage;
+  this->biases = new float[numNeurons];
+  for(int i = 0; i < this->numNeurons; i++) 
+    geneFile >> this->biases[i];
+  
+  geneFile.close();
+}
+
+
+void Genome::exportWeights(std::string filename) const {
+
+  std::ofstream geneFile(filename);
+
+  if (!geneFile.is_open()) 
+    throw std::invalid_argument("unable to export genome weights to "+filename);
+
+  geneFile << "layers " << this->shapeLen << std::endl;
+
+  geneFile << "type " << this->activation << std::endl;
+  
+  geneFile << "shape";
+  for(int i = 0; i < this->shapeLen; i++)
+    geneFile <<  " " << this->shape[i];
+  geneFile << std::endl;
+
+  geneFile << "connections";
+  for(int i = 0; i < this->numConnections; i++)
+    geneFile <<  " " << this->connections[i];
+  geneFile << std::endl;
+
+  geneFile << "biases";
+  for(int i = 0; i < this->numNeurons; i++)
+    geneFile <<  " " << this->biases[i];
+  geneFile << std::endl;
+
+  geneFile.close();
 }

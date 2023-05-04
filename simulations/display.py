@@ -2,6 +2,8 @@ import pygame
 import numpy as np
 import math
 
+from portGene import importGene, exportGene
+
 # Define constants
 MAX_SPEED = 25
 SCREEN_WIDTH = 640
@@ -98,21 +100,13 @@ def readWeightsAndBiasesAll():
     return layerShapes, all_weights, all_biases
 
 
-# Reads the one bot format
-def read_weights_and_biases():
-    with open('weights.data', 'r') as f:
-        data = f.read()
+# Reads the one bot format   <weights.gene>
+def read_weights_and_biases(filename):
 
-    weights_start = data.index("net_weights") + 13
-    weights_end = data.index("]", weights_start) + 1
-    biases_start = data.index("net_biases") + 12
-    biases_end = data.index("]", biases_start) + 1
+    (shape, type, cons, bias) = importGene('weights.gene')
 
-    weights_data = data[weights_start:weights_end].replace('[','').replace(']','').split(',')
-    biases_data = data[biases_start:biases_end].replace('[','').replace(']','').split(',')
-    #print(data)
-    weights = np.array([float(i.strip()) for i in weights_data])
-    biases = np.array([float(i.strip()) for i in biases_data])
+    weights = np.array(cons)
+    biases = np.array(bias)
     
     #print(biases)
     return weights, biases
