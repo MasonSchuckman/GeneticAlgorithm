@@ -41,6 +41,8 @@ Simulator::Simulator(vector<Specimen*> bots, Simulation* derived, SimConfig &con
         cudaMalloc((void **)&nextGenBiases_d, totalBots * config.totalNeurons * sizeof(float));
 
         cudaMalloc((void **)&parentSpecimen_d, totalBots * sizeof(int));
+        cudaMalloc((void **)&distances_d, totalBots * sizeof(float));
+
 
         // Copy the config over to GPU memory
         check(cudaMemcpyToSymbol(config_d, &config, sizeof(SimConfig)));
@@ -61,6 +63,8 @@ Simulator::~Simulator()
     cudaFree(biases_d);
     cudaFree(nextGenBiases_d);
     cudaFree(nextGenWeights_d);
+    cudaFree(parentSpecimen_d);
+    cudaFree(distances_d);
 
     // Free the simulation class on the GPU
     Kernels::delete_function<<<1, 1>>>(sim_d);
@@ -470,7 +474,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
     int shift = (int) (((double)rand() / RAND_MAX) * totalBots * shiftEffectiveness) % totalBots;
     if(shiftEffectiveness < 0)
         shift = iterationsCompleted;
-    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d, shift);
+    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d, distances_d, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 

@@ -119,6 +119,8 @@ namespace Kernels
         return;
     }
 
+
+
     // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
     // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
     __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies, 
@@ -190,6 +192,97 @@ namespace Kernels
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
                 (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
             }
+
+            __syncthreads();
+        }
+        
+        __syncthreads();
+
+        
+
+        return;
+    }
+
+     // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
+    // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
+    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies, 
+                           float *nextGenWeights, float *nextGenBiases, float* distances, const int shift)
+    {
+        int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
+        int tid = threadIdx.x;                           // thread id (within a block)
+
+        int block = blockIdx.x;
+        int stride = blockDim.x;
+
+        // prevent OOB errors
+        if (block < n / 2)
+        {
+            curandState_t state;
+            curand_init(blockIdx.x + shift, threadIdx.x, 0, &state);
+
+            float rand;
+
+            // calcuate the offset for this block's bot(s)
+            int offsetBot1 = block * 2;
+            int offsetBot2 = (block * 2 + shift * 2 + 1) % n;
+
+            float botScore1 = simulationOutcome[offsetBot1];
+            float botScore2 = simulationOutcome[offsetBot2];
+            if(botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
+            printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, offsetBot1, offsetBot2);
+            int winnerBotOffset;
+            if (botScore1 > botScore2)
+            {
+                winnerBotOffset = offsetBot1;
+            }
+            else
+            {
+                winnerBotOffset = offsetBot2;
+            }
+
+            // keeping track of the parent specimen from which the children came from
+            childSpecies[offsetBot1] = winnerBotOffset;
+            childSpecies[offsetBot2] = winnerBotOffset;
+
+
+            __syncthreads();
+            float distance = 0;
+
+            // Write next gen bot one's data
+            for (int i = tid; i < config_d.totalWeights; i += stride)
+            {
+                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                distance += rand;
+                (nextGenWeights)[i + offsetBot1 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights];// + rand;
+            }
+            // We can skip the first layer since the input layer shouldn't have biases.
+            for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
+            {
+                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                distance += rand;
+                (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons];// + rand;
+            }
+            (distances)[offsetBot1] = distance;
+
+            distance = 0;
+            // Write next gen bot two's data
+            for (int i = tid; i < config_d.totalWeights; i += stride)
+            {
+                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;                
+                distance += rand;
+
+                (nextGenWeights)[i + offsetBot2 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
+            }
+
+            // We can skip the first layer since the input layer shouldn't have biases.
+            for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
+            {
+                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                distance += rand;
+
+                (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
+            }
+            (distances)[offsetBot2] = distance;
 
             __syncthreads();
         }

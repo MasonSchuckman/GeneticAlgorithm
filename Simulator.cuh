@@ -86,7 +86,8 @@ private:
     float *weights_d;
     float *biases_d;
     int *parentSpecimen_d;
-
+    float *distances_d;
+    
     float* nextGenWeights_d;
     float* nextGenBiases_d;
 
