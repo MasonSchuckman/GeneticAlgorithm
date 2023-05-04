@@ -260,7 +260,10 @@ void Simulator::loadData_(float *weights_h, float *biases_h){
     
     // Read the number of layers and their shapes
     infile.read(reinterpret_cast<char*>(&placeholder), sizeof(int));
-        
+    for (int i = 0; i < config.numLayers; i++) 
+        infile.read(reinterpret_cast<char*>(&placeholder), sizeof(int));
+
+
     int TOTAL_BOTS = bots.size();
     int totalWeights = config.totalWeights;
     int totalNeurons = config.totalNeurons;

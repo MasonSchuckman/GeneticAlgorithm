@@ -23,7 +23,10 @@ gamestate[7]        // right paddle y
 gamestate[8]        // iter
 gamestate[9]        // left score
 gamestate[10]       // right score
+gamestate[11]       // generation number
 */
+extern __device__ float rng(float a, float b, unsigned int seed);
+
 
 // The starting parameters are the initial positions and velocities of the ball and the paddles
 __host__ void PongSimulation::getStartingParams(float *startingParams)
@@ -36,11 +39,11 @@ __host__ void PongSimulation::getStartingParams(float *startingParams)
     if (iterationsCompleted % 2 == 0)
         startingParams[2] *= -1;
 
-    startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * BALL_SPEED * 2;                                       // ball vy
-    startingParams[4] = PADDLE_WIDTH / 2;                        // left paddle x
-    startingParams[5] = HEIGHT / 2;                              // left paddle y
-    startingParams[6] = PADDLE_WIDTH / 2 + WIDTH - PADDLE_WIDTH; // right paddle x
-    startingParams[7] = HEIGHT / 2;                              // right paddle y
+    startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * BALL_SPEED * 2; // ball vy
+    startingParams[4] = PADDLE_WIDTH / 2;                                     // left paddle x
+    startingParams[5] = HEIGHT / 2;                                           // left paddle y
+    startingParams[6] = PADDLE_WIDTH / 2 + WIDTH - PADDLE_WIDTH;              // right paddle x
+    startingParams[7] = HEIGHT / 2;                                           // right paddle y
     startingParams[8] = iterationsCompleted;
     iterationsCompleted++;
 }
@@ -54,6 +57,8 @@ __device__ void PongSimulation::setupSimulation(const float *startingParams, flo
         gamestate[tid] = startingParams[tid];
     if (tid < 3)
         gamestate[tid + 8] = 0;
+    if(tid == 0)
+        gamestate[11] = startingParams[8]; // Generation number
 
     __syncthreads();
 }
@@ -82,25 +87,38 @@ __device__ void PongSimulation::setActivations(float *gamestate, float **activs,
     //     activs[1][5] = gamestate[7] / HEIGHT;      // right paddle y
     //     activs[1][6] = gamestate[4] / WIDTH;       // left paddle x
     //     activs[1][7] = gamestate[5] / HEIGHT;      // left paddle y
-    // }
+    // } 
 
-    if(tid == 0){
-        for(int i = 0; i < 4; i++){
-            activs[0][i] = gamestate[i] / Limits[i];    
-            activs[1][i] = gamestate[i] / Limits[i];    
+    if (tid == 0)
+    {
+        float rand = 0;
+        float randomMagnitude = 400.0f / logf(gamestate[11] + 2.0f) + 400.0f / logf((float)(iter + 2));
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (i == 0)
+            {
+                activs[0][i] = fabsf(gamestate[4] - gamestate[0]) / Limits[i];
+                activs[1][i] = fabsf(gamestate[6] - gamestate[0]) / Limits[i];
+            }
+            activs[0][i] = gamestate[i] / Limits[i];
+            activs[1][i] = gamestate[i] / Limits[i];
         }
         activs[1][2] *= -1;
 
+        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);        
+
         activs[0][4] = 0;
-        activs[0][5] = gamestate[5] / HEIGHT;      // left paddle y
+        activs[0][5] = gamestate[5] / HEIGHT; // left paddle y
         activs[0][6] = 1;
-        activs[0][7] = gamestate[7] / HEIGHT;      // right paddle y
+        activs[0][7] = (gamestate[7] + rand)  / HEIGHT; // right paddle y //skew the other bot's pos a little
+
+        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);        
 
         activs[1][4] = 0;
-        activs[1][5] = gamestate[7] / HEIGHT;      // left paddle y
+        activs[1][5] = gamestate[7] / HEIGHT; // left paddle y
         activs[1][6] = 1;
-        activs[1][7] = gamestate[5] / HEIGHT;      // right paddle y
-
+        activs[1][7] = (gamestate[5] + rand) / HEIGHT; // right paddle y
     }
 
     __syncthreads();
@@ -138,7 +156,7 @@ __device__ void PongSimulation::eval(float **actions, float *gamestate)
         {
             // if(blockIdx.x == 0 && gamestate[8] > 500)
             //     printf("Hit left paddle on iter %f\n", gamestate[8]);
-            gamestate[2] = -gamestate[2] * SPEED_UP_RATE;                                                                         // reverse the ball's horizontal direction
+            gamestate[2] = -gamestate[2] * SPEED_UP_RATE;                                                         // reverse the ball's horizontal direction
             gamestate[3] += (gamestate[1] - gamestate[5] - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED; // adjust the ball's vertical speed based on where it hit the paddle
 
             // Update the ball position and velocity based on physics
@@ -154,8 +172,8 @@ __device__ void PongSimulation::eval(float **actions, float *gamestate)
         {
             // if(blockIdx.x == 0 && gamestate[8] > 500)
             //     printf("Hit right paddle on iter %f\n", gamestate[8]);
-            
-            gamestate[2] = -gamestate[2] * SPEED_UP_RATE;                                                                         // reverse the ball's horizontal direction
+
+            gamestate[2] = -gamestate[2] * SPEED_UP_RATE;                                                         // reverse the ball's horizontal direction
             gamestate[3] += (gamestate[1] - gamestate[7] - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED; // adjust the ball's vertical speed based on where it hit the paddle
 
             // Update the ball position and velocity based on physics
@@ -166,7 +184,6 @@ __device__ void PongSimulation::eval(float **actions, float *gamestate)
         // Update the paddle positions based on actions and physics
         gamestate[5] += fminf(1.0, fmaxf(-1.0, actions[0][0])) * PADDLE_SPEED; // left paddle y += action * paddle speed
         gamestate[7] += fminf(1.0, fmaxf(-1.0, actions[1][0])) * PADDLE_SPEED; // right paddle y += action * paddle speed
-        
 
         // Clamp the paddle positions to the screen boundaries
         if (gamestate[5] < PADDLE_HEIGHT / 2)
@@ -233,14 +250,13 @@ __device__ void PongSimulation::setOutput(float *output, float *gamestate, const
         //     output[blockIdx.x * 2 + 1] = 1 + gamestate[8];
         // }
 
-
-        //TESTING NO TIES:
+        // TESTING NO TIES:
         if (gamestate[0] < 0)
         { // left paddle lost
             output[blockIdx.x * 2 + 0] = -1;
             output[blockIdx.x * 2 + 1] = 1;
         }
-        else// if (gamestate[0] > WIDTH)
+        else // if (gamestate[0] > WIDTH)
         {
             // right paddle lost
             output[blockIdx.x * 2 + 0] = 1;

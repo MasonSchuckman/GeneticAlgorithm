@@ -86,7 +86,7 @@ right_paddle_x = PADDLE_WIDTH / 2 + SCREEN_WIDTH - PADDLE_WIDTH
 right_paddle_y = SCREEN_HEIGHT // 2
 
 
-best = 0
+best = 100
 # Load bot networks
 layershapes, all_weights, all_biases = readWeightsAndBiasesAll()
 networks = [{'weights': all_weights[best], 'biases': all_biases[best]},
@@ -153,9 +153,9 @@ while running:
         state = []
 
         if i == 0:
-            state = [ball_x / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
+            state = [abs(ball_x - 0) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
         else:
-            state = [ball_x / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, -ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
+            state = [abs(ball_x - SCREEN_WIDTH) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, -ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
 
             
         if i == 0:

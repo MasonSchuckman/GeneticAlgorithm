@@ -141,7 +141,10 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 	{
 		activs[bot][tid - actor_state_len * bot] = gamestate[tid];
 
-		activs[bot][tid + actor_state_len] = gamestate[tid + actor_state_len * otherBot];
+        if(bot == 0)
+		    activs[bot][tid + actor_state_len] = gamestate[tid + actor_state_len];
+        else
+            activs[bot][tid - actor_state_len] = gamestate[tid - actor_state_len];
 	}
 	__syncthreads();
 
@@ -156,7 +159,7 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 		activs[bot][ball_offset + vel_offset] = gamestate[ball_offset + vel_offset];
 		activs[bot][ball_offset + dir_offset] = gamestate[ball_offset + dir_offset];
 		// Iteration number
-		activs[bot][ball_offset + score_offset] = gamestate[ball_offset + score_offset] = iter;
+		activs[bot][ball_offset + score_offset] = gamestate[ball_offset + score_offset];
 	}
 
 	__syncthreads();
@@ -288,17 +291,22 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 __device__ int AirHockeySimulation::checkFinished(float* gamestate)
 {
 	__syncthreads();
-	if (threadIdx.x == 0) {
-		float ballx = gamestate[2 * actor_state_len + x_offset];
-		float bally = gamestate[2 * actor_state_len + y_offset];
-		float ballDir = gamestate[2 * actor_state_len + dir_offset];
 
-		// Scored
-		if (abs(ballx) > goal_dist && abs(bally) < goal_height) {
-			return true;
-		}
-	}
-	return false;
+    float ballx = gamestate[2 * actor_state_len + x_offset];
+    float bally = gamestate[2 * actor_state_len + y_offset];
+    float ballDir = gamestate[2 * actor_state_len + dir_offset];
+
+    // Scored
+    if (fabsf(ballx) > goal_dist && fabsf(bally) < goal_height) {
+        if(threadIdx.x == 0 && blockIdx.x == 0){
+            printf("Goal on iter %f!\n", gamestate[14]);
+        }
+        return 1;
+    }else{
+        return 0;
+    }
+	
+	
 }
 
 
