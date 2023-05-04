@@ -8,6 +8,8 @@
 #include <stdio.h>
 
 #include "Bot.h"
+#include "biology/Taxonomy.h"
+#include "biology/Specimen.h"
 #include "SimulationList.cuh"
 #include "Kernels.cuh"
 
@@ -35,7 +37,7 @@ class Simulator
 public:
     Simulator(){}
     // Constructor allocates all necessary device memory prior to doing simulations
-    Simulator(vector<Bot*> bots, Simulation* derived, SimConfig &config);
+    Simulator(vector<Specimen*> bots, Simulation* derived, SimConfig &config, Taxonomy *history);
 
     ~Simulator();
 
@@ -64,7 +66,7 @@ private:
     void copyFromGPU(float *&weights_h, float *&biases_h);
 
 
-    void runSimulation(float * output_h);
+    void runSimulation(float * output_h, int *childSPecies_h);
     
     void readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int * layerShapes);
 
@@ -83,12 +85,14 @@ private:
     float *output_d;
     float *weights_d;
     float *biases_d;
+    int *parentSpecimen_d;
 
     float* nextGenWeights_d;
     float* nextGenBiases_d;
 
 
-    vector<Bot*> bots;
+    vector<Specimen*> bots;
+    Taxonomy *history;
     Simulation * derived;
     Simulation **sim_d;
 

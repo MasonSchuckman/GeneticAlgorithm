@@ -7,7 +7,7 @@ using std::vector;
 extern __constant__ SimConfig config_d;
 
 // Constructor allocates all necessary device memory prior to doing simulations
-Simulator::Simulator(vector<Bot *> bots, Simulation *derived, SimConfig &config) : bots{bots}, config{config}, derived{derived}
+Simulator::Simulator(vector<Specimen*> bots, Simulation* derived, SimConfig &config, Taxonomy *history) : bots{bots}, config{config}, derived{derived}, history{history}
 {
     int totalBots = bots.size();
 
@@ -39,6 +39,8 @@ Simulator::Simulator(vector<Bot *> bots, Simulation *derived, SimConfig &config)
 
         cudaMalloc((void **)&biases_d, totalBots * config.totalNeurons * sizeof(float));
         cudaMalloc((void **)&nextGenBiases_d, totalBots * config.totalNeurons * sizeof(float));
+
+        cudaMalloc((void **)&parentSpecimen_d, totalBots * sizeof(int));
 
         // Copy the config over to GPU memory
         check(cudaMemcpyToSymbol(config_d, &config, sizeof(SimConfig)));
@@ -85,7 +87,7 @@ void Simulator::formatBotData(int *&layerShapes_h, float *&startingParams_h,
 
     int totalBots = bots.size();
     int i = 0;
-    for (const Bot *b : bots)
+    for (const Specimen *b : bots)
     {
         int WO = 0;
         int BO = 0;
@@ -412,7 +414,7 @@ void read_weights_and_biases(float* weights, float* biases, int numLayers, int* 
 #include <chrono>
 
 
-void Simulator::runSimulation(float *output_h)
+void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
 {
     int totalBots = bots.size();
     int tpb = 32; // threads per block
@@ -468,7 +470,7 @@ void Simulator::runSimulation(float *output_h)
     int shift = (int) (((double)rand() / RAND_MAX) * totalBots * shiftEffectiveness) % totalBots;
     if(shiftEffectiveness < 0)
         shift = iterationsCompleted;
-    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, nextGenWeights_d, nextGenBiases_d, shift);
+    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 
@@ -486,6 +488,11 @@ void Simulator::runSimulation(float *output_h)
 
     // Copy output vector from GPU buffer to host memory.
     check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
+    check(cudaMemcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
+
+    
+    // copy new generation from Device to Host
+    
 
     // Used to decide where to write nextGen population data to
     iterationsCompleted++;
@@ -494,6 +501,12 @@ void Simulator::runSimulation(float *output_h)
         std::cout << " Generation took " << elapsed_time << " ms.\n";
     }
 }
+
+
+// void retrieveBotsToHost(float* weights_d, float* biases_d, vector<Bot*>* bots) {
+    
+//     check(cudaMemcpy(&bots, output_d, bots.size() * sizeof(float), cudaMemcpyDeviceToHost));
+// }
 
 void analyzeHistory(int numSimulations, int totalBots, float *output_h, int &finalBest)
 {
@@ -542,6 +555,32 @@ void analyzeHistory(int numSimulations, int totalBots, float *output_h, int &fin
     delete[] averageScores;
 }
 
+
+void printAncestry(Species* species, int offset) {
+
+    if(offset > 0) {
+    std::cout << offset << "| ";
+    for(int i = 0; i++ < offset; std::cout << "  ");
+    std::cout << species->id << std::endl;
+    }
+
+    for(Species* subspecies : species->descendantSpecies)
+        printAncestry(subspecies, offset+1);
+}
+
+void historyGraph(Taxonomy* history) {
+    auto composition = history->speciesComposition();
+        
+    int lastRow = min((int) 10, (int) composition->size());
+    std::vector<std::tuple<Species*, float>> topCompositions(composition->begin(), composition->begin() + lastRow);
+        
+    for(int i = 0; i++ < 30; std::cout << std::endl);
+       
+    std::cout << "generation " << history->getYear()+1 << std::endl;
+    std::cout << history->compositionGraph(&topCompositions, 80) << std::endl;
+    std::cout << Taxonomy::compositionString(&topCompositions) << std::endl << std::flush;
+}
+
 void Simulator::batchSimulate(int numSimulations)
 {
 
@@ -554,10 +593,13 @@ void Simulator::batchSimulate(int numSimulations)
     float *output_h = new float[totalBots * numSimulations]; // We'll record all scores for all generations.
     float *weights_h = new float[config.totalWeights * totalBots];
     float *biases_h = new float[config.totalNeurons * totalBots];
+    int *parentSpecimen_h = new int[totalBots];
+
     printf("Allocated host memory.\n");
 
     // Convert all the bot data to the format we need to transfer to GPU
     formatBotData(layerShapes_h, startingParams_h, output_h, weights_h, biases_h);
+
     printf("Formatted bot data.\n");
 
     if(loadData == 1){
@@ -566,13 +608,45 @@ void Simulator::batchSimulate(int numSimulations)
     }
     // Copy it over to the GPU
     copyToGPU(layerShapes_h, startingParams_h, output_h, weights_h, biases_h);
+
     printf("Copied data to GPU.\n");
+
+    Specimen** previousGeneration = new Specimen*[totalBots];
+    for(int i = 0; i < totalBots; i++)
+        previousGeneration[i] = bots.at(i);
 
     // Invoke the kernel
     for (int i = 0; i < numSimulations; i++)
     {
         // Only pass the location to where this iteration is writing
-        runSimulation(&output_h[i * totalBots]);
+        runSimulation(&output_h[i * totalBots], parentSpecimen_h);
+
+
+        // build new speciment objects in order to log history
+        copyFromGPU(weights_h, biases_h);  
+
+
+        Specimen** nextGeneration = new Specimen*[totalBots];
+        for(int i = 0; i < totalBots; i++) {
+            Genome* nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[i*config.totalNeurons], &weights_h[i*config.totalWeights], "sigmoid");
+            Specimen* nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[i]]);
+            
+            nextGeneration[i] = nextSpecimen;
+        }
+
+        float PROGENITOR_THRESHOLD = 100;
+        history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
+
+        for(int i = 0; i < totalBots; i++) 
+            history->pruneSpecimen(previousGeneration[i]);
+        
+        delete previousGeneration;
+        previousGeneration = nextGeneration;
+
+        if(history->getYear() % 25 == 0)
+            historyGraph(history);
+
+        //printAncestry(previousGeneration[0]->species, 0);
     }
     printf("Ran simulation.\n");
 
