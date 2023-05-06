@@ -1,4 +1,4 @@
-#include "PongSimulation.cuh"
+#include "PongSimulation2.cuh"
 #include <random>
 #define WIDTH 640.0f
 #define HEIGHT 480.0f
@@ -10,7 +10,7 @@
 #define SPEED_UP_RATE 1.00f // Ball will increase in speed by x % after every paddle hit
 
 // Compile command:
-// nvcc -rdc=true -lineinfo -o runner .\biology\Genome.cpp .\Simulator.cu .\Runner.cu .\Kernels.cu .\simulations\BasicSimulation.cu .\simulations\TargetSimulation.cu .\simulations\MultibotSimulation.cu .\simulations\AirHockeySimulation.cu .\simulations\PongSimulation.cu
+// nvcc -rdc=true -lineinfo -o runner .\biology\Genome.cpp .\Simulator.cu .\Runner.cu .\Kernels.cu .\simulations\BasicSimulation.cu .\simulations\TargetSimulation.cu .\simulations\MultibotSimulation.cu .\simulations\AirHockeySimulation.cu .\simulations\PongSimulation2.cu
 /*
 gamestate[0]        // ball x
 gamestate[1]        // ball y
@@ -26,10 +26,10 @@ gamestate[10]       // right score
 gamestate[11]       // generation number
 */
 extern __device__ float rng(float a, float b, unsigned int seed);
-
+extern __constant__ float Limits[];
 
 // The starting parameters are the initial positions and velocities of the ball and the paddles
-__host__ void PongSimulation::getStartingParams(float *startingParams)
+__host__ void PongSimulation2::getStartingParams(float *startingParams)
 {
     static int iterationsCompleted = 0;
 
@@ -49,7 +49,7 @@ __host__ void PongSimulation::getStartingParams(float *startingParams)
 }
 
 // The gamestate is an array of floats that stores the current positions and velocities of the ball and the paddles
-__device__ void PongSimulation::setupSimulation(const float *startingParams, float *gamestate)
+__device__ void PongSimulation2::setupSimulation(const float *startingParams, float *gamestate)
 {
     int tid = threadIdx.x;
 
@@ -63,10 +63,8 @@ __device__ void PongSimulation::setupSimulation(const float *startingParams, flo
     __syncthreads();
 }
 
-__constant__ float Limits[8] = {WIDTH, HEIGHT, BALL_SPEED, BALL_SPEED, WIDTH, HEIGHT, WIDTH, HEIGHT};
-
 // The activations are the inputs to the neural networks that control the paddles. They are the normalized positions and velocities of the ball and the paddles
-__device__ void PongSimulation::setActivations(float *gamestate, float **activs, int iter)
+__device__ void PongSimulation2::setActivations(float *gamestate, float **activs, int iter)
 {
     int tid = threadIdx.x;
 
@@ -82,10 +80,8 @@ __device__ void PongSimulation::setActivations(float *gamestate, float **activs,
     //     activs[1][0] = abs(gamestate[6] - gamestate[0]) / WIDTH;       // ball x
     //     activs[1][1] = gamestate[1] / HEIGHT;      // ball y
     //     activs[1][2] = -gamestate[2] / BALL_SPEED; // ball vx (inverted for right paddle)
-    //     activs[1][3] = gamestate[3] / BALL_SPEED;  // ball vy
-    //     activs[1][4] = gamestate[6] / WIDTH;       // right paddle x
+    //     activs[1][3] = gamestate[3] / BALL_SPEED;  // ball vy    
     //     activs[1][5] = gamestate[7] / HEIGHT;      // right paddle y
-    //     activs[1][6] = gamestate[4] / WIDTH;       // left paddle x
     //     activs[1][7] = gamestate[5] / HEIGHT;      // left paddle y
     // } 
 
@@ -94,6 +90,7 @@ __device__ void PongSimulation::setActivations(float *gamestate, float **activs,
         float rand = 0;
         //float randomMagnitude = 400.0f / logf(gamestate[11] + 2.0f) + 400.0f / logf((float)(iter + 2));
         float randomMagnitude = 400.0f / logf((float)(iter + 2));
+        randomMagnitude = 0;
 
         for (int i = 0; i < 4; i++)
         {
@@ -109,24 +106,22 @@ __device__ void PongSimulation::setActivations(float *gamestate, float **activs,
 
         rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);        
 
-        activs[0][4] = 0;
-        activs[0][5] = gamestate[5] / HEIGHT; // left paddle y
-        activs[0][6] = 1;
-        activs[0][7] = (gamestate[7] + rand)  / HEIGHT; // right paddle y //skew the other bot's pos a little
+        
+        activs[0][4] = gamestate[5] / HEIGHT; // left paddle y       
+        activs[0][5] = (gamestate[7] + rand)  / HEIGHT; // right paddle y //skew the other bot's pos a little
 
         rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);        
 
-        activs[1][4] = 0;
-        activs[1][5] = gamestate[7] / HEIGHT; // left paddle y
-        activs[1][6] = 1;
-        activs[1][7] = (gamestate[5] + rand) / HEIGHT; // right paddle y
+        
+        activs[1][4] = gamestate[7] / HEIGHT; // left paddle y        
+        activs[1][5] = (gamestate[5] + rand) / HEIGHT; // right paddle y
     }
 
     __syncthreads();
 }
 
 // The actions are the outputs of the neural networks that control the paddles. They are the normalized velocities of the paddles in the y direction
-__device__ void PongSimulation::eval(float **actions, float *gamestate)
+__device__ void PongSimulation2::eval(float **actions, float *gamestate)
 {
     if (threadIdx.x == 0)
     {
@@ -211,7 +206,7 @@ __device__ void PongSimulation::eval(float **actions, float *gamestate)
 }
 
 // The simulation is finished when the ball goes out of bounds on either side
-__device__ int PongSimulation::checkFinished(float *gamestate)
+__device__ int PongSimulation2::checkFinished(float *gamestate)
 {
     if (gamestate[0] < 0 || gamestate[0] > WIDTH)
     {
@@ -225,33 +220,10 @@ __device__ int PongSimulation::checkFinished(float *gamestate)
 
 // The output is an array of floats that stores the score of each paddle. The score is 1 if the paddle won, -1 if it lost, and 0 if it tied
 
-__device__ void PongSimulation::setOutput(float *output, float *gamestate, const float *startingParams_d)
+__device__ void PongSimulation2::setOutput(float *output, float *gamestate, const float *startingParams_d)
 {
     if (threadIdx.x == 0)
     {
-        // if(gamestate[8] > 4990)
-        //     printf("Timeout %d\n", blockIdx.x);
-        // output[blockIdx.x * 2 + 0] = gamestate[9];
-        // output[blockIdx.x * 2 + 1] = gamestate[10];
-
-        // if (gamestate[0] < 0)
-        // { // left paddle lost
-        //     output[blockIdx.x * 2 + 0] = -1 + gamestate[8] / 2;
-        //     output[blockIdx.x * 2 + 1] = 1 + gamestate[8];
-        // }
-        // else if (gamestate[0] > WIDTH)
-        // {
-        //     // right paddle lost
-        //     output[blockIdx.x * 2 + 0] = 1 + gamestate[8];
-        //     output[blockIdx.x * 2 + 1] = -1 + gamestate[8] / 2;
-        // }
-        // else
-        // { // tie
-        //     output[blockIdx.x * 2 + 0] = 1 + gamestate[8];
-        //     output[blockIdx.x * 2 + 1] = 1 + gamestate[8];
-        // }
-
-        // TESTING NO TIES:
         if (gamestate[0] < 0)
         { // left paddle lost
             output[blockIdx.x * 2 + 0] = -1;
@@ -263,16 +235,12 @@ __device__ void PongSimulation::setOutput(float *output, float *gamestate, const
             output[blockIdx.x * 2 + 0] = 1;
             output[blockIdx.x * 2 + 1] = -1;
         }
-        // else
-        // { // tie
-        //     output[blockIdx.x * 2 + 0] = 1;// + gamestate[8];
-        //     output[blockIdx.x * 2 + 1] = 1;// + gamestate[8];
-        // }
+        
     }
 }
 
 // The ID is a unique identifier for this simulation type
-__host__ int PongSimulation::getID()
+__host__ int PongSimulation2::getID()
 {
-    return 4; // just a random number
+    return 6;
 }

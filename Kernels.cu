@@ -229,6 +229,9 @@ namespace Kernels
             case 5:
                 (*sim) = new AirHockeySimulation();
                 break;
+            case 6:
+                (*sim) = new PongSimulation2();
+                break;
             default:
                 printf("Invalid derived class ID. Did you update the kernel switch statement?\n");
                 break;
