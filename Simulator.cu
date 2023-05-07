@@ -700,44 +700,6 @@ void Simulator::batchSimulate(int numSimulations)
     int lastGenBest = 0;
     analyzeHistory(numSimulations, totalBots, output_h, lastGenBest);
 
-    // Print the last gen's best bot's weights and biases
-    printf("net_weights = np.array([");
-    int WO = 0;
-    for (int layer = 0; layer < config.numLayers - 1; layer++)
-    {
-        int numWeightsInLayer = config.layerShapes[layer] * config.layerShapes[layer + 1];
-        printf("[");
-        for (int i = 0; i < numWeightsInLayer; i++)
-        {
-            printf("%f", weights_h[lastGenBest * config.totalWeights + WO + i]);
-            if (i != numWeightsInLayer - 1)
-                printf(", ");
-        }
-        WO += numWeightsInLayer;
-        printf("]");
-        if (layer != config.numLayers - 2)
-            printf(",\n");
-    }
-    printf("])\n");
-
-    printf("net_biases = np.array([");
-    int BO = config.layerShapes[0];
-    for (int layer = 1; layer < config.numLayers; layer++)
-    {
-        printf("[");
-        for (int i = 0; i < config.layerShapes[layer]; i++)
-        {
-            printf("%f", biases_h[lastGenBest * config.totalNeurons + BO + i]);
-            if (i != config.layerShapes[layer] - 1)
-                printf(", ");
-        }
-        BO += config.layerShapes[layer];
-        printf("]");
-        if (layer != config.numLayers - 1)
-            printf(",\n");
-    }
-    printf("])\n");
-
     write_weights_and_biases(weights_h, biases_h, config.numLayers, config.layerShapes, config.totalWeights, config.totalNeurons, lastGenBest);
     writeWeightsAndBiasesAll(weights_h, biases_h, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);
 

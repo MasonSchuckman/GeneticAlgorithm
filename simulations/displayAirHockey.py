@@ -102,8 +102,8 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
     output[:] += np.dot(inputs, weights)
 
     # Apply activation function (ReLU for non-output layers, sigmoid for output layer)
-    # if layer != len(layershapes) - 1:
-    #     output[output < 0] = 0
+    if layer != len(layershapes) - 1:
+        output[output < 0] = 0
     # else:
     #     #print('sigmoid')
     #     output[:] = 1.0 / (1.0 + np.exp(-output))
@@ -235,6 +235,8 @@ while True:
         for i in range(2):
             dist = math.hypot(ball['posx'] - bots[i]['posx'], ball['posy'] - bots[i]['posy']);
             if (dist < ACTOR_SIZE):
+                print("HIT")
+                #exit()
                 ball['velx'] = bots[i]['velx'] + .1
                 ball['vely'] = bots[i]['vely'] + .1
                 bots[i]['score'] += 100

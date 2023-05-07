@@ -120,7 +120,7 @@ __device__ void AirHockeySimulation::setupSimulation(const float* startingParams
 }
 
 
-
+__constant__ float AirLimits[5] = {goal_dist, goal_dist, maxSpeed, maxSpeed, 1};
 
 __device__ void AirHockeySimulation::setActivations(float* gamestate, float** activs, int iter)
 {
@@ -131,17 +131,30 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 		// Bot 0
 		// Iterates through bot A, B, and Ball
 		for (int i = 0; i < 3 * actor_state_len; i++) {
-			activs[0][i] = gamestate[i];
+			if(i % 5 != 4)
+				activs[0][i] = gamestate[i] / AirLimits[i % 5];
+			else
+				activs[0][i] = 0;
 		}
 
 		// Bot 1
-		for (int i = 0; i < actor_state_len; i++) {
+		for (int i = 0; i < actor_state_len - 1; i++) {
 			// Bot 1 info
-			activs[1][i] = gamestate[1 * actor_state_len + i];
+			activs[1][i] = gamestate[1 * actor_state_len + i] / AirLimits[i % 5];
 			// Bot 0 info
-			activs[1][1 * actor_state_len + i] = gamestate[i];
+			activs[1][1 * actor_state_len + i] = gamestate[i] / AirLimits[i % 5];
 			// Ball info
-			activs[1][2 * actor_state_len + i] = gamestate[2 * actor_state_len + i];
+			activs[1][2 * actor_state_len + i] = gamestate[2 * actor_state_len + i] / AirLimits[i % 5];
+		}
+
+		// Bot 1
+		for (int i = actor_state_len - 1; i < actor_state_len; i++) {
+			// Bot 1 info
+			activs[1][i] = 0;
+			// Bot 0 info
+			activs[1][1 * actor_state_len + i] = 0;
+			// Ball info
+			activs[1][2 * actor_state_len + i] = 0;
 		}
 
 		// 3 actors (Bot 0 & 1, and Ball)

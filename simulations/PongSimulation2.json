@@ -7,14 +7,14 @@
     },
     "bots_per_sim": 2,
     "max_iters": 1200,
-    "total_bots": 14,
+    "total_bots": 13,
     "num_starting_params": 9,
     "direct_contest": 1,
     "bots_per_team": 0,
-    "generations" : 500,
+    "generations" : 700,
     "base_mutation_rate" : 10,
     "min_mutation_rate" : 0.000001,
-    "mutation_decay_rate" : 0.992,
+    "mutation_decay_rate" : 0.991,
     "shift_effectiveness" : 0.01,
     "load_data" : 1
 }
