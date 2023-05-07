@@ -189,10 +189,11 @@ while True:
             state.append(bots[(i + 1) % 2]['velx'])
             state.append(bots[(i + 1) % 2]['vely'])
         else:
-            state.append(0)
-            state.append(0)
-            state.append(0)
-            state.append(0)
+            state.append(0) # x pos
+            state.append(0) # y pos
+            state.append(0) # x vel
+            state.append(0) # y vel
+            state.append(0) # score
 
         state.append(ball['posx'])
         state.append(ball['posy'])
@@ -200,7 +201,6 @@ while True:
         state.append(ball['velx'])
         state.append(ball['vely'])
         state.append(gamestatus['tick'])
-        state.append(gamestatus['gen'])
 
         inputs = get_actions_air_hockey(state, network['weights'], network['biases'])
         
@@ -235,13 +235,10 @@ while True:
         for i in range(2):
             dist = math.hypot(ball['posx'] - bots[i]['posx'], ball['posy'] - bots[i]['posy']);
             if (dist < ACTOR_SIZE):
-                ball['velx'] = bots[i]['velx'] + .1
-                ball['vely'] = bots[i]['vely'] + .1
-                speed = math.hypot(ball['velx'], ball['vely'])
-                if(speed > MAX_SPEED + .1):
-                    f = (MAX_SPEED + .1) / speed 
-                    ball['velx'] *= f
-                    ball['vely'] *= f
+                print("HIT")
+                exit()
+                ball['velx'] = bots[i]['velx']
+                ball['vely'] = bots[i]['vely']
                 bots[i]['score'] += 100
 
 
