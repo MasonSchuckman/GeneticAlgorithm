@@ -234,12 +234,12 @@ __device__ void PongSimulation2::setOutput(float *output, float *gamestate, cons
         if (gamestate[10] > gamestate[9]) //was gamestate[0] < 0
         { // left paddle lost
             output[blockIdx.x * 2 + 0] = -1;
-            output[blockIdx.x * 2 + 1] = 1;
+            output[blockIdx.x * 2 + 1] = gamestate[10];
         }
         else // if (gamestate[0] > WIDTH)
         {
             // right paddle lost
-            output[blockIdx.x * 2 + 0] = 1;
+            output[blockIdx.x * 2 + 0] = gamestate[9];
             output[blockIdx.x * 2 + 1] = -1;
         }
         if(blockIdx.x == 0 && (int)startingParams_d[8] % 25 == 0)

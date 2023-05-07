@@ -69,7 +69,7 @@ BALL_SIZE = 10
 
 # Define paddle and ball speeds
 PADDLE_SPEED = 5
-BALL_SPEED = 8.0
+BALL_SPEED = 8
 SPEED_UP_RATE = 1.00
 # Define game colors
 BLACK = (0, 0, 0)

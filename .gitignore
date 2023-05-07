@@ -18,6 +18,7 @@
 # our stuff :)
 *.exe
 *.exp
+*.data
 *.lib
 testNN*.py
 *.gene
