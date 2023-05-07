@@ -21,7 +21,7 @@ namespace Kernels
                            float *nextGenWeights, float *nextGenBiases, int shift);
 
     __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies, 
-                           float *nextGenWeights, float *nextGenBiases, float * distances, int shift);
+                           float *nextGenWeights, float *nextGenBiases, float * distances,  float * deltas, int * ancestors, float progThreshold, int shift);
 };
 
 #endif

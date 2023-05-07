@@ -42,6 +42,21 @@ Simulator::Simulator(vector<Specimen*> bots, Simulation* derived, SimConfig &con
 
         cudaMalloc((void **)&parentSpecimen_d, totalBots * sizeof(int));
         cudaMalloc((void **)&distances_d, totalBots * sizeof(float));
+        cudaMalloc((void **)&ancestors_d, totalBots * sizeof(int));
+
+        //Initialize as zeros
+        cudaMemset(distances_d, 0, totalBots * sizeof(float));
+
+        int networkSize = (config.totalNeurons + config.totalWeights);
+        // We need to pad deltas_d with zeros at the end of every bot's network so we can call reduce() on each bot's array easily.
+        // To do that, each bot's deltas array needs to be a multiple of 32.
+        int padding = 32 - (networkSize % 32);
+        if(padding == 32)
+            padding = 0;
+
+        cudaMalloc((void **)&deltas_d, totalBots * (networkSize + padding) * sizeof(float));
+        cudaMemset(deltas_d, 0, totalBots * (networkSize + padding) * sizeof(float));
+        config.paddedNetworkSize = (networkSize + padding);
 
 
         // Copy the config over to GPU memory
@@ -65,6 +80,9 @@ Simulator::~Simulator()
     cudaFree(nextGenWeights_d);
     cudaFree(parentSpecimen_d);
     cudaFree(distances_d);
+    cudaFree(deltas_d);
+    cudaFree(ancestors_d);
+
 
     // Free the simulation class on the GPU
     Kernels::delete_function<<<1, 1>>>(sim_d);
@@ -147,6 +165,14 @@ void Simulator::copyToGPU(int *&layerShapes_h, float *&startingParams_h,
 
     check(cudaMemcpy(biases_d, biases_h, totalBots * config.totalNeurons * sizeof(float), cudaMemcpyHostToDevice));
     check(cudaMemcpy(nextGenBiases_d, biases_h, totalBots * config.totalNeurons * sizeof(float), cudaMemcpyHostToDevice));
+
+    //Quick and easy fix for initializing ancestors
+    int * ancestors_h = new int[totalBots];
+    for(int i = 0; i < totalBots; i++){
+        ancestors_h[i] = i;
+    }
+    check(cudaMemcpy(ancestors_d, ancestors_h, totalBots * sizeof(int), cudaMemcpyHostToDevice));
+    delete [] ancestors_h;
 }
 
 // Copies the weights and biases of all the bots back to the host
@@ -474,7 +500,11 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
     int shift = (int) (((double)rand() / RAND_MAX) * totalBots * shiftEffectiveness) % totalBots;
     if(shiftEffectiveness < 0)
         shift = iterationsCompleted;
-    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d, distances_d, shift);
+
+    
+    float progThreshold = 1; //This will be calculated properly later
+    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+     nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 

@@ -87,10 +87,11 @@ private:
     float *biases_d;
     int *parentSpecimen_d;
     float *distances_d;
+    float * deltas_d;
     
     float* nextGenWeights_d;
     float* nextGenBiases_d;
-
+    int * ancestors_d;
 
     vector<Specimen*> bots;
     Taxonomy *history;

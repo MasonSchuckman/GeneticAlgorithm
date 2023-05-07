@@ -1,5 +1,7 @@
 #include "SimulationList.cuh"
 #include <curand_kernel.h>
+#include <cub/cub.cuh>
+#include <cub/block/block_load.cuh>
 
 extern __constant__ SimConfig config_d;
 
@@ -61,32 +63,35 @@ namespace Kernels
         __syncthreads();
 
         //  Apply activation function
-        switch(config_d.layerTypes[layer]){
-            //linear
-            case 0 : break; 
-
-            //ReLU
-            case 1 : {
-                for (int i = tid; i < output_size; i += stride)
-                    output[i] = output[i] > 0 ? output[i] : 0; // max(output[i],0)   
-            }
+        switch (config_d.layerTypes[layer])
+        {
+        // linear
+        case 0:
             break;
 
-            // Sigmoid
-            case 2 : {
-                for (int i = tid; i < output_size; i += stride)
-                    output[i] = 1.0f / (1.0f + expf(-output[i]));
-            }
-            break;
+        // ReLU
+        case 1:
+        {
+            for (int i = tid; i < output_size; i += stride)
+                output[i] = output[i] > 0 ? output[i] : 0; // max(output[i],0)
+        }
+        break;
 
-            // Default is linear
-            default : break;
+        // Sigmoid
+        case 2:
+        {
+            for (int i = tid; i < output_size; i += stride)
+                output[i] = 1.0f / (1.0f + expf(-output[i]));
+        }
+        break;
+
+        // Default is linear
+        default:
+            break;
         }
 
         __syncthreads();
     }
-
-    
 
     // This is a basic example for what the simulation kernel will look like.
     __global__ void game_kernel(int n, Simulation **sim)
@@ -119,11 +124,9 @@ namespace Kernels
         return;
     }
 
-
-
     // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
     // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
-    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies, 
+    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies,
                            float *nextGenWeights, float *nextGenBiases, const int shift)
     {
         int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
@@ -146,8 +149,8 @@ namespace Kernels
 
             float botScore1 = simulationOutcome[offsetBot1];
             float botScore2 = simulationOutcome[offsetBot2];
-            if(botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
-            printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, offsetBot1, offsetBot2);
+            if (botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
+                printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, offsetBot1, offsetBot2);
             int winnerBotOffset;
             if (botScore1 > botScore2)
             {
@@ -162,21 +165,19 @@ namespace Kernels
             childSpecies[offsetBot1] = winnerBotOffset;
             childSpecies[offsetBot2] = winnerBotOffset;
 
-
             __syncthreads();
-
 
             // Write next gen bot one's data
             for (int i = tid; i < config_d.totalWeights; i += stride)
             {
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                (nextGenWeights)[i + offsetBot1 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights];// + rand;
+                (nextGenWeights)[i + offsetBot1 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights]; // + rand;
             }
             // We can skip the first layer since the input layer shouldn't have biases.
             for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
             {
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons];// + rand;
+                (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons]; // + rand;
             }
 
             // Write next gen bot two's data
@@ -195,18 +196,38 @@ namespace Kernels
 
             __syncthreads();
         }
-        
-        __syncthreads();
 
-        
+        __syncthreads();
 
         return;
     }
 
-     // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
+    __device__ float blockReduceSum(float *deltas)
+    {
+        int elementsPerThread = config_d.paddedNetworkSize / 32;
+        
+        // Specialize BlockLoad for a 1D block of 128 threads owning 4 integer items each
+        typedef cub::BlockLoad<float, 32, elementsPerThread, cub::BLOCK_LOAD_WARP_TRANSPOSE> BlockLoad;
+        // Allocate shared memory for BlockLoad
+        __shared__ typename BlockLoad::TempStorage temp_storage;
+        // Load a segment of consecutive items that are blocked across threads
+        float thread_data[4];
+        BlockLoad(temp_storage).Load(deltas, thread_data);
+
+        // Specialize BlockReduce for a 1D block of 32 threads of type float
+        typedef cub::BlockReduce<float, 32> BlockReduce;
+        // Allocate shared memory for BlockReduce
+        __shared__ typename BlockReduce::TempStorage temp_storage;
+        // Obtain a segment of consecutive items that are blocked across threads
+
+        // Compute the block-wide sum for thread0
+        int aggregate = BlockReduce(temp_storage).Sum(thread_data);
+    }
+
+    // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
     // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
-    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies, 
-                           float *nextGenWeights, float *nextGenBiases, float* distances, const int shift)
+    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies,
+                           float *nextGenWeights, float *nextGenBiases, float *distances, float *deltas, int *ancestors, float progThreshold, const int shift)
     {
         int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
         int tid = threadIdx.x;                           // thread id (within a block)
@@ -220,7 +241,7 @@ namespace Kernels
             curandState_t state;
             curand_init(blockIdx.x + shift, threadIdx.x, 0, &state);
 
-            float rand;
+            float rand = 0;
 
             // calcuate the offset for this block's bot(s)
             int offsetBot1 = block * 2;
@@ -228,8 +249,9 @@ namespace Kernels
 
             float botScore1 = simulationOutcome[offsetBot1];
             float botScore2 = simulationOutcome[offsetBot2];
-            if(botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
-            printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, offsetBot1, offsetBot2);
+            if (botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
+                printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, offsetBot1, offsetBot2);
+
             int winnerBotOffset;
             if (botScore1 > botScore2)
             {
@@ -240,10 +262,17 @@ namespace Kernels
                 winnerBotOffset = offsetBot2;
             }
 
-            // keeping track of the parent specimen from which the children came from
-            childSpecies[offsetBot1] = winnerBotOffset;
-            childSpecies[offsetBot2] = winnerBotOffset;
+            // Only need 1 thread updating these. Don't want conflicts.
+            if (tid == 0)
+            {
+                // keeping track of the parent specimen from which the children came from
+                childSpecies[offsetBot1] = winnerBotOffset;
+                childSpecies[offsetBot2] = winnerBotOffset;
 
+                // Update the ancestor for the bots (only the losing bot gets updated tbh)
+                ancestors[offsetBot1] = ancestors[winnerBotOffset];
+                ancestors[offsetBot2] = ancestors[winnerBotOffset];
+            }
 
             __syncthreads();
             float distance = 0;
@@ -251,26 +280,37 @@ namespace Kernels
             // Write next gen bot one's data
             for (int i = tid; i < config_d.totalWeights; i += stride)
             {
-                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                distance += rand;
-                (nextGenWeights)[i + offsetBot1 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights];// + rand;
+                // rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                distance += fabsf(rand);
+                (nextGenWeights)[i + offsetBot1 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights]; // + rand;
             }
             // We can skip the first layer since the input layer shouldn't have biases.
             for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
             {
-                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                distance += rand;
-                (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons];// + rand;
+                // rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                distance += fabsf(rand);
+                (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons]; // + rand;
             }
             (distances)[offsetBot1] = distance;
+
+            // deltaMagnitude is the L1 norm of a bot's genome and the progenitor it decended from.
+            float deltaMagnitude = 0; // call reduction function here to sum
+
+            // Check if child is a new species
+            if (deltaMagnitude >= progThreshold)
+            {
+                (ancestors)[offsetBot1] = offsetBot1;
+                (deltas)[offsetBot1] = 0; // Function to set all deltas to zero
+            }
 
             distance = 0;
             // Write next gen bot two's data
             for (int i = tid; i < config_d.totalWeights; i += stride)
             {
-                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;                
-                distance += rand;
+                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                distance += fabsf(rand);
 
+                (deltas)[i + offsetBot2 * config_d.paddedNetworkSize] += rand;
                 (nextGenWeights)[i + offsetBot2 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
             }
 
@@ -278,18 +318,25 @@ namespace Kernels
             for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
             {
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                distance += rand;
+                distance += fabsf(rand);
 
+                (deltas)[i + config_d.totalWeights + offsetBot2 * config_d.paddedNetworkSize] += rand;
                 (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
             }
             (distances)[offsetBot2] = distance;
 
+            deltaMagnitude = 0; // call reduction function here to sum
+
+            // Check if child is a new species
+            if (deltaMagnitude >= progThreshold)
+            {
+                (ancestors)[offsetBot2] = offsetBot2;
+                (deltas)[offsetBot2] = 0; // Function to set all deltas to zero
+            }
             __syncthreads();
         }
-        
-        __syncthreads();
 
-        
+        __syncthreads();
 
         return;
     }
@@ -342,13 +389,11 @@ namespace Kernels
         delete *sim;
     };
 
-    
-
     // this kernel divides the work into blocks rather than each thread works alone.
     // Reason for doing this is to hopefully make better use of cache and reduce memory stalls.
     // (Hopefully this will lead to higher FLOPS).
-    
-    __device__ int counter=0;
+
+    __device__ int counter = 0;
     __global__ void simulateShared2(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
     {
 
@@ -365,7 +410,6 @@ namespace Kernels
             // hard coding this makes things *much* simpler. We can change it if needed.
             __shared__ float gamestate[64];
             (*sim)->setupSimulation(startingParams, gamestate);
-
 
             // shared mem layout is w1,w2...,w_bpt,b1,b2,...,b_bpt,a_1,a_2,...,a_bpt
             // declare our block of shared memory
@@ -395,7 +439,6 @@ namespace Kernels
 
             __syncthreads();
 
-
             // Seperate the bot(s) data
             const float *ws[MAX_BOTS_PER_SIM]; // abbreviation for "bot weights"
             const float *bs[MAX_BOTS_PER_SIM]; // abbreviation for "bot biases"
@@ -404,7 +447,6 @@ namespace Kernels
             // The pointers in this array point to the last layer of each bots' neural net.
             // This makes it easier to pass the bots' actions' for each iteration.
             float *actions[MAX_BOTS_PER_SIM];
-
 
             // Populate the arrays created above
             for (int i = 0; i < config_d.bpb; i++)
@@ -415,10 +457,9 @@ namespace Kernels
 
                 // TODO: check if this correctly offsets actions[i] to point to the last layer of bot_i's activations network.
                 actions[i] = activs[i] + config_d.totalNeurons - config_d.layerShapes[config_d.numLayers - 1];
-                
             }
             __syncthreads();
-            
+
             int maxIters = config_d.maxIters;
             bool finished = false;
 
@@ -426,7 +467,7 @@ namespace Kernels
 
             // run the simulation loop.
             while (!finished)
-            {               
+            {
                 // Set the activations for this bot this iteration
                 (*sim)->setActivations(gamestate, activs, iter);
                 __syncthreads();
@@ -471,7 +512,7 @@ namespace Kernels
                 if (iter >= maxIters || finished)
                 {
                     finished = true;
-                    (*sim)->setOutput(output, gamestate, startingParams);                    
+                    (*sim)->setOutput(output, gamestate, startingParams);
                     __syncthreads();
                     // if(threadIdx.x == 0 && output[blockIdx.x * 2] == 0 || output[blockIdx.x * 2 + 1] == 0){
                     //     printf("block %d is zero at iter %f\n", blockIdx.x, startingParams[8]);
@@ -501,28 +542,8 @@ namespace Kernels
         return;
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- //TODO: compare performance of this vs simulateShared2
-__global__ void simulateShared_noStaticArrays(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
+    // TODO: compare performance of this vs simulateShared2
+    __global__ void simulateShared_noStaticArrays(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
     {
 
         int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
