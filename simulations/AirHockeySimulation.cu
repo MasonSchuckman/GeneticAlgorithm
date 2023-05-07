@@ -20,7 +20,7 @@ extern __device__ float rng(float a, float b, unsigned int seed);
 
 #define OUT_OF_BOUNDS_DIST = 5
 #define actor_state_len 5
-#define actor_size .5f
+#define actor_size 2
 #define goal_height 5
 #define goal_dist 20
 enum actor_state_offset { x_offset, y_offset, xvel_offset, yvel_offset, score_offset };
@@ -92,7 +92,7 @@ __device__ void AirHockeySimulation::setupSimulation(const float* startingParams
 	{
 		// Bot A State
 		// 5 Units away (to the left)
-		gamestate[0 + x_offset] = -5;
+		gamestate[0 + x_offset] = -10;
 		gamestate[0 + y_offset] = 0;
 		gamestate[0 + xvel_offset] = 0;
 		gamestate[0 + yvel_offset] = 0;
@@ -101,8 +101,8 @@ __device__ void AirHockeySimulation::setupSimulation(const float* startingParams
 
 		// Bot B State
 		// 5 Units away (up and to the right)
-		gamestate[actor_state_len + x_offset] = 4;
-		gamestate[actor_state_len + y_offset] = 3;
+		gamestate[actor_state_len + x_offset] = 8;
+		gamestate[actor_state_len + y_offset] = 6;
 		gamestate[actor_state_len + xvel_offset] = 0;
 		gamestate[actor_state_len + yvel_offset] = 0;
 		gamestate[actor_state_len + score_offset] = 0;

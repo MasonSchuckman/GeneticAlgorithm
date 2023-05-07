@@ -11,7 +11,7 @@ MAX_ACCEL = 0.5
 MAX_ROT_SPEED = 30
 GOAL_HEIGHT = 5
 GOAL_DIST = 20
-ACTOR_SIZE = 1
+ACTOR_SIZE = 2
 
 
 import struct
@@ -274,9 +274,9 @@ while True:
     screen.fill((255, 255, 255))
     for i in range(NUM_BOTS):
         bot = bots[i]
-        pygame.draw.circle(screen, ((i * 25) % 230, (i * 50) % 256, (i * 33) % 256), 
-            (int(bot['posx']) + MAP_WIDTH / 2 * SCREEN_SCALE, 
-            int(bot['posy']) + MAP_HEIGHT / 2 * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
+        pygame.draw.circle(screen, ((i * 25) % 230, (i * 50) % 256, (i * 33) % 256), ( 
+            (bot['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
+            (bot['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 
     pygame.draw.circle(screen, (125, 125, 125), 
         (int(ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
