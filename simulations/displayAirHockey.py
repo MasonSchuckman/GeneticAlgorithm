@@ -178,8 +178,9 @@ while True:
         state.append(bots[i % 2]['velx'])
         state.append(bots[i % 2]['vely'])
 
-        state.append(bots[i % 2]['score'])
-
+        #state.append(bots[i % 2]['score'])
+        state.append(0)
+        
         otherInfo = False
 
         if otherInfo:
@@ -188,7 +189,10 @@ while True:
 
             state.append(bots[(i + 1) % 2]['velx'])
             state.append(bots[(i + 1) % 2]['vely'])
+            #state.append(bots[(i + 1) % 2]['score'])
+            state.append(0)
         else:
+            state.append(0)
             state.append(0)
             state.append(0)
             state.append(0)
@@ -199,8 +203,8 @@ while True:
 
         state.append(ball['velx'])
         state.append(ball['vely'])
-        state.append(gamestatus['tick'])
-        state.append(gamestatus['gen'])
+        #state.append(gamestatus['tick'])
+        state.append(0)
 
         inputs = get_actions_air_hockey(state, network['weights'], network['biases'])
         
