@@ -56,11 +56,11 @@ Simulator::Simulator(vector<Specimen*> bots, Simulation* derived, SimConfig &con
 
         cudaMalloc((void **)&deltas_d, totalBots * (networkSize + padding) * sizeof(float));
         cudaMemset(deltas_d, 0, totalBots * (networkSize + padding) * sizeof(float));
-        config.paddedNetworkSize = (networkSize + padding);
+        this->config.paddedNetworkSize = (networkSize + padding);
 
 
         // Copy the config over to GPU memory
-        check(cudaMemcpyToSymbol(config_d, &config, sizeof(SimConfig)));
+        check(cudaMemcpyToSymbol(config_d, &this->config, sizeof(SimConfig)));
 
         // Setup the simulation class on the GPU
         cudaMalloc(&sim_d, sizeof(Simulation **));
@@ -503,7 +503,8 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
 
     
     float progThreshold = 1; //This will be calculated properly later
-    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+   
+    Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
      nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();

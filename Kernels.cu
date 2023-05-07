@@ -202,26 +202,68 @@ namespace Kernels
         return;
     }
 
-    __device__ float blockReduceSum(float *deltas)
+    // This would only work if we knew at compile time how many elements per thread :/
+    // using namespace cub;
+    // template <
+    // int                     BLOCK_THREADS,
+    // int                     ITEMS_PER_THREAD,
+    // BlockReduceAlgorithm    ALGORITHM>
+    // __device__ float blockReduceSum(float *deltas)
+    // {
+    //     // Specialize BlockReduce type for our thread block
+    //     typedef BlockReduce<float, BLOCK_THREADS, ALGORITHM> BlockReduceT;
+
+    //     // Shared memory
+    //     __shared__ typename BlockReduceT::TempStorage temp_storage;
+    //     // Per-thread tile data
+    //     float data[ITEMS_PER_THREAD];
+    //     LoadDirectStriped<BLOCK_THREADS>(threadIdx.x, deltas, data);
+
+    //     // Compute sum
+    //     float aggregate = BlockReduceT(temp_storage).Sum(data);
+
+    //     return aggregate;
+    // }
+
+    template <typename T>
+    __device__ T block_reduce(T *input, int n)
     {
-        int elementsPerThread = config_d.paddedNetworkSize / 32;
-        
-        // Specialize BlockLoad for a 1D block of 128 threads owning 4 integer items each
-        typedef cub::BlockLoad<float, 32, elementsPerThread, cub::BLOCK_LOAD_WARP_TRANSPOSE> BlockLoad;
-        // Allocate shared memory for BlockLoad
-        __shared__ typename BlockLoad::TempStorage temp_storage;
-        // Load a segment of consecutive items that are blocked across threads
-        float thread_data[4];
-        BlockLoad(temp_storage).Load(deltas, thread_data);
+        int tid = threadIdx.x;
 
-        // Specialize BlockReduce for a 1D block of 32 threads of type float
-        typedef cub::BlockReduce<float, 32> BlockReduce;
-        // Allocate shared memory for BlockReduce
-        __shared__ typename BlockReduce::TempStorage temp_storage;
-        // Obtain a segment of consecutive items that are blocked across threads
+        // Allocate shared memory for temp sums
+        extern __shared__ T sdata[];
 
-        // Compute the block-wide sum for thread0
-        int aggregate = BlockReduce(temp_storage).Sum(thread_data);
+        __syncthreads();
+
+        // Perform reduction within each thread's assigned range
+        float threadSum = 0;
+        for (int i = tid; i < n; i += blockDim.x)
+        {
+            threadSum += fabsf(input[i]);
+        }
+
+        sdata[tid] = threadSum;
+        __syncthreads();
+
+        // Perform reduction across threads in the block
+        // do reduction in shared mem
+        for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
+        {
+            if (tid < s)
+            {
+                sdata[tid] += sdata[tid + s];
+            }
+            __syncthreads(); // make sure all adds at one stage are done!
+        }
+
+        return sdata[0];
+    }
+
+    __device__ void zeroArray(float * arr, int length){
+        for(int i = threadIdx.x; i < length; i++){
+            arr[i] = 0;
+        }
+        __syncthreads();
     }
 
     // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
@@ -246,6 +288,8 @@ namespace Kernels
             // calcuate the offset for this block's bot(s)
             int offsetBot1 = block * 2;
             int offsetBot2 = (block * 2 + shift * 2 + 1) % n;
+
+            int botOffsets[2] = {offsetBot1, offsetBot2};
 
             float botScore1 = simulationOutcome[offsetBot1];
             float botScore2 = simulationOutcome[offsetBot2];
@@ -275,65 +319,54 @@ namespace Kernels
             }
 
             __syncthreads();
-            float distance = 0;
 
-            // Write next gen bot one's data
-            for (int i = tid; i < config_d.totalWeights; i += stride)
+            float distance = 0;       // Distance from the parent
+            float deltaMagnitude = 0; // deltaMagnitude is the L1 norm of a bot's genome and the progenitor it decended from.
+
+            for (int bot = 0; bot < 2; bot++)
             {
-                // rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                distance += fabsf(rand);
-                (nextGenWeights)[i + offsetBot1 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights]; // + rand;
+                // Write this bot's updated weights
+                for (int i = tid; i < config_d.totalWeights; i += stride)
+                {
+                    if(bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
+                        rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                    distance += fabsf(rand);
+
+                    (deltas)[i + botOffsets[bot] * config_d.paddedNetworkSize] += rand;
+                    (nextGenWeights)[i + botOffsets[bot] * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
+                }
+
+                // Write this bot's updated biases
+                // We can skip the first layer since the input layer shouldn't have biases.
+                for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
+                {
+                    if(bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
+                        rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                    distance += fabsf(rand);
+
+                    (deltas)[i + config_d.totalWeights + botOffsets[bot] * config_d.paddedNetworkSize] += rand;
+                    (nextGenBiases)[i + botOffsets[bot] * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
+                }
+                
+                (distances)[botOffsets[bot]] = distance;
+                deltaMagnitude = block_reduce<float>(&(deltas[botOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
+                
+                if (tid == 0)
+                {
+                    // if (blockIdx.x == 0)
+                    //     printf("delta mag = %f\n", deltaMagnitude);
+                    // Check if child is a new species
+                    if (deltaMagnitude >= progThreshold)
+                    {
+                        (ancestors)[botOffsets[bot]] = botOffsets[bot];
+                        
+                        // Reset the deltas for this bot since it is now the prog
+                        zeroArray(&(deltas[botOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
+                    }
+                }
+                __syncthreads();
             }
-            // We can skip the first layer since the input layer shouldn't have biases.
-            for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
-            {
-                // rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                distance += fabsf(rand);
-                (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons]; // + rand;
-            }
-            (distances)[offsetBot1] = distance;
-
-            // deltaMagnitude is the L1 norm of a bot's genome and the progenitor it decended from.
-            float deltaMagnitude = 0; // call reduction function here to sum
-
-            // Check if child is a new species
-            if (deltaMagnitude >= progThreshold)
-            {
-                (ancestors)[offsetBot1] = offsetBot1;
-                (deltas)[offsetBot1] = 0; // Function to set all deltas to zero
-            }
-
-            distance = 0;
-            // Write next gen bot two's data
-            for (int i = tid; i < config_d.totalWeights; i += stride)
-            {
-                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                distance += fabsf(rand);
-
-                (deltas)[i + offsetBot2 * config_d.paddedNetworkSize] += rand;
-                (nextGenWeights)[i + offsetBot2 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
-            }
-
-            // We can skip the first layer since the input layer shouldn't have biases.
-            for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
-            {
-                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                distance += fabsf(rand);
-
-                (deltas)[i + config_d.totalWeights + offsetBot2 * config_d.paddedNetworkSize] += rand;
-                (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
-            }
-            (distances)[offsetBot2] = distance;
-
-            deltaMagnitude = 0; // call reduction function here to sum
-
-            // Check if child is a new species
-            if (deltaMagnitude >= progThreshold)
-            {
-                (ancestors)[offsetBot2] = offsetBot2;
-                (deltas)[offsetBot2] = 0; // Function to set all deltas to zero
-            }
-            __syncthreads();
+            
         }
 
         __syncthreads();
