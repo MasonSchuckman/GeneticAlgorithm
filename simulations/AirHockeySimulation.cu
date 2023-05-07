@@ -127,6 +127,26 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 	int bot = -1;
 	int tid = threadIdx.x;
 
+	if (tid == 0) {
+		// Bot 0
+		// Iterates through bot A, B, and Ball
+		for (int i = 0; i < 3 * actor_state_len; i++) {
+			activs[0][i] = gamestate[i];
+		}
+
+		// Bot 1
+		for (int i = 0; i < actor_state_len; i++) {
+			// Bot 1 info
+			activs[1][i] = gamestate[1 * actor_state_len + i];
+			// Bot 0 info
+			activs[1][1 * actor_state_len + i] = gamestate[i];
+			// Ball info
+			activs[1][2 * actor_state_len + i] = gamestate[2 * actor_state_len + i];
+		}
+	}
+
+	// Multi-threaded version
+	// 
 	// if (tid < actor_state_len)
 	// {
 	// 	bot = 0;
