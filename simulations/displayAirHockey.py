@@ -239,6 +239,11 @@ while True:
                 #exit()
                 ball['velx'] = bots[i]['velx'] + .1
                 ball['vely'] = bots[i]['vely'] + .1
+                speed = math.hypot(ball['velx'], ball['vely'])
+                if(speed > MAX_SPEED + .1):
+                    f = (MAX_SPEED + .1) / speed 
+                    ball['velx'] *= f
+                    ball['vely'] *= f
                 bots[i]['score'] += 100
 
 
@@ -268,6 +273,40 @@ while True:
     pygame.draw.circle(screen, (125, 125, 125), 
         (int(ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
         int(ball['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
+
+    wallHeight = (MAP_HEIGHT / 2 - GOAL_HEIGHT) * SCREEN_SCALE
+    wallWidth = (MAP_WIDTH / 2 - GOAL_DIST) * SCREEN_SCALE
+
+    # LEFT WALLS
+    pygame.draw.rect(screen, (0, 0, 0), 
+        pygame.Rect(0, 0, 
+        wallWidth, wallHeight
+     ))
+    pygame.draw.rect(screen, (0, 0, 0), 
+        pygame.Rect(0, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
+        wallWidth, wallHeight
+    ))
+        
+    # RIGHT WALLS
+    pygame.draw.rect(screen, (0, 0, 0), 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, 0, 
+        wallWidth, wallHeight
+    ))
+    pygame.draw.rect(screen, (0, 0, 0), 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
+        wallWidth, wallHeight
+     ))
+
+    # ROOF AND FLOOR
+    roofHeight = (MAP_HEIGHT / 2 - GOAL_DIST) * SCREEN_SCALE
+    pygame.draw.rect(screen, (0, 0, 0),
+        pygame.Rect(0, 0, 
+            MAP_WIDTH * SCREEN_SCALE, roofHeight
+    ))
+    pygame.draw.rect(screen, (0, 0, 0),
+        pygame.Rect(0, MAP_HEIGHT * SCREEN_SCALE - roofHeight, 
+            MAP_WIDTH * SCREEN_SCALE, roofHeight
+    ))
 
     # Update display
     pygame.display.update()
