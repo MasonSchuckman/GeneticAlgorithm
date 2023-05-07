@@ -155,15 +155,15 @@ while running:
         state = []
 
         if i == 0:
-            state = [abs(ball_x - 0) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
+            state = [abs(ball_x - left_paddle_x) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
         else:
-            state = [abs(ball_x - SCREEN_WIDTH) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, -ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
+            state = [abs(ball_x - right_paddle_x) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, -ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
 
             
         if i == 0:
-            state += [left_paddle_y / SCREEN_HEIGHT, right_paddle_y / SCREEN_HEIGHT]  # Paddle positions
+            state += [left_paddle_y / SCREEN_HEIGHT, 0]  # Paddle positions
         else:
-            state += [right_paddle_y / SCREEN_HEIGHT, left_paddle_y / SCREEN_HEIGHT]  # Paddle positions
+            state += [right_paddle_y / SCREEN_HEIGHT, 0]  # Paddle positions
         
         #state = [305.000000, 240.000000, -5.000000, 0.000000, 5.000000, 455.000000, 635.000000, 455.000000]
 
@@ -192,9 +192,13 @@ while running:
     if ball_x - BALL_SIZE <= left_paddle_x + PADDLE_WIDTH and ball_y >= left_paddle_y and ball_y <= left_paddle_y + PADDLE_HEIGHT and ball_vx < 0:
         ball_vx = -ball_vx * SPEED_UP_RATE
         ball_vy += (ball_y - left_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
+        ball_x += ball_vx
+        ball_y += ball_vy
     if ball_x + BALL_SIZE >= right_paddle_x and ball_y >= right_paddle_y and ball_y <= right_paddle_y + PADDLE_HEIGHT and ball_vx > 0:
         ball_vx = -ball_vx * SPEED_UP_RATE
         ball_vy += (ball_y - right_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
+        ball_x += ball_vx
+        ball_y += ball_vy
     if ball_y - BALL_SIZE < 0 or ball_y + BALL_SIZE > SCREEN_HEIGHT:
         ball_vy = -ball_vy
     

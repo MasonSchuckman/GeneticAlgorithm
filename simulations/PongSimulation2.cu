@@ -36,10 +36,11 @@ __host__ void PongSimulation2::getStartingParams(float *startingParams)
     startingParams[0] = WIDTH / 2;  // ball x
     startingParams[1] = HEIGHT / 2; // ball y
     startingParams[2] = BALL_SPEED; // ball vx
-    if (iterationsCompleted % 2 == 0)
+    // if (iterationsCompleted % 2 == 0)
+    if ((double)rand() / RAND_MAX > 0.5)
         startingParams[2] *= -1;
 
-    startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * BALL_SPEED * 2; // ball vy
+    startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * BALL_SPEED * 3; // ball vy
     startingParams[4] = PADDLE_WIDTH / 2;                                     // left paddle x
     startingParams[5] = HEIGHT / 2;                                           // left paddle y
     startingParams[6] = PADDLE_WIDTH / 2 + WIDTH - PADDLE_WIDTH;              // right paddle x
@@ -57,7 +58,7 @@ __device__ void PongSimulation2::setupSimulation(const float *startingParams, fl
         gamestate[tid] = startingParams[tid];
     if (tid < 3)
         gamestate[tid + 8] = 0;
-    if(tid == 0)
+    if (tid == 0)
         gamestate[11] = startingParams[8]; // Generation number
 
     __syncthreads();
@@ -80,15 +81,15 @@ __device__ void PongSimulation2::setActivations(float *gamestate, float **activs
     //     activs[1][0] = abs(gamestate[6] - gamestate[0]) / WIDTH;       // ball x
     //     activs[1][1] = gamestate[1] / HEIGHT;      // ball y
     //     activs[1][2] = -gamestate[2] / BALL_SPEED; // ball vx (inverted for right paddle)
-    //     activs[1][3] = gamestate[3] / BALL_SPEED;  // ball vy    
+    //     activs[1][3] = gamestate[3] / BALL_SPEED;  // ball vy
     //     activs[1][5] = gamestate[7] / HEIGHT;      // right paddle y
     //     activs[1][7] = gamestate[5] / HEIGHT;      // left paddle y
-    // } 
+    // }
 
     if (tid == 0)
     {
         float rand = 0;
-        //float randomMagnitude = 400.0f / logf(gamestate[11] + 2.0f) + 400.0f / logf((float)(iter + 2));
+        // float randomMagnitude = 400.0f / logf(gamestate[11] + 2.0f) + 400.0f / logf((float)(iter + 2));
         float randomMagnitude = 400.0f / logf((float)(iter + 2));
         randomMagnitude = 0;
 
@@ -99,22 +100,24 @@ __device__ void PongSimulation2::setActivations(float *gamestate, float **activs
                 activs[0][i] = fabsf(gamestate[4] - gamestate[0]) / Limits[i];
                 activs[1][i] = fabsf(gamestate[6] - gamestate[0]) / Limits[i];
             }
-            activs[0][i] = gamestate[i] / Limits[i];
-            activs[1][i] = gamestate[i] / Limits[i];
+            else
+            {
+                activs[0][i] = gamestate[i] / Limits[i];
+                activs[1][i] = gamestate[i] / Limits[i];
+            }
         }
         activs[1][2] *= -1;
 
-        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);        
+        //rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);
 
-        
-        activs[0][4] = gamestate[5] / HEIGHT; // left paddle y       
-        activs[0][5] = (gamestate[7] + rand)  / HEIGHT; // right paddle y //skew the other bot's pos a little
+        activs[0][4] = gamestate[5] / HEIGHT;          // left paddle y
+        //activs[0][5] = (gamestate[7] + rand) / HEIGHT; // right paddle y //skew the other bot's pos a little
+        activs[0][5] = 0;
+        //rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);
 
-        rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);        
-
-        
-        activs[1][4] = gamestate[7] / HEIGHT; // left paddle y        
-        activs[1][5] = (gamestate[5] + rand) / HEIGHT; // right paddle y
+        activs[1][4] = gamestate[7] / HEIGHT;          // right paddle y
+        //activs[1][5] = (gamestate[5] + rand) / HEIGHT; // left paddle y
+        activs[1][5] = 0;
     }
 
     __syncthreads();
@@ -158,6 +161,8 @@ __device__ void PongSimulation2::eval(float **actions, float *gamestate)
             // Update the ball position and velocity based on physics
             gamestate[0] += gamestate[2]; // ball x += ball vx
             gamestate[1] += gamestate[3]; // ball y += ball vy
+
+            gamestate[9]++;
         }
 
         // calculate the ball's new vx and vy after a collision with the right paddle
@@ -175,6 +180,8 @@ __device__ void PongSimulation2::eval(float **actions, float *gamestate)
             // Update the ball position and velocity based on physics
             gamestate[0] += gamestate[2]; // ball x += ball vx
             gamestate[1] += gamestate[3]; // ball y += ball vy
+
+            gamestate[10]++;
         }
 
         // Update the paddle positions based on actions and physics
@@ -223,8 +230,8 @@ __device__ int PongSimulation2::checkFinished(float *gamestate)
 __device__ void PongSimulation2::setOutput(float *output, float *gamestate, const float *startingParams_d)
 {
     if (threadIdx.x == 0)
-    {
-        if (gamestate[0] < 0)
+    {   
+        if (gamestate[10] > gamestate[9]) //was gamestate[0] < 0
         { // left paddle lost
             output[blockIdx.x * 2 + 0] = -1;
             output[blockIdx.x * 2 + 1] = 1;
@@ -235,7 +242,8 @@ __device__ void PongSimulation2::setOutput(float *output, float *gamestate, cons
             output[blockIdx.x * 2 + 0] = 1;
             output[blockIdx.x * 2 + 1] = -1;
         }
-        
+        if(blockIdx.x == 0 && (int)startingParams_d[8] % 25 == 0)
+            printf("Touches: %d, %d\n", (int)gamestate[9], (int)gamestate[10]);
     }
 }
 

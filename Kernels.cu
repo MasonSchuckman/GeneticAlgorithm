@@ -141,24 +141,34 @@ namespace Kernels
             // calcuate the offset for this block's bot(s)
             int offsetBot1 = block * 2;
             int offsetBot2 = (block * 2 + shift * 2 + 1) % n;
+            int inputBotOffsets[2] = {offsetBot1, offsetBot2};
+            int outputBotOffsets[2] = {offsetBot1, offsetBot2};
 
-            float botScore1 = simulationOutcome[offsetBot1];
-            float botScore2 = simulationOutcome[offsetBot2];
+            // Compare the two bots that competed in the mutation phase
+            if(config_d.directContest == 1){
+                inputBotOffsets[0] = offsetBot1;
+                inputBotOffsets[1] = offsetBot1 + 1;
+            }
+            
+
+            float botScore1 = simulationOutcome[inputBotOffsets[0]];
+            float botScore2 = simulationOutcome[inputBotOffsets[1]];
             if(botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
-            printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, offsetBot1, offsetBot2);
+                printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, inputBotOffsets[0], inputBotOffsets[1]);
+            
             int winnerBotOffset;
             if (botScore1 > botScore2)
             {
-                winnerBotOffset = offsetBot1;
+                winnerBotOffset = inputBotOffsets[0];
             }
             else
             {
-                winnerBotOffset = offsetBot2;
+                winnerBotOffset = inputBotOffsets[1];
             }
 
             // keeping track of the parent specimen from which the children came from
-            childSpecies[offsetBot1] = winnerBotOffset;
-            childSpecies[offsetBot2] = winnerBotOffset;
+            childSpecies[outputBotOffsets[0]] = winnerBotOffset;
+            childSpecies[outputBotOffsets[1]] = winnerBotOffset;
 
 
             __syncthreads();
@@ -168,27 +178,27 @@ namespace Kernels
             for (int i = tid; i < config_d.totalWeights; i += stride)
             {
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                (nextGenWeights)[i + offsetBot1 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights];// + rand;
+                (nextGenWeights)[i + outputBotOffsets[0] * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights];// + rand;
             }
             // We can skip the first layer since the input layer shouldn't have biases.
             for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
             {
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                (nextGenBiases)[i + offsetBot1 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons];// + rand;
+                (nextGenBiases)[i + outputBotOffsets[0] * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons];// + rand;
             }
 
             // Write next gen bot two's data
             for (int i = tid; i < config_d.totalWeights; i += stride)
             {
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                (nextGenWeights)[i + offsetBot2 * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
+                (nextGenWeights)[i + outputBotOffsets[1] * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
             }
 
             // We can skip the first layer since the input layer shouldn't have biases.
             for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
             {
                 rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                (nextGenBiases)[i + offsetBot2 * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
+                (nextGenBiases)[i + outputBotOffsets[1] * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
             }
 
             __syncthreads();
