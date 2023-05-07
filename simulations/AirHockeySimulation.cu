@@ -23,7 +23,7 @@ extern __device__ float rng(float a, float b, unsigned int seed);
 #define actor_size .5f
 #define goal_height 5
 #define goal_dist 20
-enum actor_state_offset { x_offset, y_offset, vel_offset, dir_offset, score_offset };
+enum actor_state_offset { x_offset, y_offset, xvel_offset, yvel_offset, score_offset };
 #define gen_num 15
 
 __host__ void AirHockeySimulation::getStartingParams(float* startingParams)
@@ -94,8 +94,8 @@ __device__ void AirHockeySimulation::setupSimulation(const float* startingParams
 		// 5 Units away (to the left)
 		gamestate[0 + x_offset] = -5;
 		gamestate[0 + y_offset] = 0;
-		gamestate[0 + vel_offset] = 0;
-		gamestate[0 + dir_offset] = 0;
+		gamestate[0 + xvel_offset] = 0;
+		gamestate[0 + yvel_offset] = 0;
 		gamestate[0 + score_offset] = 0;
 
 
@@ -103,15 +103,15 @@ __device__ void AirHockeySimulation::setupSimulation(const float* startingParams
 		// 5 Units away (up and to the right)
 		gamestate[actor_state_len + x_offset] = 4;
 		gamestate[actor_state_len + y_offset] = 3;
-		gamestate[actor_state_len + vel_offset] = 0;
-		gamestate[actor_state_len + dir_offset] = 0;
+		gamestate[actor_state_len + xvel_offset] = 0;
+		gamestate[actor_state_len + yvel_offset] = 0;
 		gamestate[actor_state_len + score_offset] = 0;
 
 		// ball state
 		gamestate[actor_state_len * 2 + x_offset] = 0;
 		gamestate[actor_state_len * 2 + y_offset] = 0;
-		gamestate[actor_state_len * 2 + vel_offset] = 0;
-		gamestate[actor_state_len * 2 + dir_offset] = 0;
+		gamestate[actor_state_len * 2 + xvel_offset] = 0;
+		gamestate[actor_state_len * 2 + yvel_offset] = 0;
 		gamestate[actor_state_len * 2 + score_offset] = 0; // Iteration number
 
 		gamestate[gen_num] = 0; //what generation we're on
@@ -156,8 +156,8 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 		int ball_offset = actor_state_len * 2;
 		activs[bot][ball_offset + x_offset] = gamestate[ball_offset + x_offset];
 		activs[bot][ball_offset + y_offset] = gamestate[ball_offset + y_offset];
-		activs[bot][ball_offset + vel_offset] = gamestate[ball_offset + vel_offset];
-		activs[bot][ball_offset + dir_offset] = gamestate[ball_offset + dir_offset];
+		activs[bot][ball_offset + xvel_offset] = gamestate[ball_offset + xvel_offset];
+		activs[bot][ball_offset + yvel_offset] = gamestate[ball_offset + yvel_offset];
 		// Iteration number
 		activs[bot][ball_offset + score_offset] = gamestate[ball_offset + score_offset];
 	}
@@ -186,31 +186,31 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 	{
 		bot = tid;
 
-		float accel = actions[bot][0] * maxAccel;
-		// clamped
-		accel = fminf(maxAccel, fmaxf(-maxAccel, accel));
-		// Not actually omega, omega is rotational acceleration but we're just using rotational velocity
-		float omega = actions[bot][1] * maxRotSpeed;
-		// clamped
-		omega = fminf(maxRotSpeed, fmaxf(-maxRotSpeed, omega));
+		float xaccel = actions[bot][0] * maxAccel;
+		float yaccel = actions[bot][0] * maxAccel;
 
-		gamestate[bot * actor_state_len + vel_offset] += accel;
-		float dir = gamestate[bot * actor_state_len + dir_offset] + omega;
-		if (dir < 0) dir += 360;
-		if (dir > 360) dir -= 360;
-		gamestate[bot * actor_state_len + dir_offset] = dir;
+		float accel = hypotf(xaccel, yaccel);
+		if (accel > maxSpeed) {
+			float f = maxSpeed / accel;
+			xaccel *= f;
+			yaccel *= f;
+		}
 
-		float speed = gamestate[bot * actor_state_len + vel_offset];
-		gamestate[bot * actor_state_len + vel_offset] =
-			fminf(maxSpeed, fmaxf(-maxSpeed, speed));
-		gamestate[bot * actor_state_len + vel_offset] = speed;
+		gamestate[bot * actor_state_len + xvel_offset] += xaccel;
+		gamestate[bot * actor_state_len + yvel_offset] += yaccel;
 
-		float dx = speed * cosf(dir * toRads);
-		float dy = speed * sinf(dir * toRads);
+		float speed = hypotf(
+			gamestate[bot * actor_state_len + xvel_offset], 
+			gamestate[bot * actor_state_len + yvel_offset]);
+		if (speed > maxSpeed) {
+			float f = maxSpeed / speed;
+			gamestate[bot * actor_state_len + xvel_offset] *= f;
+			gamestate[bot * actor_state_len + yvel_offset] *= f;
+		}
 
 		// Update the bot's position
-		gamestate[bot * actor_state_len + x_offset] += dx;
-		gamestate[bot * actor_state_len + y_offset] += dy;
+		gamestate[bot * actor_state_len + x_offset] += gamestate[bot * actor_state_len + xvel_offset];
+		gamestate[bot * actor_state_len + y_offset] += gamestate[bot * actor_state_len + yvel_offset];
 	}
 
 	__syncthreads();
@@ -240,8 +240,8 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 			ballx - gamestate[bot * actor_state_len + x_offset],
 			bally - gamestate[bot * actor_state_len + y_offset]
 		) < actor_size) {
-			gamestate[2 * actor_state_len + dir_offset] = gamestate[bot * actor_state_len + dir_offset];
-			gamestate[2 * actor_state_len + vel_offset] = gamestate[bot * actor_state_len + vel_offset] + .1f;
+			gamestate[2 * actor_state_len + xvel_offset] = gamestate[bot * actor_state_len + xvel_offset] + .1f;
+			gamestate[2 * actor_state_len + yvel_offset] = gamestate[bot * actor_state_len + yvel_offset] + .1f;
 			gamestate[bot * actor_state_len + score_offset] += 100;
 		}
 	}
@@ -251,8 +251,6 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 	if (tid == 0) {
 		float ballx = gamestate[2 * actor_state_len + x_offset];
 		float bally = gamestate[2 * actor_state_len + y_offset];
-		float ballSpeed = gamestate[2 * actor_state_len + vel_offset];
-		float ballDir = gamestate[2 * actor_state_len + dir_offset];
 
 		// Either bounce or score
 		if (abs(ballx) > goal_dist) {
@@ -264,22 +262,15 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 			}
 			else
 			{
-				ballDir = 180 - ballDir;
-				if (ballDir < 0) ballDir += 180;
-				gamestate[2 * actor_state_len + dir_offset] = ballDir;
+				gamestate[2 * actor_state_len + xvel_offset] *= -1;
 			}
 		}
 		if (abs(bally) > goal_dist) {
-			ballDir = 360 - ballDir;
-			gamestate[2 * actor_state_len + dir_offset] = ballDir;
+			gamestate[2 * actor_state_len + yvel_offset] *= -1;
 		}
 
-
-		float dx = ballSpeed * cosf(ballDir * toRads);
-		float dy = ballSpeed * sinf(ballDir * toRads);
-
-		ballx += dx;
-		bally += dy;
+		ballx += gamestate[2 * actor_state_len + xvel_offset];
+		bally += gamestate[2 * actor_state_len + yvel_offset];
 		gamestate[2 * actor_state_len + x_offset] = ballx;
 		gamestate[2 * actor_state_len + y_offset] = bally;
 	}
@@ -293,7 +284,6 @@ __device__ int AirHockeySimulation::checkFinished(float* gamestate)
 	__syncthreads();
 	float ballx = gamestate[2 * actor_state_len + x_offset];
 	float bally = gamestate[2 * actor_state_len + y_offset];
-	float ballDir = gamestate[2 * actor_state_len + dir_offset];
 
 	// Scored
 	if (abs(ballx) > goal_dist && abs(bally) < goal_height) {

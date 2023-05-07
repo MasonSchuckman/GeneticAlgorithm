@@ -1,9 +1,9 @@
 {
     "simulation": "AirHockeySimulation",
     "neural_net": {
-        "num_layers": 3,
-        "layer_shapes": [15,6,2],
-        "layer_types" : [0,0]
+        "num_layers": 4,
+        "layer_shapes": [15,12,6,2],
+        "layer_types" : [0,0,0]
     },
     "bots_per_sim": 2,
     "max_iters": 100,
@@ -11,7 +11,7 @@
     "num_starting_params": 6,
     "direct_contest": 0,
     "bots_per_team": 0,
-    "generations" : 1200,
+    "generations" : 1500,
     "base_mutation_rate" : 0.1,
     "min_mutation_rate" : 0.000001,
     "mutation_decay_rate" : 0.994,
