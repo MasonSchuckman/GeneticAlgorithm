@@ -2,7 +2,7 @@
     "simulation": "AirHockeySimulation",
     "neural_net": {
         "num_layers": 3,
-        "layer_shapes": [10,6,2],
+        "layer_shapes": [15,6,2],
         "layer_types" : [0,0]
     },
     "bots_per_sim": 2,
