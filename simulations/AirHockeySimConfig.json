@@ -6,7 +6,7 @@
         "layer_types" : [0,0]
     },
     "bots_per_sim": 2,
-    "max_iters": 100,
+    "max_iters": 1000,
     "total_bots": 12,
     "num_starting_params": 6,
     "direct_contest": 0,
