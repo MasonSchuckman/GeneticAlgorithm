@@ -235,8 +235,6 @@ while True:
         for i in range(2):
             dist = math.hypot(ball['posx'] - bots[i]['posx'], ball['posy'] - bots[i]['posy']);
             if (dist < ACTOR_SIZE):
-                print("HIT")
-                exit()
                 ball['velx'] = bots[i]['velx'] + .1
                 ball['vely'] = bots[i]['vely'] + .1
                 bots[i]['score'] += 100
@@ -250,9 +248,9 @@ while True:
                 scorer = int(ball['posy'] > 0)
                 bots[scorer]['score'] += 10000
             else:
-                ball['xvel'] *= -1
+                ball['velx'] *= -1
         if (abs(ball['posy']) > GOAL_DIST):
-            ball[yvel] *= -1
+            ball['vely'] *= -1
 
         ball['posx'] += ball['velx'];
         ball['posy'] += ball['vely'];

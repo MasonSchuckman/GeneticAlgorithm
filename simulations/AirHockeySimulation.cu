@@ -143,6 +143,12 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 			// Ball info
 			activs[1][2 * actor_state_len + i] = gamestate[2 * actor_state_len + i];
 		}
+
+		// 3 actors (Bot 0 & 1, and Ball)
+		for (int i = 0; i < 3; i++) {
+			activs[1][i * actor_state_len + x_offset] *= -1;
+			activs[1][i * actor_state_len + xvel_offset] *= -1;
+		}
 	}
 
 	// Multi-threaded version
@@ -209,7 +215,7 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 		bot = tid;
 
 		float xaccel = actions[bot][0] * maxAccel;
-		float yaccel = actions[bot][0] * maxAccel;
+		float yaccel = actions[bot][1] * maxAccel;
 
 		float accel = hypotf(xaccel, yaccel);
 		if (accel > maxSpeed) {
