@@ -128,12 +128,10 @@ def get_actions_air_hockey(state, net_weights, net_biases):
 
     gamestate = [None] * 2
 
-    # get acceleration
+    # get xAccel
     gamestate[0] = output[0] * MAX_ACCEL
-    # get rot speed
-    gamestate[1] = output[1] * MAX_ROT_SPEED
-    
-    print(gamestate)
+    # get xAccel
+    gamestate[1] = output[1] * MAX_ACCEL
     
     #return inputs
     return gamestate
@@ -146,11 +144,11 @@ bestoffset = 0
 # Define initial bot states, ball positions and networks
 bots = []
 networks = []
-ball = {'posx': 0, 'posy': 0, 'vel': 0, 'dir': 0}
+ball = {'posx': 0, 'posy': 0, 'velx': 0, 'vely': 0}
 gamestatus = {'tick': 0, 'gen': 0}
-bot1 = {'posx': -10, 'posy': 0, 'vel': 0, 'dir': 0, 'score': 0}
+bot1 = {'posx': -10, 'posy': 0, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot1)
-bot2 = {'posx': 8, 'posy': 6, 'vel': 0, 'dir': 0, 'score': 0}
+bot2 = {'posx': 8, 'posy': 6, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot2)
 for i in range(NUM_BOTS):
     network = {'weights': allWeights[i + bestoffset], 'biases': allBiases[i + bestoffset]}
@@ -177,8 +175,8 @@ while True:
         state.append(bots[i % 2]['posx'])
         state.append(bots[i % 2]['posy'])
 
-        state.append(bots[i % 2]['vel'])
-        state.append(bots[i % 2]['dir'])
+        state.append(bots[i % 2]['velx'])
+        state.append(bots[i % 2]['vely'])
 
         state.append(bots[i % 2]['score'])
 
@@ -199,25 +197,32 @@ while True:
         state.append(ball['posx'])
         state.append(ball['posy'])
 
-        state.append(ball['vel'])
-        state.append(ball['dir'])
+        state.append(ball['velx'])
+        state.append(ball['vely'])
         state.append(gamestatus['tick'])
         state.append(gamestatus['gen'])
 
         inputs = get_actions_air_hockey(state, network['weights'], network['biases'])
         
+        accelx = inputs[0] * MAX_ACCEL;
+        accely = inputs[1] * MAX_ACCEL;
+        accel = math.hypot(accelx, accely)
 
-        bot['vel'] += inputs[0] * MAX_ACCEL
-        bot['vel'] = max(min(MAX_SPEED, bot['vel']), -MAX_SPEED)
-        bot['dir'] += inputs[1] * MAX_ROT_SPEED
-        if (bot['dir'] > 360): 
-            bot['dir'] -= 360
-        if (bot['dir'] < 0): 
-            bot['dir'] += 360
+        if(accel > MAX_ACCEL):
+            f = MAX_ACCEL / accel 
+            accelx *= f
+            accely *= f
 
-        if (not math.isnan(bot['dir']) and not math.isinf(bot['dir'])):
-            bot['posx'] += bot['vel'] * math.cos(math.radians(bot['dir']))
-            bot['posy'] += bot['vel'] * math.sin(math.radians(bot['dir']))
+        bot['velx'] += accelx
+        bot['vely'] += accely
+        speed = math.hypot(bot['velx'], bot['vely'])
+        if(speed > MAX_SPEED):
+            f = MAX_SPEED / speed 
+            bot['velx'] *= f
+            bot['vely'] *= f
+
+        bot['posx'] += bot['velx']
+        bot['posy'] += bot['vely']
 
         botDist = [0, 0]
         for i in range(2):
@@ -229,10 +234,11 @@ while True:
         bots[closestBot]['score'] += 1;
         for i in range(2):
             dist = math.hypot(ball['posx'] - bots[i]['posx'], ball['posy'] - bots[i]['posy']);
-            print(f"Bot{i} dist is {dist}")
             if (dist < ACTOR_SIZE):
-                ball['dir'] = bots[i]['dir']
-                ball['vel'] = bots[i]['vel'] + .1
+                print("HIT")
+                exit()
+                ball['velx'] = bots[i]['velx'] + .1
+                ball['vely'] = bots[i]['vely'] + .1
                 bots[i]['score'] += 100
 
 
@@ -244,24 +250,17 @@ while True:
                 scorer = int(ball['posy'] > 0)
                 bots[scorer]['score'] += 10000
             else:
-                ball['dir'] = 180 - ball['dir'];
-                if (ball['dir'] < 0):
-                    ball['dir'] += 180; # why +180 instead of 360
+                ball['xvel'] *= -1
         if (abs(ball['posy']) > GOAL_DIST):
-            ball['dir'] = 360 - ball['dir'];
+            ball[yvel] *= -1
 
-
-        dx = ball['vel'] * math.cos(math.radians(ball['dir']));
-        dy = ball['vel'] * math.sin(math.radians(ball['dir']));
-
-        ball['posx'] += dx;
-        ball['posy'] += dy;
+        ball['posx'] += ball['velx'];
+        ball['posy'] += ball['vely'];
 
     # Draw bots and targets
     screen.fill((255, 255, 255))
     for i in range(NUM_BOTS):
         bot = bots[i]
-        print(f"Bot{i} ({bot['posx']}, {bot['posy']})")
         pygame.draw.circle(screen, ((i * 25) % 230, (i * 50) % 256, (i * 33) % 256), 
             (int(bot['posx']) + MAP_WIDTH / 2 * SCREEN_SCALE, 
             int(bot['posy']) + MAP_HEIGHT / 2 * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
