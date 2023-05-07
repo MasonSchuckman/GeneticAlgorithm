@@ -281,8 +281,8 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 			ballx - gamestate[bot * actor_state_len + x_offset],
 			bally - gamestate[bot * actor_state_len + y_offset]
 		) < actor_size) {
-			gamestate[2 * actor_state_len + xvel_offset] = gamestate[bot * actor_state_len + xvel_offset] + .1f;
-			gamestate[2 * actor_state_len + yvel_offset] = gamestate[bot * actor_state_len + yvel_offset] + .1f;
+			gamestate[2 * actor_state_len + xvel_offset] = gamestate[bot * actor_state_len + xvel_offset];
+			gamestate[2 * actor_state_len + yvel_offset] = gamestate[bot * actor_state_len + yvel_offset];
 			gamestate[bot * actor_state_len + score_offset] += 100;
 		}
 	}

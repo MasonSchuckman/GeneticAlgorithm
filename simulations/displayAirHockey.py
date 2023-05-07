@@ -150,6 +150,9 @@ bot1 = {'posx': -10, 'posy': 0, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot1)
 bot2 = {'posx': 8, 'posy': 6, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot2)
+
+limits = [GOAL_DIST, GOAL_DIST, MAX_SPEED, MAX_SPEED, 1]
+
 for i in range(NUM_BOTS):
     network = {'weights': allWeights[i + bestoffset], 'biases': allBiases[i + bestoffset]}
     networks.append(network)
@@ -172,44 +175,50 @@ while True:
         #state of the sim on this iter
         state = []
 
-        state.append(bots[i % 2]['posx'])
-        state.append(bots[i % 2]['posy'])
+        state.append(bots[i % 2]['posx'] / limits[0])
+        state.append(bots[i % 2]['posy'] / limits[1])
 
-        state.append(bots[i % 2]['velx'])
-        state.append(bots[i % 2]['vely'])
+        state.append(bots[i % 2]['velx'] / limits[2])
+        state.append(bots[i % 2]['vely'] / limits[3])
 
         #state.append(bots[i % 2]['score'])
         state.append(0)
-        
-        otherInfo = False
+
+        otherInfo = True
 
         if otherInfo:
-            state.append(bots[(i + 1) % 2]['posx'])
-            state.append(bots[(i + 1) % 2]['posy'])    
+            state.append(bots[(i + 1) % 2]['posx'] / limits[0])
+            state.append(bots[(i + 1) % 2]['posy'] / limits[1])    
 
-            state.append(bots[(i + 1) % 2]['velx'])
-            state.append(bots[(i + 1) % 2]['vely'])
+            state.append(bots[(i + 1) % 2]['velx'] / limits[2])
+            state.append(bots[(i + 1) % 2]['vely'] / limits[3])
             #state.append(bots[(i + 1) % 2]['score'])
             state.append(0)
         else:
-            state.append(0)
-            state.append(0)
-            state.append(0)
-            state.append(0)
-            state.append(0)
+            state.append(0) # x pos
+            state.append(0) # y pos
+            state.append(0) # x vel
+            state.append(0) # y vel
+            state.append(0) # score
 
-        state.append(ball['posx'])
-        state.append(ball['posy'])
+        state.append(ball['posx'] / limits[0])
+        state.append(ball['posy'] / limits[1])
 
-        state.append(ball['velx'])
-        state.append(ball['vely'])
+        state.append(ball['velx'] / limits[2])
+        state.append(ball['vely'] / limits[3])
         #state.append(gamestatus['tick'])
         state.append(0)
 
+        #Reverse x related info for bot B
+        if i % 2 == 1:
+            for entity in range(3):
+                state[0 + entity * 5] *= -1
+                state[2 + entity * 5] *= -1
+
         inputs = get_actions_air_hockey(state, network['weights'], network['biases'])
         
-        accelx = inputs[0] * MAX_ACCEL;
-        accely = inputs[1] * MAX_ACCEL;
+        accelx = inputs[0]
+        accely = inputs[1]
         accel = math.hypot(accelx, accely)
 
         if(accel > MAX_ACCEL):
@@ -234,20 +243,15 @@ while True:
                 ball['posx'] - bots[i]['posx'],
                 ball['posy'] - bots[i]['posx'])
         # Bot 0 has a slight disadvantage
-        closestBot = int(botDist[1] < botDist[0]);
-        bots[closestBot]['score'] += 1;
+        closestBot = int(botDist[1] < botDist[0])
+        bots[closestBot]['score'] += 1
         for i in range(2):
             dist = math.hypot(ball['posx'] - bots[i]['posx'], ball['posy'] - bots[i]['posy']);
             if (dist < ACTOR_SIZE):
                 print("HIT")
                 #exit()
-                ball['velx'] = bots[i]['velx'] + .1
-                ball['vely'] = bots[i]['vely'] + .1
-                speed = math.hypot(ball['velx'], ball['vely'])
-                if(speed > MAX_SPEED + .1):
-                    f = (MAX_SPEED + .1) / speed 
-                    ball['velx'] *= f
-                    ball['vely'] *= f
+                ball['velx'] = bots[i]['velx']
+                ball['vely'] = bots[i]['vely']
                 bots[i]['score'] += 100
 
 
