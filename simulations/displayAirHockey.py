@@ -2,54 +2,14 @@ import pygame
 import numpy as np
 import math
 
-from portGene import importGene, exportGene
-
 # Define constants
-MAX_SPEED = 25
-SCREEN_WIDTH = 640
-SCREEN_HEIGHT = 480
-
-
-# import struct
-# # Open the binary file for reading
-# with open("allBots.data", "rb") as f:
-
-#     # Read the first 3 integers (12 bytes) to get the total number of bots, weights, and neurons
-#     num_bots, num_weights, num_neurons = struct.unpack("iii", f.read(12))
-
-#     # Read the number of layers and their shapes
-#     num_layers = struct.unpack("i", f.read(4))[0]
-#     layer_shapes = struct.unpack(f"{num_layers}i", f.read(num_layers * 4))
-
-#     # Iterate over each bot
-#     for bot in range(num_bots):
-#         print(f"Bot {bot}:")
-#         # Iterate over the weights for this bot
-#         for i in range(num_weights):
-#             # Read the weight as a float
-#             weight = struct.unpack("f", f.read(4))[0]
-#             if i % (64 + 16) == 0:
-#                 print(f"  Weight set {i // (64 + 16)}:")
-#             if i % 64 == 0:
-#                 print("    64 weights: ", end="")
-#             print(f"{weight:.6f}", end=", ")
-#             if (i + 1) % 64 == 0:
-#                 print()
-#         print()
-#         # Iterate over the biases for this bot
-#         bias_offset = bot * num_neurons + layer_shapes[0]
-#         for i in range(num_neurons):
-#             # Read the bias as a float
-#             bias = struct.unpack("f", f.read(4))[0]
-#             if i % (64 + 16) == 0:
-#                 print(f"  Bias set {i // (64 + 16)}:")
-#             if i % 16 == 0:
-#                 print("    16 biases: ", end="")
-#             print(f"{bias:.6f}", end=", ")
-#             if (i + 1) % 16 == 0:
-#                 print()
-#         print()
-
+SCREEN_WIDTH = 50
+SCREEN_HEIGHT = 50
+MAX_SPEED = 1
+MAX_ACCEL = 0.5
+MAX_ROT_SPEED = 30
+GOAL_HEIGHT = 5
+GOAL_DIST = 20
 
 
 import struct
@@ -100,13 +60,21 @@ def readWeightsAndBiasesAll():
     return layerShapes, all_weights, all_biases
 
 
-# Reads the one bot format   <weights.gene>
-def read_weights_and_biases(filename):
+# Reads the one bot format
+def read_weights_and_biases():
+    with open('weights.data', 'r') as f:
+        data = f.read()
 
-    (shape, type, cons, bias) = importGene('weights.gene')
+    weights_start = data.index("net_weights") + 13
+    weights_end = data.index("]", weights_start) + 1
+    biases_start = data.index("net_biases") + 12
+    biases_end = data.index("]", biases_start) + 1
 
-    weights = np.array(cons)
-    biases = np.array(bias)
+    weights_data = data[weights_start:weights_end].replace('[','').replace(']','').split(',')
+    biases_data = data[biases_start:biases_end].replace('[','').replace(']','').split(',')
+    #print(data)
+    weights = np.array([float(i.strip()) for i in weights_data])
+    biases = np.array([float(i.strip()) for i in biases_data])
     
     #print(biases)
     return weights, biases
@@ -114,11 +82,6 @@ def read_weights_and_biases(filename):
 
 # Define neural network parameters
 layershapes = []
-
-# net_weights = np.array([[-0.191083, 0.079841, -0.127740, -0.039663, 0.137477, 0.087965, -0.479188, -0.089636, 0.237234, -0.153124, -0.238110, -0.072986, -0.295682, 0.303986, 0.135147, -0.468184, -0.168100, -0.212201, -0.145062, 0.262820, 0.226249, -0.206955, -0.261188, 0.539418, -0.717928, 0.295275, -0.269030, -0.627511, 0.139830, 0.332173, -0.236078, 0.028958, 0.196836, 0.206497, 0.128855, -0.266095, -0.208614, 0.193854, 0.319410, -0.563935, 0.348045, -0.267320, 0.316727, 0.648191, -0.479277, -0.371274, 0.001850, 0.073868],
-# [0.149054, 0.147478, 0.227007, -0.127284, 0.211191, 0.113938, -0.181851, 0.218462, -0.165197, -0.110061, 0.111662, -0.057198, 0.035173, -0.051007, -0.193473, -0.089472]])
-# net_biases = np.array([[-0.427300, 0.654512, 0.085583, 0.007135, -0.110449, -0.025819, -0.003751, -0.197740],
-# [-0.145017, 0.077235]])
 
 # Initialize Pygame
 pygame.init()
@@ -147,10 +110,8 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
 
     return output
 
-
-# Define function to query neural network for actions
-def get_actions(bot_velx, bot_vely, bot_posx, bot_posy, targetX, targetY, net_weights, net_biases):
-    inputs = np.array([bot_velx, bot_vely, bot_posx, bot_posy, targetX, targetY])
+def get_actions_air_hockey(state, net_weights, net_biases):
+    inputs = np.array(state)
     prevLayer = inputs
     numHiddenLayers = len(layershapes) - 2
     hidden_outputs = [None] * numHiddenLayers
@@ -163,40 +124,30 @@ def get_actions(bot_velx, bot_vely, bot_posx, bot_posy, targetX, targetY, net_we
 
     output = forward_propagation(prevLayer, net_weights[numLayers - 2], net_biases[numLayers - 1], layershapes[numLayers - 2], layershapes[numLayers - 1], numLayers - 1)
 
-    # Compute bot velocity based on output    
     gamestate = [None] * 2
-    
-    # gamestate[0] = output[0] * MAX_SPEED
-    # gamestate[1] = output[2] * MAX_SPEED
 
-    gamestate[0] = (output[0] - output[1]) * MAX_SPEED
-    gamestate[1] = (output[2] - output[3]) * MAX_SPEED
-    #gamestate = (output - 0.5) * MAX_SPEED * 2
+    # get acceleration
+    gamestate[0] = output[0] * MAX_ACCEL
+    # get rot speed
+    gamestate[1] = output[1] * MAX_ROT_SPEED
+    
     print(gamestate)
-    speed = math.hypot(gamestate[0], gamestate[1]);
-    if(speed > MAX_SPEED):
-        f = MAX_SPEED / speed;
-        gamestate[0] *= f;
-        gamestate[1] *= f;
     
+    #return inputs
     return gamestate
-
-
 
 # Read in the bots' networks
 layershapes, allWeights, allBiases = readWeightsAndBiasesAll()
 
-NUM_BOTS = 10
+NUM_BOTS = 2
 bestoffset = 0
-# Define initial bot states, target positions and networks
+# Define initial bot states, ball positions and networks
 bots = []
-targets = []
 networks = []
+ball = {'posx': 0, 'posy': 0, 'vel': 0, 'dir': 0}
 for i in range(NUM_BOTS):
-    bot = {'posx': 0, 'posy': 0, 'velx': 0, 'vely': 0}
+    bot = {'posx': 0, 'posy': 0, 'vel': 0, 'dir': 0, 'score': 0}
     bots.append(bot)
-    target = {'x': 0, 'y': 0}
-    targets.append(target)
     network = {'weights': allWeights[i + bestoffset], 'biases': allBiases[i + bestoffset]}
     networks.append(network)
 
@@ -208,34 +159,61 @@ while True:
             pygame.quit()
             quit()
 
+    
+
     # Get actions from neural networks
     for i in range(NUM_BOTS):
         bot = bots[i]
-        target = targets[i]
         network = networks[i]
-        #actions = get_actions(bot['velx'], bot['vely'], bot['posx'], bot['posy'], target['x'], target['y'], network['weights'], network['biases'])
-        actions = get_actions(0, 0, bot['posx'], bot['posy'], target['x'], target['y'], network['weights'], network['biases'])
+        
+        #state of the sim on this iter
+        state = []
 
-        bot['velx'] = actions[0]
-        bot['vely'] = actions[1]
-        bot['posx'] += bot['velx']
-        bot['posy'] += bot['vely']
+        state.append(bots[i % 2]['posx'])
+        state.append(bots[i % 2]['posy'])
 
-    # Get current mouse positions and update target positions
-    mouse_pos = pygame.mouse.get_pos()
-    for i in range(NUM_BOTS):
-        target = targets[i]
-        target['x'] = mouse_pos[0] - SCREEN_WIDTH / 2
-        target['y'] = mouse_pos[1] - SCREEN_HEIGHT / 2
+        state.append(bots[i % 2]['vel'])
+        state.append(bots[i % 2]['dir'])
+
+        state.append(bots[i % 2]['score'])
+
+        otherInfo = False
+
+        if otherInfo:
+            state.append(bots[(i + 1) % 2]['posx'])
+            state.append(bots[(i + 1) % 2]['posy'])    
+
+            state.append(bots[(i + 1) % 2]['velx'])
+            state.append(bots[(i + 1) % 2]['vely'])
+        else:
+            state.append(0)
+            state.append(0)
+            state.append(0)
+            state.append(0)
+
+        state.append(ball['posx'])
+        state.append(ball['posy'])
+
+        state.append(ball['vel'])
+        state.append(ball['dir'])
+
+        inputs = get_actions_air_hockey(state, network['weights'], network['biases'])
+        
+
+        bot['vel'] += inputs[0]
+        bot['dir'] += inputs[1]
+
+        bot['posx'] += bot['vel'] * math.cos(math.radians(bot['dir']))
+        bot['posy'] += bot['vel'] * math.sin(math.radians(bot['dir']))
 
     # Draw bots and targets
     screen.fill((255, 255, 255))
     for i in range(NUM_BOTS):
         bot = bots[i]
-        target = targets[i]
-        pygame.draw.circle(screen, (255, 0, 0), (int(target['x']) + SCREEN_WIDTH / 2, int(target['y']) + SCREEN_HEIGHT / 2), 8)
         pygame.draw.circle(screen, ((i * 25) % 230, (i * 50) % 256, (i * 33) % 256), (int(bot['posx']) + SCREEN_WIDTH / 2, int(bot['posy']) + SCREEN_HEIGHT / 2), 8)
+
+    pygame.draw.circle(screen, (0, 0, 0), (int(ball['posx'] + SCREEN_WIDTH / 2), int(ball['posy'] + SCREEN_HEIGHT / 2)), 8)
 
     # Update display
     pygame.display.update()
-    clock.tick(40)
+    clock.tick(60)

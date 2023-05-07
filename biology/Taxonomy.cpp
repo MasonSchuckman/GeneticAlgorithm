@@ -102,12 +102,11 @@ CompositionGradient Taxonomy::speciesComposition() {
     return toReturn;
 }
 
-std::string Taxonomy::compositionGraph(const CompositionGradient composition) {
+std::string Taxonomy::compositionGraph(const CompositionGradient composition, const int charsWide) {
 
-    const int CHARS_TILL_100PERCENT = 40;
 
     std::string toReturn = "///|"; 
-    for(int i = 1; i <= CHARS_TILL_100PERCENT; i++)
+    for(int i = 1; i <= charsWide; i++)
             toReturn += "-";
     toReturn += "|\n";
 
@@ -122,18 +121,18 @@ std::string Taxonomy::compositionGraph(const CompositionGradient composition) {
         toReturn += "|";
 
         totalPercentage += std::get<1>(i);
-        int charsNeeded = std::get<1>(i)*(CHARS_TILL_100PERCENT * 1.0);
+        int charsNeeded = std::get<1>(i)*(charsWide * 1.0);
 
         for(int tickCount = 0; tickCount < charsNeeded; tickCount++) 
             toReturn += "*";
         toReturn += "\n";
     }
     toReturn += "///|";
-    for(int i = 1; i <= CHARS_TILL_100PERCENT; i++) {
+    for(int i = 1; i <= charsWide; i++) {
             toReturn += (i % 5 == 0 ? "^" : "-");
     }
     toReturn += "|\n";
-    toReturn += "     ^ = " + std::to_string(500.0/CHARS_TILL_100PERCENT) + "%";
+    toReturn += "     ^ = " + std::to_string(500.0/charsWide) + "%";
     toReturn += "    showing ~" + std::to_string((int)(totalPercentage*100)) + "% of popl.";
 
 

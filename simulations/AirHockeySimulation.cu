@@ -141,7 +141,10 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 	{
 		activs[bot][tid - actor_state_len * bot] = gamestate[tid];
 
-		activs[bot][tid + actor_state_len] = gamestate[tid + actor_state_len * otherBot];
+        if(bot == 0)
+		    activs[bot][tid + actor_state_len] = gamestate[tid + actor_state_len];
+        else
+            activs[bot][tid - actor_state_len] = gamestate[tid - actor_state_len];
 	}
 	__syncthreads();
 

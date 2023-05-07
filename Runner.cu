@@ -1,6 +1,9 @@
 #include "SimulationList.cuh"
 #include "Kernels.cuh"
 #include "Simulator.cuh"
+#include "biology/Taxonomy.h"
+#include "biology/Specimen.h"
+#include "biology/Genome.h"
 
 #include <iostream>
 #include <vector>
@@ -58,6 +61,10 @@ FullSimConfig readSimConfig(const std::string &filename)
     else if (simType == "AirHockeySimulation")
     {
         sim = new AirHockeySimulation;
+    }
+    else if (simType == "PongSimulation2")
+    {
+        sim = new PongSimulation2;
     }
     else
     {
@@ -136,188 +143,25 @@ void launchKernel(Simulation *derived, SimConfig &config)
     // Code to launch the CUDA kernel with the configured parameters and function pointer
 }
 
-void test_simulation_1()
-{
-    // Define which simulation we're running
-    BasicSimulation sim;
-
-    // Define the neural net configuration for our bots
-    int numLayers = 3;
-    int numConnections = 0, numNeurons = 0;
-    vector<int> layerShapes;
-    layerShapes.push_back(8);
-    layerShapes.push_back(32);
-    layerShapes.push_back(8);
-
-    getNetInfo(numConnections, numNeurons, layerShapes);
-
-    // Define the rest of the simulation configuration
-    int botsPerSim = 1;
-
-    if (botsPerSim > MAX_BOTS_PER_SIM)
-    {
-        printf("Increase MAX_BOTS_PER_SIM and run again.\n");
-    }
-
-    int maxIters = 5;
-    int totalBots = 1 << 15;
-    int numStartingParams = 1;
-    int directContest = 0;
-    int botsPerTeam = 0;
-
-    SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams, directContest, botsPerTeam);
-    for (int i = 0; i < numLayers; i++)
-    {
-        config.layerShapes[i] = layerShapes[i];
-    }
-
-    vector<Bot *> bots;
-    for (int i = 0; i < totalBots; i++)
-    {
-        bots.push_back(new Bot(layerShapes));
-    }
-
-    printf("Created bots.\n");
-
-    Simulator engine(bots, &sim, config);
-
-    engine.batchSimulate(1);
-
-    for (int i = 0; i < totalBots; i++)
-    {
-        delete bots[i];
-    }
-}
-
-void test_simulation_2()
-{
-    FullSimConfig fullConfig = readSimConfig("TargetSimConfig.json");
-
-    vector<Bot *> bots;
-    for (int i = 0; i < fullConfig.totalBots; i++)
-    {
-        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
-    }
-
-    Simulator engine(bots, fullConfig.sim, fullConfig.config);
-    engine.min_mutate_rate = fullConfig.minMutationRate;
-    engine.mutateMagnitude = fullConfig.baseMutationRate;
-    engine.mutateDecayRate = fullConfig.mutationDecayRate;
-    engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
-
-    if (fullConfig.loadData == 1)
-    {
-        engine.loadData = 1;
-    }
-
-    engine.batchSimulate(fullConfig.generations);
-
-    for (int i = 0; i < fullConfig.totalBots; i++)
-    {
-        delete bots[i];
-    }
-}
-
-void testMultibot()
-{
-    FullSimConfig fullConfig = readSimConfig("MultibotSimConfig.json");
-
-    vector<Bot *> bots;
-    for (int i = 0; i < fullConfig.totalBots; i++)
-    {
-        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
-    }
-
-    Simulator engine(bots, fullConfig.sim, fullConfig.config);
-    engine.min_mutate_rate = fullConfig.minMutationRate;
-    engine.mutateMagnitude = fullConfig.baseMutationRate;
-    engine.mutateDecayRate = fullConfig.mutationDecayRate;
-    engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
-
-    if (fullConfig.loadData == 1)
-    {
-        engine.loadData = 1;
-    }
-
-    engine.batchSimulate(fullConfig.generations);
-
-    for (int i = 0; i < fullConfig.totalBots; i++)
-    {
-        delete bots[i];
-    }
-}
-
-void testPong()
-{
-    FullSimConfig fullConfig = readSimConfig("PongSimulation.json");
-
-    vector<Bot *> bots;
-    for (int i = 0; i < fullConfig.totalBots; i++)
-    {
-        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
-    }
-
-    Simulator engine(bots, fullConfig.sim, fullConfig.config);
-    engine.min_mutate_rate = fullConfig.minMutationRate;
-    engine.mutateMagnitude = fullConfig.baseMutationRate;
-    engine.mutateDecayRate = fullConfig.mutationDecayRate;
-    engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
-
-    if (fullConfig.loadData == 1)
-    {
-        engine.loadData = 1;
-    }
-
-    engine.batchSimulate(fullConfig.generations);
-
-    for (int i = 0; i < fullConfig.totalBots; i++)
-    {
-        delete bots[i];
-    }
-}
-
-void testAirHockey()
-{
-    FullSimConfig fullConfig = readSimConfig("AirHockeySimConfig.json");
-
-    vector<Bot*> bots;
-    for (int i = 0; i < fullConfig.totalBots; i++)
-    {
-        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
-    }
-
-    Simulator engine(bots, fullConfig.sim, fullConfig.config);
-    engine.min_mutate_rate = fullConfig.minMutationRate;
-    engine.mutateMagnitude = fullConfig.baseMutationRate;
-    engine.mutateDecayRate = fullConfig.mutationDecayRate;
-    engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
-
-    if (fullConfig.loadData == 1)
-    {
-        engine.loadData = 1;
-    }
-
-    engine.batchSimulate(fullConfig.generations);
-
-    for (int i = 0; i < fullConfig.totalBots; i++)
-    {
-        delete bots[i];
-    }
-}
-
-void testSim(std::string configFile)
+Taxonomy* testSim(std::string configFile)
 {
     std::cout << "Testing " << configFile << std::endl;
 
     FullSimConfig fullConfig = readSimConfig(configFile);
 
-    vector<Bot*> bots;
+    //vector<Bot*> bots;
+    vector<Specimen*> bots;
     for (int i = 0; i < fullConfig.totalBots; i++)
     {
-        bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
+        Genome* nextGenome = new Genome(fullConfig.config.layerShapes, fullConfig.config.numLayers);
+        Specimen* nextCreature = new Specimen(nextGenome, nullptr);
+        bots.push_back(nextCreature);
+        //bots.push_back(new Bot(fullConfig.config.layerShapes, fullConfig.config.numLayers));
     }
 
-    Simulator engine(bots, fullConfig.sim, fullConfig.config);
+    Taxonomy* history = new Taxonomy(bots.data(), fullConfig.totalBots);
+
+    Simulator engine(bots, fullConfig.sim, fullConfig.config, history);
     engine.min_mutate_rate = fullConfig.minMutationRate;
     engine.mutateMagnitude = fullConfig.baseMutationRate;
     engine.mutateDecayRate = fullConfig.mutationDecayRate;
@@ -334,21 +178,26 @@ void testSim(std::string configFile)
     {
         delete bots[i];
     }
+    return history;
 }
 
 int main(int argc, char* argv[])
 {
+
     cudaSetDevice(0);
 
     auto start_time = std::chrono::high_resolution_clock::now();
+
+    Taxonomy* resultsHistory;
     if (argc == 1) {
         std::cout << "Testing Multibot\n";
-        testMultibot();
+        resultsHistory = testSim("MultibotSimConfig.json");
     }
     else {
         std::cout << "Test user specified file\n";
-        testSim(argv[1]);
+        resultsHistory = testSim(argv[1]);
     }
+    
     //testAirHockey();
     //testPong();
     //testMultibot();

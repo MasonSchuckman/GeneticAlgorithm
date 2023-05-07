@@ -69,7 +69,7 @@ BALL_SIZE = 10
 
 # Define paddle and ball speeds
 PADDLE_SPEED = 5
-BALL_SPEED = 7.5
+BALL_SPEED = 8.0
 SPEED_UP_RATE = 1.00
 # Define game colors
 BLACK = (0, 0, 0)
@@ -93,6 +93,7 @@ networks = [{'weights': all_weights[best], 'biases': all_biases[best]},
             {'weights': all_weights[best + 1], 'biases': all_biases[best + 1]}]
 
 
+
 def forward_propagation(inputs, weights, biases, input_size, output_size, layer):
     output = np.zeros(output_size)
     #print(input_size, " ", output_size, " ", layer)
@@ -105,14 +106,15 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
     output[:] += np.dot(inputs, weights)
 
     # Apply activation function (ReLU for non-output layers, sigmoid for output layer)
-    # if layer != len(layershapes) - 1:
-    #     output[output < 0] = 0
+    if layer != len(layershapes) - 1:
+        output[output < 0] = 0
     # else:
     #     #print('sigmoid')
     #     output[:] = 1.0 / (1.0 + np.exp(-output))
     # if layer != len(layershapes) - 1:
-    #     output[output < 0] = 0
+    #     
 
+    
     return output
 
 def get_actions_pong(state, net_weights, net_biases):
@@ -153,15 +155,15 @@ while running:
         state = []
 
         if i == 0:
-            state = [ball_x / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
+            state = [abs(ball_x - 0) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
         else:
-            state = [ball_x / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, -ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
+            state = [abs(ball_x - SCREEN_WIDTH) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, -ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
 
             
         if i == 0:
-            state += [0, left_paddle_y / SCREEN_HEIGHT, 1, right_paddle_y / SCREEN_HEIGHT]  # Paddle positions
+            state += [left_paddle_y / SCREEN_HEIGHT, right_paddle_y / SCREEN_HEIGHT]  # Paddle positions
         else:
-            state += [0, right_paddle_y / SCREEN_HEIGHT, 1, left_paddle_y / SCREEN_HEIGHT]  # Paddle positions
+            state += [right_paddle_y / SCREEN_HEIGHT, left_paddle_y / SCREEN_HEIGHT]  # Paddle positions
         
         #state = [305.000000, 240.000000, -5.000000, 0.000000, 5.000000, 455.000000, 635.000000, 455.000000]
 

@@ -121,7 +121,7 @@ namespace Kernels
 
     // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
     // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
-    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome,
+    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies, 
                            float *nextGenWeights, float *nextGenBiases, const int shift)
     {
         int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
@@ -155,7 +155,15 @@ namespace Kernels
             {
                 winnerBotOffset = offsetBot2;
             }
+
+            // keeping track of the parent specimen from which the children came from
+            childSpecies[offsetBot1] = winnerBotOffset;
+            childSpecies[offsetBot2] = winnerBotOffset;
+
+
             __syncthreads();
+
+
             // Write next gen bot one's data
             for (int i = tid; i < config_d.totalWeights; i += stride)
             {
@@ -220,6 +228,9 @@ namespace Kernels
                 break;
             case 5:
                 (*sim) = new AirHockeySimulation();
+                break;
+            case 6:
+                (*sim) = new PongSimulation2();
                 break;
             default:
                 printf("Invalid derived class ID. Did you update the kernel switch statement?\n");

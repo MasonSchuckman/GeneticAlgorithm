@@ -7,7 +7,7 @@ using std::vector;
 extern __constant__ SimConfig config_d;
 
 // Constructor allocates all necessary device memory prior to doing simulations
-Simulator::Simulator(vector<Bot *> bots, Simulation *derived, SimConfig &config) : bots{bots}, config{config}, derived{derived}
+Simulator::Simulator(vector<Specimen *> bots, Simulation *derived, SimConfig &config, Taxonomy *history) : bots{bots}, config{config}, derived{derived}, history{history}
 {
     int totalBots = bots.size();
 
@@ -39,6 +39,8 @@ Simulator::Simulator(vector<Bot *> bots, Simulation *derived, SimConfig &config)
 
         cudaMalloc((void **)&biases_d, totalBots * config.totalNeurons * sizeof(float));
         cudaMalloc((void **)&nextGenBiases_d, totalBots * config.totalNeurons * sizeof(float));
+
+        cudaMalloc((void **)&parentSpecimen_d, totalBots * sizeof(int));
 
         // Copy the config over to GPU memory
         check(cudaMemcpyToSymbol(config_d, &config, sizeof(SimConfig)));
@@ -85,7 +87,7 @@ void Simulator::formatBotData(int *&layerShapes_h, float *&startingParams_h,
 
     int totalBots = bots.size();
     int i = 0;
-    for (const Bot *b : bots)
+    for (const Specimen *b : bots)
     {
         int WO = 0;
         int BO = 0;
@@ -153,45 +155,49 @@ void Simulator::copyFromGPU(float *&weights_h, float *&biases_h)
 }
 
 #include <fstream>
-void writeWeightsAndBiasesAll(float *weights_h, float *biases_h, int TOTAL_BOTS, int totalWeights, int totalNeurons, int numLayers, int *layerShapes) {
-    std::ofstream outfile("allBots.data", std::ios::out | std::ios::binary); //this might be more space efficient
-    //std::ofstream outfile("allBots.data");
-    // outfile << "all bots:\n";
-    // Write the total number of bots
-    outfile.write(reinterpret_cast<const char*>(&TOTAL_BOTS), sizeof(int));
+void writeWeightsAndBiasesAll(float *weights_h, float *biases_h, int TOTAL_BOTS, int totalWeights, int totalNeurons, int numLayers, int *layerShapes)
+{
+    std::ofstream outfile("allBots.data", std::ios::out | std::ios::binary); // this might be more space efficient
+    // std::ofstream outfile("allBots.data");
+    //  outfile << "all bots:\n";
+    //  Write the total number of bots
+    outfile.write(reinterpret_cast<const char *>(&TOTAL_BOTS), sizeof(int));
 
     // Write the total number of weights and neurons
-    outfile.write(reinterpret_cast<const char*>(&totalWeights), sizeof(int));
-    outfile.write(reinterpret_cast<const char*>(&totalNeurons), sizeof(int));
+    outfile.write(reinterpret_cast<const char *>(&totalWeights), sizeof(int));
+    outfile.write(reinterpret_cast<const char *>(&totalNeurons), sizeof(int));
 
     // Write the number of layers and their shapes
-    outfile.write(reinterpret_cast<const char*>(&numLayers), sizeof(int));
-    for (int i = 0; i < numLayers; i++) {
-        outfile.write(reinterpret_cast<const char*>(&layerShapes[i]), sizeof(int));
+    outfile.write(reinterpret_cast<const char *>(&numLayers), sizeof(int));
+    for (int i = 0; i < numLayers; i++)
+    {
+        outfile.write(reinterpret_cast<const char *>(&layerShapes[i]), sizeof(int));
     }
 
     // Write the weights and biases for each bot
-    for (int bot = 0; bot < TOTAL_BOTS; bot++) {
+    for (int bot = 0; bot < TOTAL_BOTS; bot++)
+    {
         // Write the weights for this bot
-        for (int i = 0; i < totalWeights; i++) {
+        for (int i = 0; i < totalWeights; i++)
+        {
             float weight = weights_h[bot * totalWeights + i];
-            outfile.write(reinterpret_cast<const char*>(&weight), sizeof(float));
+            outfile.write(reinterpret_cast<const char *>(&weight), sizeof(float));
         }
-        
 
         // Write the biases for this bot
         int biasOffset = bot * totalNeurons;
-        for (int i = 0; i < totalNeurons; i++) {
+        for (int i = 0; i < totalNeurons; i++)
+        {
             float bias = biases_h[biasOffset + i];
-            outfile.write(reinterpret_cast<const char*>(&bias), sizeof(float));
+            outfile.write(reinterpret_cast<const char *>(&bias), sizeof(float));
         }
-        
     }
 
     outfile.close();
 }
 
-void write_weights_and_biases(float* weights, float* biases, int numLayers, int* layerShapes, int totalWeights, int totalNeurons, int lastGenBest) {
+void write_weights_and_biases(float *weights, float *biases, int numLayers, int *layerShapes, int totalWeights, int totalNeurons, int lastGenBest)
+{
     std::ofstream outfile("bestBot.data");
     outfile << "net_weights = np.array([";
     int WO = 0;
@@ -232,52 +238,62 @@ void write_weights_and_biases(float* weights, float* biases, int numLayers, int*
     outfile.close();
 }
 
-void printError(){
+void printError()
+{
     printf("Error in loadData_()! Saved config doesn't match current config. Turn off load_data in the json.\n");
     exit(1);
 }
 
 // Dumb load. Assumes load will work (same number of bots and network config)
-void Simulator::loadData_(float *weights_h, float *biases_h){
+void Simulator::loadData_(float *weights_h, float *biases_h)
+{
     std::ifstream infile("allBots.data", std::ios::in | std::ios::binary);
-    if (!infile.is_open()) {
+    if (!infile.is_open())
+    {
         std::cerr << "Failed to open file\n";
         exit(1);
     }
     int placeholder;
     // Read the total number of bots
-    infile.read(reinterpret_cast<char*>(&placeholder), sizeof(int));
-    if(placeholder != bots.size()){
+    infile.read(reinterpret_cast<char *>(&placeholder), sizeof(int));
+    if (placeholder != bots.size())
+    {
         printError();
     }
 
     // Read the total number of weights and neurons
-    infile.read(reinterpret_cast<char*>(&placeholder), sizeof(int));
-    if(placeholder != config.totalWeights){
+    infile.read(reinterpret_cast<char *>(&placeholder), sizeof(int));
+    if (placeholder != config.totalWeights)
+    {
         printError();
     }
-    infile.read(reinterpret_cast<char*>(&placeholder), sizeof(int));
-    
+    infile.read(reinterpret_cast<char *>(&placeholder), sizeof(int));
+
     // Read the number of layers and their shapes
-    infile.read(reinterpret_cast<char*>(&placeholder), sizeof(int));
-        
+    infile.read(reinterpret_cast<char *>(&placeholder), sizeof(int));
+    for (int i = 0; i < config.numLayers; i++)
+        infile.read(reinterpret_cast<char *>(&placeholder), sizeof(int));
+
     int TOTAL_BOTS = bots.size();
     int totalWeights = config.totalWeights;
     int totalNeurons = config.totalNeurons;
 
     // Read the weights and biases for each bot
-    for (int bot = 0; bot < TOTAL_BOTS; bot++) {
+    for (int bot = 0; bot < TOTAL_BOTS; bot++)
+    {
         // Read the weights for each layer
-        for (int i = 0; i < totalWeights; i++) {
+        for (int i = 0; i < totalWeights; i++)
+        {
             float weight;
-            infile.read(reinterpret_cast<char*>(&weight), sizeof(float));
+            infile.read(reinterpret_cast<char *>(&weight), sizeof(float));
             weights_h[bot * totalWeights + i] = weight;
         }
-        
+
         // Read the biases for each layer
-        for (int i = 0; i < totalNeurons; i++) {
+        for (int i = 0; i < totalNeurons; i++)
+        {
             float bias;
-            infile.read(reinterpret_cast<char*>(&bias), sizeof(float));
+            infile.read(reinterpret_cast<char *>(&bias), sizeof(float));
             biases_h[bot * totalNeurons + i] = bias;
         }
     }
@@ -286,25 +302,28 @@ void Simulator::loadData_(float *weights_h, float *biases_h){
 }
 
 #include <sstream>
-void Simulator::readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int * layerShapes) {
+void Simulator::readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int *layerShapes)
+{
     std::ifstream infile("allBots.data", std::ios::in | std::ios::binary);
-    if (!infile.is_open()) {
+    if (!infile.is_open())
+    {
         std::cerr << "Failed to open file\n";
         exit(1);
     }
 
     // Read the total number of bots
-    infile.read(reinterpret_cast<char*>(&TOTAL_BOTS), sizeof(int));
+    infile.read(reinterpret_cast<char *>(&TOTAL_BOTS), sizeof(int));
 
     // Read the total number of weights and neurons
-    infile.read(reinterpret_cast<char*>(&totalWeights), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&totalNeurons), sizeof(int));
+    infile.read(reinterpret_cast<char *>(&totalWeights), sizeof(int));
+    infile.read(reinterpret_cast<char *>(&totalNeurons), sizeof(int));
 
     // Read the number of layers and their shapes
-    infile.read(reinterpret_cast<char*>(&numLayers), sizeof(int));
+    infile.read(reinterpret_cast<char *>(&numLayers), sizeof(int));
     layerShapes = new int[numLayers];
-    for (int i = 0; i < numLayers; i++) {
-        infile.read(reinterpret_cast<char*>(&layerShapes[i]), sizeof(int));
+    for (int i = 0; i < numLayers; i++)
+    {
+        infile.read(reinterpret_cast<char *>(&layerShapes[i]), sizeof(int));
     }
 
     // Allocate memory for the weights and biases
@@ -312,18 +331,21 @@ void Simulator::readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int
     biases_h = new float[TOTAL_BOTS * totalNeurons];
 
     // Read the weights and biases for each bot
-    for (int bot = 0; bot < TOTAL_BOTS; bot++) {
+    for (int bot = 0; bot < TOTAL_BOTS; bot++)
+    {
         // Read the weights for each layer
-        for (int i = 0; i < totalWeights; i++) {
+        for (int i = 0; i < totalWeights; i++)
+        {
             float weight;
-            infile.read(reinterpret_cast<char*>(&weight), sizeof(float));
+            infile.read(reinterpret_cast<char *>(&weight), sizeof(float));
             weights_h[bot * totalWeights + i] = weight;
         }
-        
+
         // Read the biases for each layer
-        for (int i = 0; i < totalNeurons; i++) {
+        for (int i = 0; i < totalNeurons; i++)
+        {
             float bias;
-            infile.read(reinterpret_cast<char*>(&bias), sizeof(float));
+            infile.read(reinterpret_cast<char *>(&bias), sizeof(float));
             biases_h[bot * totalNeurons + i] = bias;
         }
     }
@@ -331,7 +353,8 @@ void Simulator::readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int
     infile.close();
 }
 
-void read_weights_and_biases(float* weights, float* biases, int numLayers, int* layerShapes, int totalWeights, int totalNeurons, int lastGenBest) {
+void read_weights_and_biases(float *weights, float *biases, int numLayers, int *layerShapes, int totalWeights, int totalNeurons, int lastGenBest)
+{
     std::ifstream infile("bestBot.data");
     std::string line;
     std::vector<float> weights_vec;
@@ -342,39 +365,50 @@ void read_weights_and_biases(float* weights, float* biases, int numLayers, int* 
     int BO = layerShapes[0];
     int layer = 0;
 
-    while (std::getline(infile, line)) {
+    while (std::getline(infile, line))
+    {
         std::istringstream iss(line);
         std::string token;
 
-        while (std::getline(iss, token, '[')) {
-            if (token.find("net_weights") != std::string::npos) {
+        while (std::getline(iss, token, '['))
+        {
+            if (token.find("net_weights") != std::string::npos)
+            {
                 reading_weights = true;
                 continue;
             }
-            else if (token.find("net_biases") != std::string::npos) {
+            else if (token.find("net_biases") != std::string::npos)
+            {
                 reading_biases = true;
                 continue;
             }
-            if (!reading_weights && !reading_biases) {
+            if (!reading_weights && !reading_biases)
+            {
                 continue;
             }
-            else if (reading_weights && token.find("]") != std::string::npos) {
+            else if (reading_weights && token.find("]") != std::string::npos)
+            {
                 reading_weights = false;
                 layer++;
             }
-            else if (reading_biases && token.find("]") != std::string::npos) {
+            else if (reading_biases && token.find("]") != std::string::npos)
+            {
                 reading_biases = false;
                 layer++;
             }
-            else {
+            else
+            {
                 std::istringstream inner_iss(token);
                 std::string inner_token;
 
-                while (std::getline(inner_iss, inner_token, ',')) {
-                    if (reading_weights) {
+                while (std::getline(inner_iss, inner_token, ','))
+                {
+                    if (reading_weights)
+                    {
                         weights_vec.push_back(std::stof(inner_token));
                     }
-                    else if (reading_biases) {
+                    else if (reading_biases)
+                    {
                         biases_vec.push_back(std::stof(inner_token));
                     }
                 }
@@ -387,19 +421,23 @@ void read_weights_and_biases(float* weights, float* biases, int numLayers, int* 
     WO = 0;
     BO = layerShapes[0];
 
-    for (int layer = 0; layer < numLayers - 1; layer++) {
+    for (int layer = 0; layer < numLayers - 1; layer++)
+    {
         int numWeightsInLayer = layerShapes[layer] * layerShapes[layer + 1];
 
-        for (int i = 0; i < numWeightsInLayer; i++) {
+        for (int i = 0; i < numWeightsInLayer; i++)
+        {
             weights[weight_index + WO + i] = weights_vec[WO + i];
         }
         WO += numWeightsInLayer;
     }
 
-    for (int layer = 1; layer < numLayers; layer++) {
+    for (int layer = 1; layer < numLayers; layer++)
+    {
         int numBiasesInLayer = layerShapes[layer];
 
-        for (int i = 0; i < numBiasesInLayer; i++) {
+        for (int i = 0; i < numBiasesInLayer; i++)
+        {
             biases[bias_index + BO + i] = biases_vec[BO + i];
         }
         BO += numBiasesInLayer;
@@ -408,23 +446,22 @@ void read_weights_and_biases(float* weights, float* biases, int numLayers, int* 
     infile.close();
 }
 
-
 #include <chrono>
 
-
-void Simulator::runSimulation(float *output_h)
+void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
 {
     int totalBots = bots.size();
     int tpb = 32; // threads per block
     int numBlocks = (totalBots / config.bpb);
 
     int sharedMemNeeded = (config.totalWeights + config.totalNeurons * 2) * config.bpb;
-    if(iterationsCompleted == 0){
+    if (iterationsCompleted == 0)
+    {
         printf("Num blocks = %d. Bots per sim = %d\n", numBlocks, config.bpb);
         printf("Shared mem needed per block = %d KB\n", sharedMemNeeded * sizeof(float) / (2 << 10));
     }
-    
-    float * startingParams_h = new float[config.numStartingParams];
+
+    float *startingParams_h = new float[config.numStartingParams];
     derived->getStartingParams(startingParams_h);
 
     check(cudaMemcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float), cudaMemcpyHostToDevice));
@@ -456,19 +493,18 @@ void Simulator::runSimulation(float *output_h)
 
     */
 
-    
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
         mutateMagnitude *= mutateDecayRate;
 
     // each block looks at 2 bots
     numBlocks = totalBots / 2; //(assumes even number of bots)
-    //start_time = std::chrono::high_resolution_clock::now();
-    
-    int shift = (int) (((double)rand() / RAND_MAX) * totalBots * shiftEffectiveness) % totalBots;
-    if(shiftEffectiveness < 0)
+    // start_time = std::chrono::high_resolution_clock::now();
+
+    int shift = (int)(((double)rand() / RAND_MAX) * totalBots * shiftEffectiveness) % totalBots;
+    if (shiftEffectiveness < 0)
         shift = iterationsCompleted;
-    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, nextGenWeights_d, nextGenBiases_d, shift);
+    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 
@@ -486,14 +522,23 @@ void Simulator::runSimulation(float *output_h)
 
     // Copy output vector from GPU buffer to host memory.
     check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
+    check(cudaMemcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
+
+    // copy new generation from Device to Host
 
     // Used to decide where to write nextGen population data to
     iterationsCompleted++;
-    if (iterationsCompleted % 25 == 0){
+    if (iterationsCompleted % 25 == 0)
+    {
         printf("iter %d, mutate scale = %f. Shift = %d", iterationsCompleted, mutateMagnitude, shift);
         std::cout << " Generation took " << elapsed_time << " ms.\n";
     }
 }
+
+// void retrieveBotsToHost(float* weights_d, float* biases_d, vector<Bot*>* bots) {
+
+//     check(cudaMemcpy(&bots, output_d, bots.size() * sizeof(float), cudaMemcpyDeviceToHost));
+// }
 
 void analyzeHistory(int numSimulations, int totalBots, float *output_h, int &finalBest)
 {
@@ -535,15 +580,47 @@ void analyzeHistory(int numSimulations, int totalBots, float *output_h, int &fin
     }
 
     finalBest = bestIndexes[numSimulations - 1];
-    //finalBest = 0;
+    // finalBest = 0;
 
     delete[] bestIndexes;
     delete[] bestScores;
     delete[] averageScores;
 }
 
+void printAncestry(Species *species, int offset)
+{
+
+    if (offset > 0)
+    {
+        std::cout << offset << "| ";
+        for (int i = 0; i++ < offset; std::cout << "  ")
+            ;
+        std::cout << species->id << std::endl;
+    }
+
+    for (Species *subspecies : species->descendantSpecies)
+        printAncestry(subspecies, offset + 1);
+}
+
+void historyGraph(Taxonomy *history)
+{
+    auto composition = history->speciesComposition();
+
+    int lastRow = min((int)10, (int)composition->size());
+    std::vector<std::tuple<Species *, float>> topCompositions(composition->begin(), composition->begin() + lastRow);
+
+    for (int i = 0; i++ < 30; std::cout << std::endl)
+        ;
+
+    std::cout << "generation " << history->getYear() + 1 << std::endl;
+    std::cout << history->compositionGraph(&topCompositions, 80) << std::endl;
+    std::cout << Taxonomy::compositionString(&topCompositions) << std::endl
+              << std::flush;
+}
+
 void Simulator::batchSimulate(int numSimulations)
 {
+    bool trackingGenetics = false;
 
     printf("num bots = %d, numLayers = %d, num weights = %d, numNeurons = %d\n", bots.size(), config.numLayers, config.totalWeights, config.totalNeurons);
     int totalBots = bots.size();
@@ -554,25 +631,66 @@ void Simulator::batchSimulate(int numSimulations)
     float *output_h = new float[totalBots * numSimulations]; // We'll record all scores for all generations.
     float *weights_h = new float[config.totalWeights * totalBots];
     float *biases_h = new float[config.totalNeurons * totalBots];
+    int *parentSpecimen_h = new int[totalBots];
+
     printf("Allocated host memory.\n");
 
     // Convert all the bot data to the format we need to transfer to GPU
     formatBotData(layerShapes_h, startingParams_h, output_h, weights_h, biases_h);
+
     printf("Formatted bot data.\n");
 
-    if(loadData == 1){
+    if (loadData == 1)
+    {
         loadData_(weights_h, biases_h);
         printf("Loaded in saved weights and biases.\n");
     }
     // Copy it over to the GPU
     copyToGPU(layerShapes_h, startingParams_h, output_h, weights_h, biases_h);
+
     printf("Copied data to GPU.\n");
+
+    Specimen **previousGeneration;
+    if (trackingGenetics)
+    {
+        previousGeneration = new Specimen *[totalBots];
+        for (int i = 0; i < totalBots; i++)
+            previousGeneration[i] = bots.at(i);
+    }
 
     // Invoke the kernel
     for (int i = 0; i < numSimulations; i++)
     {
         // Only pass the location to where this iteration is writing
-        runSimulation(&output_h[i * totalBots]);
+        runSimulation(&output_h[i * totalBots], parentSpecimen_h);
+
+        // build new speciment objects in order to log history
+        copyFromGPU(weights_h, biases_h);
+
+        if (trackingGenetics)
+        {
+            Specimen **nextGeneration = new Specimen *[totalBots];
+            for (int i = 0; i < totalBots; i++)
+            {
+                Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[i * config.totalNeurons], &weights_h[i * config.totalWeights], "linear");
+                Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[i]]);
+
+                nextGeneration[i] = nextSpecimen;
+            }
+
+            float PROGENITOR_THRESHOLD = 1000;
+            history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
+
+            for (int i = 0; i < totalBots; i++)
+                history->pruneSpecimen(previousGeneration[i]);
+
+            delete previousGeneration;
+            previousGeneration = nextGeneration;
+
+            if (history->getYear() % 25 == 0)
+                historyGraph(history);
+        }
+        // printAncestry(previousGeneration[0]->species, 0);
     }
     printf("Ran simulation.\n");
 
@@ -602,7 +720,6 @@ void Simulator::batchSimulate(int numSimulations)
     }
     printf("])\n");
 
-
     printf("net_biases = np.array([");
     int BO = config.layerShapes[0];
     for (int layer = 1; layer < config.numLayers; layer++)
@@ -620,29 +737,28 @@ void Simulator::batchSimulate(int numSimulations)
             printf(",\n");
     }
     printf("])\n");
-    
 
     write_weights_and_biases(weights_h, biases_h, config.numLayers, config.layerShapes, config.totalWeights, config.totalNeurons, lastGenBest);
     writeWeightsAndBiasesAll(weights_h, biases_h, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);
-    
-    float * savedWeights;
-    float * savedBiases;
+
+    float *savedWeights;
+    float *savedBiases;
 
     readWeightsAndBiasesAll(savedWeights, savedBiases, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);
 
     int passed = 1;
-    for(int i = 0; i < config.totalWeights * totalBots; i++){
-        if(savedWeights[i] != weights_h[i]){
-            printf("iter %d\tsaved : %f\ttrue : %f\n",i , savedWeights[i], weights_h[i]);
+    for (int i = 0; i < config.totalWeights * totalBots; i++)
+    {
+        if (savedWeights[i] != weights_h[i])
+        {
+            printf("iter %d\tsaved : %f\ttrue : %f\n", i, savedWeights[i], weights_h[i]);
             passed = 0;
         }
     }
     printf("PASSED TEST? %d\n", passed);
 
-    delete [] savedWeights;
-    delete [] savedBiases;
-    
-
+    delete[] savedWeights;
+    delete[] savedBiases;
 
     // Do something with the output data....
 
