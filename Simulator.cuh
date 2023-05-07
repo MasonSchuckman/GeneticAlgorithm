@@ -56,6 +56,7 @@ public:
     int loadData = 0;
 
 private:
+    float getAvgDistance();
 
     void formatBotData(int *& layerShapes_h, float *&startingParams_h, 
         float *&output_h, float *&weights_h, float *&biases_h);
@@ -66,7 +67,7 @@ private:
     void copyFromGPU(float *&weights_h, float *&biases_h);
 
 
-    void runSimulation(float * output_h, int *childSPecies_h);
+    void runSimulation(float *output_h, int *parentSpecimen_h, int* ancestors_h, float* distances_h);
     
     void readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int * layerShapes);
 

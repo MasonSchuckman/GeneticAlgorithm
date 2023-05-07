@@ -440,11 +440,36 @@ void read_weights_and_biases(float* weights, float* biases, int numLayers, int* 
     infile.close();
 }
 
+#include <cub/cub.cuh>
+float Simulator::getAvgDistance(){
+    // Allocate storage for the sum
+    float * sum_d;
+    cudaMalloc((void **)&sum_d, 1 * sizeof(float));
+    cudaDeviceSynchronize();
+
+    size_t temp_storage_bytes;
+    int* temp_storage=NULL;
+    cub::DeviceReduce::Sum(temp_storage, temp_storage_bytes, distances_d, sum_d, bots.size());
+    cudaMalloc(&temp_storage,temp_storage_bytes);
+    cudaDeviceSynchronize();
+    
+
+    
+    cub::DeviceReduce::Sum(temp_storage, temp_storage_bytes, distances_d, sum_d, bots.size());
+    cudaDeviceSynchronize();
+    // Copy result back to host
+    float * sum_h = new float[1];
+    check(cudaMemcpy(sum_h, sum_d, 1 * sizeof(float), cudaMemcpyDeviceToHost));
+    //Get average
+    *sum_h /= bots.size();
+
+    //printf("Avg distance = %f\n", *sum_h);
+    return *sum_h;
+}
+
 
 #include <chrono>
-
-
-void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
+void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int* ancestors_h, float* distances_h)
 {
     int totalBots = bots.size();
     int tpb = 32; // threads per block
@@ -505,7 +530,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
     float progThreshold = 1; //This will be calculated properly later
    
     Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
-     nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, shift);
+     nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 
@@ -524,6 +549,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
     // Copy output vector from GPU buffer to host memory.
     check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
     check(cudaMemcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
+    check(cudaMemcpy(ancestors_h, ancestors_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
 
     
     // copy new generation from Device to Host
@@ -629,6 +655,9 @@ void Simulator::batchSimulate(int numSimulations)
     float *weights_h = new float[config.totalWeights * totalBots];
     float *biases_h = new float[config.totalNeurons * totalBots];
     int *parentSpecimen_h = new int[totalBots];
+    int *ancestors_h = new int[totalBots];
+    float * distances_h = new float[totalBots];
+
 
     printf("Allocated host memory.\n");
 
@@ -653,11 +682,11 @@ void Simulator::batchSimulate(int numSimulations)
 
     // Invoke the kernel
 
-    std::cout << "total weights: " << config.totalNeurons + config.totalWeights << std::endl;
+    std::cout << "total variables in network (weights+biases): " << config.totalNeurons + config.totalWeights << std::endl;
     for (int i = 0; i < numSimulations; i++)
     {
         // Only pass the location to where this iteration is writing
-        runSimulation(&output_h[i * totalBots], parentSpecimen_h);
+        runSimulation(&output_h[i * totalBots], parentSpecimen_h, ancestors_h, distances_h);
 
 
         // build new speciment objects in order to log history
@@ -680,10 +709,11 @@ void Simulator::batchSimulate(int numSimulations)
         float MAGIC_CONSTANT = 5;
         float PROGENITOR_THRESHOLD = 0;
 
-        for(int b = 0; b < totalBots; b++) {
-            PROGENITOR_THRESHOLD += Genome::distance(nextGeneration[b]->genome, previousGeneration[b]->genome);
-        } 
-        PROGENITOR_THRESHOLD /= totalBots;
+        // for(int b = 0; b < totalBots; b++) {
+        //     PROGENITOR_THRESHOLD += Genome::distance(nextGeneration[b]->genome, previousGeneration[b]->genome);
+        // } 
+        // PROGENITOR_THRESHOLD /= totalBots;
+        PROGENITOR_THRESHOLD = getAvgDistance();
         PROGENITOR_THRESHOLD *= MAGIC_CONSTANT;
 
         history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
