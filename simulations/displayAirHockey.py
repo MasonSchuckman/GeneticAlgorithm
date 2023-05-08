@@ -266,6 +266,11 @@ while True:
                 # Bot 0 wants to score to the right
                 scorer = int(ball['posy'] > 0)
                 bots[scorer]['score'] += 10000
+                for stat in ['posx','posy','velx','vely']:
+                    for i in range(2):
+                        bots[i][stat] = 0
+                    ball[stat] = 0
+                    
             else:
                 ball['velx'] *= -1
         if (abs(ball['posy']) > GOAL_DIST):
@@ -278,7 +283,7 @@ while True:
     screen.fill((255, 255, 255))
     for i in range(NUM_BOTS):
         bot = bots[i]
-        pygame.draw.circle(screen, ((i * 25) % 230, (i * 50) % 256, (i * 33) % 256), ( 
+        pygame.draw.circle(screen, (255 * i, 0, 255 * (1 - i)), ( 
             (bot['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
             (bot['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 
@@ -288,6 +293,17 @@ while True:
 
     wallHeight = (MAP_HEIGHT / 2 - GOAL_HEIGHT) * SCREEN_SCALE
     wallWidth = (MAP_WIDTH / 2 - GOAL_DIST) * SCREEN_SCALE
+    
+    # Draw Goals
+    pygame.draw.rect(screen, (0, 0, 255), 
+        pygame.Rect(0, wallHeight, 
+        wallWidth, 2 * GOAL_HEIGHT * SCREEN_SCALE
+     ))
+    pygame.draw.rect(screen, (255, 0, 0), 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, wallHeight, 
+        wallWidth, 2 * GOAL_HEIGHT * SCREEN_SCALE
+     ))
+    
 
     # LEFT WALLS
     pygame.draw.rect(screen, (0, 0, 0), 
