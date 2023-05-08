@@ -6,7 +6,7 @@ import math
 MAP_WIDTH = 50
 MAP_HEIGHT = 50
 SCREEN_SCALE = 16
-MAX_SPEED = 2
+MAX_SPEED = 1
 MAX_ACCEL = 0.5
 MAX_ROT_SPEED = 30
 GOAL_HEIGHT = 5
@@ -144,7 +144,7 @@ bestoffset = 0
 # Define initial bot states, ball positions and networks
 bots = []
 networks = []
-ball = {'posx': 0, 'posy': 0, 'velx': 0, 'vely': 0}
+ball = {'posx': 10, 'posy': -5, 'velx': 0, 'vely': 0}
 gamestatus = {'tick': 0, 'gen': 0}
 bot1 = {'posx': -10, 'posy': 0, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot1)
@@ -184,7 +184,7 @@ while True:
         #state.append(bots[i % 2]['score'])
         state.append(0)
 
-        otherInfo = True
+        otherInfo = False
 
         if otherInfo:
             state.append(bots[(i + 1) % 2]['posx'] / limits[0])

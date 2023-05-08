@@ -8,7 +8,7 @@
     "bots_per_sim": 2,
     "max_iters": 100,
     "total_bots": 12,
-    "num_starting_params": 6,
+    "num_starting_params": 3,
     "direct_contest": 1,
     "bots_per_team": 0,
     "generations" : 4000,

@@ -34,39 +34,20 @@ __host__ void AirHockeySimulation::getStartingParams(float* startingParams)
 
 
 	// get random target coordinates
-	int minPos = -2;
-	int maxPos = 2;
+	float minPos = -10;
+	float maxPos = 10;
 	std::random_device rd;                                 // obtain a random seed from hardware
 	std::mt19937 eng(rd());                                // seed the generator
-	std::uniform_int_distribution<> distr(minPos, maxPos); // define the range
+	std::uniform_real_distribution<float> distr(minPos, maxPos); // define the range
+
 	float targetX = distr(eng);
 	float targetY = distr(eng);
 
-	// random starting pos
-	float startingX = distr(eng);
-	float startingY = distr(eng);
-
-	double r = 5.0 + iterationsCompleted / 10;                // radius of circle
-	double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
-	targetX = r * cosf(angle);                                 // compute x coordinate
-	targetY = r * sinf(angle);                                 // compute y coordinate
-	// targetX = 10;
-	// targetY = 0;
-	startingX = 0;
-	startingY = 0;
-	if (targetX == 0 && targetY == 0)
-		targetX = 2;
-
-	float optimal = hypotf(targetX, targetY) / 2.0 * hypotf(targetX, targetY);
-
-	// transfer target coordinates to GPU
+	
 
 	startingParams[0] = targetX;
-	startingParams[1] = targetY;
-	startingParams[2] = optimal;
-	startingParams[3] = startingX;
-	startingParams[4] = startingY;
-	startingParams[5] = iterationsCompleted;
+	startingParams[1] = targetY;	
+	startingParams[2] = iterationsCompleted;
 
 	iterationsCompleted++;
 }
@@ -109,13 +90,13 @@ __device__ void AirHockeySimulation::setupSimulation(const float* startingParams
 		gamestate[actor_state_len + score_offset] = 0;
 
 		// ball state
-		gamestate[actor_state_len * 2 + x_offset] = 0;
-		gamestate[actor_state_len * 2 + y_offset] = 0;
+		gamestate[actor_state_len * 2 + x_offset] = startingParams[0];
+		gamestate[actor_state_len * 2 + y_offset] = startingParams[1];
 		gamestate[actor_state_len * 2 + xvel_offset] = 0;
 		gamestate[actor_state_len * 2 + yvel_offset] = 0;
 		gamestate[actor_state_len * 2 + score_offset] = 0; // Iteration number
 
-		gamestate[gen_num] = 0; //what generation we're on
+		gamestate[gen_num] = startingParams[2]; //what generation we're on
 	}
 	__syncthreads();
 }
@@ -230,7 +211,7 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 		gamestate[2 * actor_state_len + yvel_offset] *= friction;
 	}
 	__syncthreads();
-	
+
 	// update the bots' position
 	if (tid < 2)
 	{
@@ -356,8 +337,8 @@ __device__ void AirHockeySimulation::setOutput(float* output, float* gamestate, 
 
 		if (blockIdx.x == 0)
 		{
-			if ((int)startingParams_d[5] % 25 == 0)
-				printf("Block %d AScore = %f, BScore = %f, counter = %d\n", blockIdx.x, gamestate[score_offset], gamestate[actor_state_len + score_offset], (int)startingParams_d[5]);
+			if ((int)startingParams_d[2] % 25 == 0)
+				printf("Block %d AScore = %f, BScore = %f, counter = %d\n", blockIdx.x, gamestate[score_offset], gamestate[actor_state_len + score_offset], (int)startingParams_d[2]);
 			
 		}
 	}
