@@ -69,7 +69,7 @@ BALL_SIZE = 10
 
 # Define paddle and ball speeds
 PADDLE_SPEED = 5
-BALL_SPEED = 8
+BALL_SPEED = 6
 SPEED_UP_RATE = 1.00
 # Define game colors
 BLACK = (0, 0, 0)
@@ -141,7 +141,7 @@ def get_actions_pong(state, net_weights, net_biases):
     
     return gamestate
 
-
+scores = [0,0]
 # Main game loop
 running = True
 while running:
@@ -203,6 +203,10 @@ while running:
         ball_vy = -ball_vy
     
     if ball_x < 0 or ball_x > SCREEN_WIDTH:
+        if ball_x < 0:
+            scores[1] += 1
+        else:
+            scores[0] += 1
         ball_x = SCREEN_WIDTH // 2
         ball_y = SCREEN_HEIGHT // 2
         ball_vx = random.choice([-BALL_SPEED, BALL_SPEED])
@@ -215,6 +219,19 @@ while running:
     pygame.draw.rect(screen, WHITE, (left_paddle_x, left_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
     pygame.draw.rect(screen, WHITE, (right_paddle_x, right_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
     pygame.draw.circle(screen, WHITE, (int(ball_x), int(ball_y)), BALL_SIZE)
+
+    # Draw the scores
+    font = pygame.font.Font(None, 36)
+    score1_text = font.render("" + str(scores[0]), True, WHITE)
+    score2_text = font.render("" + str(scores[1]), True, WHITE)
+    score1_rect = score1_text.get_rect()
+    score2_rect = score2_text.get_rect()
+    spacing = 20
+    score1_rect.midtop = (SCREEN_WIDTH // 2 - spacing, 10)
+    score2_rect.midtop = (SCREEN_WIDTH // 2 + spacing, 10)
+    screen.blit(score1_text, score1_rect)
+    screen.blit(score2_text, score2_rect)
+    pygame.display.flip()
 
     # update the display
     pygame.display.update()

@@ -5,7 +5,7 @@
 #define PADDLE_WIDTH 10.0f
 #define PADDLE_HEIGHT 50.0f
 #define BALL_RADIUS 10.0f
-#define BALL_SPEED 8.0f
+#define BALL_SPEED 6.0f
 #define PADDLE_SPEED 5.0f
 #define SPEED_UP_RATE 1.00f // Ball will increase in speed by x % after every paddle hit
 
@@ -40,7 +40,7 @@ __host__ void PongSimulation2::getStartingParams(float *startingParams)
     if ((double)rand() / RAND_MAX > 0.5)
         startingParams[2] *= -1;
 
-    startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * BALL_SPEED * 3; // ball vy
+    startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * BALL_SPEED; // ball vy
     startingParams[4] = PADDLE_WIDTH / 2;                                     // left paddle x
     startingParams[5] = HEIGHT / 2;                                           // left paddle y
     startingParams[6] = PADDLE_WIDTH / 2 + WIDTH - PADDLE_WIDTH;              // right paddle x
@@ -231,7 +231,8 @@ __device__ void PongSimulation2::setOutput(float *output, float *gamestate, cons
 {
     if (threadIdx.x == 0)
     {   
-        if (gamestate[10] > gamestate[9]) //was gamestate[0] < 0
+        //if (gamestate[10] > gamestate[9]) 
+        if(gamestate[0] < 0)
         { // left paddle lost
             output[blockIdx.x * 2 + 0] = -1;
             output[blockIdx.x * 2 + 1] = gamestate[10];

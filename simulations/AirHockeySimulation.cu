@@ -10,7 +10,7 @@ extern __device__ unsigned int xorshift(unsigned int x);
 // Used for cheap (fast) random numbers in setActivations. Random numbers help the model fit to more general information.
 extern __device__ float rng(float a, float b, unsigned int seed);
 
-#define maxSpeed 1
+#define maxSpeed 5
 #define maxAccel .5f
 #define maxRotSpeed 30
 
@@ -40,7 +40,7 @@ __host__ void AirHockeySimulation::getStartingParams(float* startingParams)
 	std::mt19937 eng(rd());                                // seed the generator
 	std::uniform_real_distribution<float> distr(minPos, maxPos); // define the range
 
-	float targetX = distr(eng);
+	float targetX = 0;
 	float targetY = distr(eng);
 
 	
@@ -48,7 +48,15 @@ __host__ void AirHockeySimulation::getStartingParams(float* startingParams)
 	startingParams[0] = targetX;
 	startingParams[1] = targetY;	
 	startingParams[2] = iterationsCompleted;
-
+	startingParams[3] =  (((double) rand() / RAND_MAX) - 0) * 20 + 20;
+	startingParams[4] =  (((double) rand() / RAND_MAX) - 0.5) * 20;
+	startingParams[5] =  (((double) rand() / RAND_MAX) - 1) * 20 - 20;
+	startingParams[6] =  (((double) rand() / RAND_MAX) - 0.5) * 20;
+	// printf("Starting params:\n");
+	// for(int i = 0; i < 7; i++){
+	// 	printf("%f, ", startingParams[i]);
+	// }
+	// printf("\n\n");
 	iterationsCompleted++;
 }
 
@@ -74,8 +82,8 @@ __device__ void AirHockeySimulation::setupSimulation(const float* startingParams
 	{
 		// Bot A State
 		// 5 Units away (to the left)
-		gamestate[0 + x_offset] = -10;
-		gamestate[0 + y_offset] = 0;
+		gamestate[0 + x_offset] = startingParams[5];
+		gamestate[0 + y_offset] = startingParams[6];
 		gamestate[0 + xvel_offset] = 0;
 		gamestate[0 + yvel_offset] = 0;
 		gamestate[0 + score_offset] = 0;
@@ -83,8 +91,8 @@ __device__ void AirHockeySimulation::setupSimulation(const float* startingParams
 
 		// Bot B State
 		// 5 Units away (up and to the right)
-		gamestate[actor_state_len + x_offset] = 8;
-		gamestate[actor_state_len + y_offset] = 6;
+		gamestate[actor_state_len + x_offset] = startingParams[3];
+		gamestate[actor_state_len + y_offset] = startingParams[4];
 		gamestate[actor_state_len + xvel_offset] = 0;
 		gamestate[actor_state_len + yvel_offset] = 0;
 		gamestate[actor_state_len + score_offset] = 0;
@@ -125,6 +133,13 @@ __device__ void AirHockeySimulation::setActivations(float* gamestate, float** ac
 			activs[1][i] = gamestate[1 * actor_state_len + i] / AirLimits[i % 5];
 			// Bot 0 info
 			activs[1][1 * actor_state_len + i] = gamestate[i] / AirLimits[i % 5];
+			
+			
+			// This makes it so the bots don't see each other's info.
+			activs[1][1 * actor_state_len + i] = 0;
+			activs[0][1 * actor_state_len + i] = 0;
+
+
 			// Ball info
 			activs[1][2 * actor_state_len + i] = gamestate[2 * actor_state_len + i] / AirLimits[i % 5];
 		}
@@ -217,18 +232,23 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 	{
 		bot = tid;
 
-		float xaccel = actions[bot][0] * maxAccel;
-		float yaccel = actions[bot][1] * maxAccel;
+		// float xaccel = actions[bot][0] * maxAccel;
+		// float yaccel = actions[bot][1] * maxAccel;
 
-		float accel = hypotf(xaccel, yaccel);
-		if (accel > maxSpeed) {
-			float f = maxSpeed / accel;
-			xaccel *= f;
-			yaccel *= f;
-		}
+		// float accel = hypotf(xaccel, yaccel);
+		// if (accel > maxAccel) {
+		// 	float f = maxAccel / accel;
+		// 	xaccel *= f;
+		// 	yaccel *= f;
+		// }
 
-		gamestate[bot * actor_state_len + xvel_offset] += xaccel;
-		gamestate[bot * actor_state_len + yvel_offset] += yaccel;
+		// gamestate[bot * actor_state_len + xvel_offset] += xaccel;
+		// gamestate[bot * actor_state_len + yvel_offset] += yaccel;
+
+		// Testing letting the bots control velocity directly instead of acceleration
+		gamestate[bot * actor_state_len + xvel_offset] = actions[bot][0] * maxSpeed;
+		gamestate[bot * actor_state_len + yvel_offset] = actions[bot][1] * maxSpeed;
+
 
 		float speed = hypotf(
 			gamestate[bot * actor_state_len + xvel_offset], 

@@ -172,7 +172,7 @@ namespace Kernels
 
 
             __syncthreads();
-
+            float biasMagnification = 10.0f;
 
             // Write next gen bot one's data
             for (int i = tid; i < config_d.totalWeights; i += stride)
@@ -183,7 +183,7 @@ namespace Kernels
             // We can skip the first layer since the input layer shouldn't have biases.
             for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
             {
-                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                rand = curand_uniform(&state) * randomMagnitude * biasMagnification * 2 - randomMagnitude * biasMagnification;
                 (nextGenBiases)[i + outputBotOffsets[0] * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons];// + rand;
             }
 
@@ -197,7 +197,7 @@ namespace Kernels
             // We can skip the first layer since the input layer shouldn't have biases.
             for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
             {
-                rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                rand = curand_uniform(&state) * randomMagnitude * biasMagnification * 2 - randomMagnitude * biasMagnification;
                 (nextGenBiases)[i + outputBotOffsets[1] * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
             }
 
@@ -241,6 +241,9 @@ namespace Kernels
                 break;
             case 6:
                 (*sim) = new PongSimulation2();
+                break;
+            case 7:
+                (*sim) = new MultiBallPong();
                 break;
             default:
                 printf("Invalid derived class ID. Did you update the kernel switch statement?\n");

@@ -144,9 +144,9 @@ bestoffset = 0
 # Define initial bot states, ball positions and networks
 bots = []
 networks = []
-ball = {'posx': 10, 'posy': -5, 'velx': 0, 'vely': 0}
+ball = {'posx': 0, 'posy': -5, 'velx': 0, 'vely': 0}
 gamestatus = {'tick': 0, 'gen': 0}
-bot1 = {'posx': -10, 'posy': 0, 'velx': 0, 'vely': 0, 'score': 0}
+bot1 = {'posx': -10, 'posy': 10, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot1)
 bot2 = {'posx': 8, 'posy': 6, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot2)
@@ -221,17 +221,19 @@ while True:
             ball['velx'] *= FRICTION
             ball['vely'] *= FRICTION
 
-        accelx = inputs[0]
-        accely = inputs[1]
-        accel = math.hypot(accelx, accely)
+        # accelx = inputs[0]
+        # accely = inputs[1]
+        # accel = math.hypot(accelx, accely)
 
-        if(accel > MAX_ACCEL):
-            f = MAX_ACCEL / accel 
-            accelx *= f
-            accely *= f
+        # if(accel > MAX_ACCEL):
+        #     f = MAX_ACCEL / accel 
+        #     accelx *= f
+        #     accely *= f
 
-        bot['velx'] += accelx
-        bot['vely'] += accely
+        # Testing letting the bots control velocity directly
+
+        bot['velx'] = inputs[0] * MAX_SPEED
+        bot['vely'] = inputs[1] * MAX_SPEED
         speed = math.hypot(bot['velx'], bot['vely'])
         if(speed > MAX_SPEED):
             f = MAX_SPEED / speed 
