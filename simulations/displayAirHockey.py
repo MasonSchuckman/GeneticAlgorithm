@@ -12,7 +12,7 @@ MAX_ROT_SPEED = 30
 GOAL_HEIGHT = 5
 GOAL_DIST = 20
 ACTOR_SIZE = 2
-
+FRICTION = 0.95
 
 import struct
 numLayers = 0
@@ -217,6 +217,10 @@ while True:
 
         inputs = get_actions_air_hockey(state, network['weights'], network['biases'])
         
+        if i == 0:
+            ball['velx'] *= FRICTION
+            ball['vely'] *= FRICTION
+
         accelx = inputs[0]
         accely = inputs[1]
         accel = math.hypot(accelx, accely)
@@ -267,8 +271,8 @@ while True:
         if (abs(ball['posy']) > GOAL_DIST):
             ball['vely'] *= -1
 
-        ball['posx'] += ball['velx'];
-        ball['posy'] += ball['vely'];
+        ball['posx'] += ball['velx']
+        ball['posy'] += ball['vely']
 
     # Draw bots and targets
     screen.fill((255, 255, 255))
@@ -279,8 +283,8 @@ while True:
             (bot['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 
     pygame.draw.circle(screen, (125, 125, 125), 
-        (int(ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
-        int(ball['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
+        ((ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
+        (ball['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 
     wallHeight = (MAP_HEIGHT / 2 - GOAL_HEIGHT) * SCREEN_SCALE
     wallWidth = (MAP_WIDTH / 2 - GOAL_DIST) * SCREEN_SCALE
@@ -318,4 +322,4 @@ while True:
 
     # Update display
     pygame.display.update()
-    clock.tick(60)
+    clock.tick(30)

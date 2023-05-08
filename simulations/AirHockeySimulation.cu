@@ -17,6 +17,7 @@ extern __device__ float rng(float a, float b, unsigned int seed);
 #define degrees 90.0f
 #define toRads 3.141592654f / 180.0f
 #define ROTATION_ANGLE degrees * toRads
+#define friction 0.95f
 
 #define OUT_OF_BOUNDS_DIST = 5
 #define actor_state_len 5
@@ -222,6 +223,14 @@ __device__ void AirHockeySimulation::eval(float** actions, float* gamestate)
 		printf("\n");
 	}
 
+
+	// Reduce the ball's velocity due to friction
+	if(tid == 0){
+		gamestate[2 * actor_state_len + xvel_offset] *= friction;
+		gamestate[2 * actor_state_len + yvel_offset] *= friction;
+	}
+	__syncthreads();
+	
 	// update the bots' position
 	if (tid < 2)
 	{

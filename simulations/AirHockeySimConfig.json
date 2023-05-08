@@ -12,9 +12,9 @@
     "direct_contest": 1,
     "bots_per_team": 0,
     "generations" : 4000,
-    "base_mutation_rate" : 1,
+    "base_mutation_rate" : 10,
     "min_mutation_rate" : 0.000001,
     "mutation_decay_rate" : 0.9992,
-    "shift_effectiveness" : 0.01,
-    "load_data" : 0
+    "shift_effectiveness" : 0.1,
+    "load_data" : 1
 }
