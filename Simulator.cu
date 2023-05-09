@@ -681,7 +681,7 @@ void historyGraph(Taxonomy *history)
 
 void Simulator::batchSimulate(int numSimulations)
 {
-    bool trackingGenetics = true;
+    bool trackingGenetics = false;
 
     printf("num bots = %d, numLayers = %d, num weights = %d, numNeurons = %d\n", bots.size(), config.numLayers, config.totalWeights, config.totalNeurons);
     int totalBots = bots.size();

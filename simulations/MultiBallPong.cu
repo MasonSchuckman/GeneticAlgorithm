@@ -32,6 +32,10 @@ gamestate[15]        // ball2 vy
 
 gamestate[16]        // left score
 gamestate[17]        // right score
+
+gamestate[18] // prev ball left got scored on with
+gamestate[19] // prev ball right got scored on with
+
 */
 extern __device__ float rng(float a, float b, unsigned int seed);
 extern __constant__ float Limits[];
@@ -78,6 +82,9 @@ __device__ void MultiBallPong::setupSimulation(const float *startingParams, floa
 
         gamestate[16] = 0;
         gamestate[17] = 0;
+        gamestate[18] = -1;
+        gamestate[19] = -1;
+
     }
 
     __syncthreads();
@@ -234,10 +241,21 @@ __device__ int MultiBallPong::checkFinished(float *gamestate)
     {
         if (gamestate[ballIdx[i] + 0] < 0 || gamestate[ballIdx[i] + 0] > WIDTH){
             // Adjust score
-            if (gamestate[ballIdx[i] + 0] < 0)
+            if (gamestate[ballIdx[i] + 0] < 0){
                 gamestate[17]++;
-            else
+
+                // De-incentivize letting the same ball score repeatedly
+                if(gamestate[18] == i)
+                    gamestate[16]--;
+                gamestate[18] = i;
+            }
+            else{
                 gamestate[16]++;
+
+                if(gamestate[19] == i)
+                    gamestate[17]--;
+                gamestate[19] = i;
+            }
 
             //Reverse x velocity and set vy to zero
             gamestate[ballIdx[i] + 2] *= -1;
