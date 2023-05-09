@@ -5,7 +5,7 @@
 #define PADDLE_WIDTH 10.0f
 #define PADDLE_HEIGHT 50.0f
 #define BALL_RADIUS 10.0f
-#define BALL_SPEED 8.0f
+#define BALL_SPEED 7.0f
 #define PADDLE_SPEED 5.0f
 #define SPEED_UP_RATE 1.00f // Ball will increase in speed by x % after every paddle hit
 

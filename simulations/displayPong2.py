@@ -3,6 +3,7 @@ import random
 import numpy as np
 import math
 import struct
+from network_visualizer import *
 
 
 
@@ -57,7 +58,7 @@ def readWeightsAndBiasesAll():
 pygame.init()
 
 # Set up the game window
-NETWORK_DISPLAY_WIDTH = 160
+NETWORK_DISPLAY_WIDTH = 400
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
 screen = pygame.display.set_mode((SCREEN_WIDTH + NETWORK_DISPLAY_WIDTH * 2, SCREEN_HEIGHT))
@@ -68,12 +69,12 @@ pygame.display.set_caption("Pong")
 
 # Define paddle and ball dimensions
 PADDLE_WIDTH = 10
-PADDLE_HEIGHT = 50
+PADDLE_HEIGHT = 62
 BALL_SIZE = 10
 
 # Define paddle and ball speeds
-PADDLE_SPEED = 5
-BALL_SPEED = 6
+PADDLE_SPEED = 6
+BALL_SPEED = 7
 SPEED_UP_RATE = 1.00
 # Define game colors
 BLACK = (50, 50, 0)
@@ -100,9 +101,8 @@ networks = [{'weights': all_weights[best], 'biases': all_biases[best]},
             {'weights': all_weights[best + 1], 'biases': all_biases[best + 1]}]
 #print(all_weights)
 
-# import netvisold
-import netvisold
-converted_all_weights = netvisold.convert_weights(all_weights, layershapes)
+
+converted_all_weights = convert_weights(all_weights, layershapes)
 
 
 
@@ -145,7 +145,7 @@ def get_actions_pong(state, net_weights, net_biases):
 
     output = forward_propagation(prevLayer, net_weights[numLayers - 2], net_biases[numLayers - 1], layershapes[numLayers - 2], layershapes[numLayers - 1], numLayers - 1)
     #print(output)
-    gamestate = [None] * 2
+    gamestate = [None] * 1
 
     
     gamestate[0] = min(1, max(-1, output[0])) * PADDLE_SPEED
@@ -154,17 +154,53 @@ def get_actions_pong(state, net_weights, net_biases):
     #print(gamestate)
     
     return gamestate
-net_locations = [(200,0), (500,0)]
+
+network_display_left = pygame.Surface((NETWORK_DISPLAY_WIDTH, SCREEN_HEIGHT))
+network_display_right = pygame.Surface((NETWORK_DISPLAY_WIDTH, SCREEN_HEIGHT))
+
+net_displays = [network_display_left, network_display_right]
+net_locations = [(0,0), (SCREEN_WIDTH + NETWORK_DISPLAY_WIDTH, 0)]
 scores = [0,0]
 # Main game loop
 running = True
 while running:
-    
+   
+    screen.fill(BLACK)
+
     # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
     
+    # update game state
+    ball_x += ball_vx
+    ball_y += ball_vy
+
+    if ball_x - BALL_SIZE <= left_paddle_x + PADDLE_WIDTH and ball_y >= left_paddle_y and ball_y <= left_paddle_y + PADDLE_HEIGHT and ball_vx < 0:
+        ball_vx = -ball_vx * SPEED_UP_RATE
+        ball_vy += (ball_y - left_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
+        ball_x += ball_vx * 2
+        ball_y += ball_vy
+    if ball_x + BALL_SIZE >= right_paddle_x and ball_y >= right_paddle_y and ball_y <= right_paddle_y + PADDLE_HEIGHT and ball_vx > 0:
+        ball_vx = -ball_vx * SPEED_UP_RATE
+        ball_vy += (ball_y - right_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
+        ball_x += ball_vx * 2
+        ball_y += ball_vy
+    if ball_y - BALL_SIZE < 0 or ball_y + BALL_SIZE > SCREEN_HEIGHT:
+        ball_vy = -ball_vy
+    
+    if ball_x < 0 or ball_x > SCREEN_WIDTH:
+        if ball_x < 0:
+            scores[1] += 1
+        else:
+            scores[0] += 1
+        ball_x = SCREEN_WIDTH // 2
+        ball_y = SCREEN_HEIGHT // 2
+        ball_vx = random.choice([-BALL_SPEED, BALL_SPEED])
+        ball_vy = random.uniform(-BALL_SPEED, BALL_SPEED)
+        right_paddle_y = SCREEN_HEIGHT // 2
+        left_paddle_y = SCREEN_HEIGHT // 2
+
     # Update paddle positions using neural networks
     for i in range(2):
         state = []
@@ -200,51 +236,20 @@ while running:
         elif right_paddle_y > SCREEN_HEIGHT - PADDLE_HEIGHT:
             right_paddle_y = SCREEN_HEIGHT - PADDLE_HEIGHT
 
-    
-
-    # update game state
-    ball_x += ball_vx
-    ball_y += ball_vy
-
-    if ball_x - BALL_SIZE <= left_paddle_x + PADDLE_WIDTH and ball_y >= left_paddle_y and ball_y <= left_paddle_y + PADDLE_HEIGHT and ball_vx < 0:
-        ball_vx = -ball_vx * SPEED_UP_RATE
-        ball_vy += (ball_y - left_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
-        ball_x += ball_vx
-        ball_y += ball_vy
-    if ball_x + BALL_SIZE >= right_paddle_x and ball_y >= right_paddle_y and ball_y <= right_paddle_y + PADDLE_HEIGHT and ball_vx > 0:
-        ball_vx = -ball_vx * SPEED_UP_RATE
-        ball_vy += (ball_y - right_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
-        ball_x += ball_vx
-        ball_y += ball_vy
-    if ball_y - BALL_SIZE < 0 or ball_y + BALL_SIZE > SCREEN_HEIGHT:
-        ball_vy = -ball_vy
-    
-    if ball_x < 0 or ball_x > SCREEN_WIDTH:
-        if ball_x < 0:
-            scores[1] += 1
-        else:
-            scores[0] += 1
-        ball_x = SCREEN_WIDTH // 2
-        ball_y = SCREEN_HEIGHT // 2
-        ball_vx = random.choice([-BALL_SPEED, BALL_SPEED])
-        ball_vy = random.uniform(-BALL_SPEED, BALL_SPEED)
-        right_paddle_y = SCREEN_HEIGHT // 2
-        left_paddle_y = SCREEN_HEIGHT // 2
+        #draw neural net
+        
+        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
+        display_activations(activations_left, converted_all_weights[i], net_displays[i])
+        #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
+        screen.blit(net_displays[i], net_locations[i])
 
     
-
+    
+    
     # draw game objects
-    screen.fill(BLACK)
-    
-    #draw neural net
-    for i in range(2):
-        activations_left = netvisold.calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
-        weights_left = converted_all_weights[i]
-        netvisold.display_activations(activations_left, weights_left, net_locations[i], SCREEN_WIDTH, SCREEN_HEIGHT,screen)
-
-    pygame.draw.rect(screen, WHITE, (left_paddle_x, left_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
-    pygame.draw.rect(screen, WHITE, (right_paddle_x, right_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
-    pygame.draw.circle(screen, WHITE, (int(ball_x), int(ball_y)), BALL_SIZE)
+    pygame.draw.rect(screen, WHITE, (left_paddle_x + NETWORK_DISPLAY_WIDTH, left_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
+    pygame.draw.rect(screen, WHITE, (right_paddle_x + NETWORK_DISPLAY_WIDTH, right_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
+    pygame.draw.circle(screen, WHITE, (int(ball_x + NETWORK_DISPLAY_WIDTH), int(ball_y)), BALL_SIZE)
     
     # Draw the scores
     font = pygame.font.Font(None, 36)
@@ -253,8 +258,8 @@ while running:
     score1_rect = score1_text.get_rect()
     score2_rect = score2_text.get_rect()
     spacing = 20
-    score1_rect.midtop = (SCREEN_WIDTH // 2 - spacing, 10)
-    score2_rect.midtop = (SCREEN_WIDTH // 2 + spacing, 10)
+    score1_rect.midtop = (SCREEN_WIDTH // 2 - spacing + NETWORK_DISPLAY_WIDTH, 10)
+    score2_rect.midtop = (SCREEN_WIDTH // 2 + spacing + NETWORK_DISPLAY_WIDTH, 10)
     screen.blit(score1_text, score1_rect)
     screen.blit(score2_text, score2_rect)
     pygame.display.flip()

@@ -1,6 +1,7 @@
 import pygame
 import numpy as np
 import math
+from network_visualizer import *
 
 # Define constants
 MAP_WIDTH = 50
@@ -13,6 +14,12 @@ GOAL_HEIGHT = 5
 GOAL_DIST = 20
 ACTOR_SIZE = 2
 FRICTION = 0.95
+
+
+NETWORK_DISPLAY_WIDTH = 50
+# Define game colors
+BLACK = (50, 50, 0)
+WHITE = (255, 255, 255)
 
 import struct
 numLayers = 0
@@ -87,7 +94,9 @@ layershapes = []
 
 # Initialize Pygame
 pygame.init()
-screen = pygame.display.set_mode((MAP_WIDTH * SCREEN_SCALE, MAP_HEIGHT * SCREEN_SCALE))
+SCREEN_WIDTH = MAP_WIDTH * SCREEN_SCALE
+SCREEN_HEIGHT = MAP_HEIGHT * SCREEN_SCALE
+screen = pygame.display.set_mode((MAP_WIDTH * SCREEN_SCALE + NETWORK_DISPLAY_WIDTH * 2, MAP_HEIGHT * SCREEN_SCALE))
 clock = pygame.time.Clock()
 
 def forward_propagation(inputs, weights, biases, input_size, output_size, layer):
@@ -138,6 +147,8 @@ def get_actions_air_hockey(state, net_weights, net_biases):
 
 # Read in the bots' networks
 layershapes, allWeights, allBiases = readWeightsAndBiasesAll()
+converted_all_weights = convert_weights(allWeights, layershapes)
+
 
 NUM_BOTS = 2
 bestoffset = 0
@@ -153,12 +164,21 @@ bots.append(bot2)
 
 limits = [GOAL_DIST, GOAL_DIST, MAX_SPEED, MAX_SPEED, 1]
 
+
+network_display_left = pygame.Surface((NETWORK_DISPLAY_WIDTH, SCREEN_HEIGHT))
+network_display_right = pygame.Surface((NETWORK_DISPLAY_WIDTH, SCREEN_HEIGHT))
+
+net_displays = [network_display_left, network_display_right]
+net_locations = [(0,0), (SCREEN_WIDTH + NETWORK_DISPLAY_WIDTH, 0)]
+
 for i in range(NUM_BOTS):
     network = {'weights': allWeights[i + bestoffset], 'biases': allBiases[i + bestoffset]}
     networks.append(network)
 
 # Main game loop
 while True:
+    screen.fill(BLACK)
+
     # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -259,6 +279,7 @@ while True:
                 ball['velx'] = bots[i]['velx']
                 ball['vely'] = bots[i]['vely']
                 bots[i]['score'] += 100
+        
 
 
         # Either bounce or score
@@ -281,16 +302,22 @@ while True:
         ball['posx'] += ball['velx']
         ball['posy'] += ball['vely']
 
+        #draw neural net
+        
+        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
+        display_activations(activations_left, converted_all_weights[i], net_displays[i])
+        #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
+        screen.blit(net_displays[i], net_locations[i])
+
     # Draw bots and targets
-    screen.fill((255, 255, 255))
     for i in range(NUM_BOTS):
         bot = bots[i]
         pygame.draw.circle(screen, (255 * i, 0, 255 * (1 - i)), ( 
-            (bot['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
+            (bot['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE + NETWORK_DISPLAY_WIDTH, 
             (bot['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 
     pygame.draw.circle(screen, (125, 125, 125), 
-        ((ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
+        ((ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE + NETWORK_DISPLAY_WIDTH, 
         (ball['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 
     wallHeight = (MAP_HEIGHT / 2 - GOAL_HEIGHT) * SCREEN_SCALE
@@ -298,43 +325,43 @@ while True:
     
     # Draw Goals
     pygame.draw.rect(screen, (0, 0, 255), 
-        pygame.Rect(0, wallHeight, 
+        pygame.Rect(0 + NETWORK_DISPLAY_WIDTH, wallHeight, 
         wallWidth, 2 * GOAL_HEIGHT * SCREEN_SCALE
      ))
     pygame.draw.rect(screen, (255, 0, 0), 
-        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, wallHeight, 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth + NETWORK_DISPLAY_WIDTH, wallHeight, 
         wallWidth, 2 * GOAL_HEIGHT * SCREEN_SCALE
      ))
     
 
     # LEFT WALLS
     pygame.draw.rect(screen, (0, 0, 0), 
-        pygame.Rect(0, 0, 
-        wallWidth, wallHeight
+        pygame.Rect(0 + NETWORK_DISPLAY_WIDTH, 0, 
+        wallWidth + NETWORK_DISPLAY_WIDTH, wallHeight
      ))
     pygame.draw.rect(screen, (0, 0, 0), 
-        pygame.Rect(0, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
+        pygame.Rect(0 + NETWORK_DISPLAY_WIDTH, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
         wallWidth, wallHeight
     ))
         
     # RIGHT WALLS
     pygame.draw.rect(screen, (0, 0, 0), 
-        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, 0, 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth + NETWORK_DISPLAY_WIDTH, 0, 
         wallWidth, wallHeight
     ))
     pygame.draw.rect(screen, (0, 0, 0), 
-        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth + NETWORK_DISPLAY_WIDTH, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
         wallWidth, wallHeight
      ))
 
     # ROOF AND FLOOR
     roofHeight = (MAP_HEIGHT / 2 - GOAL_DIST) * SCREEN_SCALE
     pygame.draw.rect(screen, (0, 0, 0),
-        pygame.Rect(0, 0, 
+        pygame.Rect(0 + NETWORK_DISPLAY_WIDTH, 0, 
             MAP_WIDTH * SCREEN_SCALE, roofHeight
     ))
     pygame.draw.rect(screen, (0, 0, 0),
-        pygame.Rect(0, MAP_HEIGHT * SCREEN_SCALE - roofHeight, 
+        pygame.Rect(0 + NETWORK_DISPLAY_WIDTH, MAP_HEIGHT * SCREEN_SCALE - roofHeight, 
             MAP_WIDTH * SCREEN_SCALE, roofHeight
     ))
 

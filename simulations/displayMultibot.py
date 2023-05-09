@@ -3,11 +3,12 @@ import numpy as np
 import math
 
 # Define constants
-MAX_SPEED = 50
-MAX_ACCEL = 10.0
+MAX_SPEED = 10
+MAX_ACCEL = 2.0
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
-
+NETWORK_DISPLAY_WIDTH = 400
+from network_visualizer import *
 
 # import struct
 # # Open the binary file for reading
@@ -124,7 +125,7 @@ layershapes = []
 
 # Initialize Pygame
 pygame.init()
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+screen = pygame.display.set_mode((SCREEN_WIDTH + NETWORK_DISPLAY_WIDTH * 2, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
 
 def forward_propagation(inputs, weights, biases, input_size, output_size, layer):
@@ -184,6 +185,7 @@ def get_actions_multibot(state, net_weights, net_biases):
 
 # Read in the bots' networks
 layershapes, allWeights, allBiases = readWeightsAndBiasesAll()
+converted_all_weights = convert_weights(allWeights, layershapes)
 
 NUM_BOTS = 2
 bestoffset = 0
@@ -191,6 +193,13 @@ bestoffset = 0
 bots = []
 targets = []
 networks = []
+
+network_display_left = pygame.Surface((NETWORK_DISPLAY_WIDTH, SCREEN_HEIGHT))
+network_display_right = pygame.Surface((NETWORK_DISPLAY_WIDTH, SCREEN_HEIGHT))
+
+net_displays = [network_display_left, network_display_right]
+net_locations = [(0,0), (SCREEN_WIDTH + NETWORK_DISPLAY_WIDTH, 0)]
+
 for i in range(NUM_BOTS):
     bot = {'posx': 0, 'posy': 0, 'velx': 0, 'vely': 0}
     bots.append(bot)
@@ -198,9 +207,10 @@ for i in range(NUM_BOTS):
     targets.append(target)
     network = {'weights': allWeights[i + bestoffset], 'biases': allBiases[i + bestoffset]}
     networks.append(network)
-
+BLACK = (255,255,255)
 # Main game loop
 while True:
+    screen.fill(BLACK)
     # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -259,20 +269,25 @@ while True:
         bot['posx'] += bot['velx']
         bot['posy'] += bot['vely']
 
+        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
+        display_activations(activations_left, converted_all_weights[i], net_displays[i])
+        #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
+        screen.blit(net_displays[i], net_locations[i])
+
     # Get current mouse positions and update target positions
     mouse_pos = pygame.mouse.get_pos()
     for i in range(NUM_BOTS):
         target = targets[i]
-        target['x'] = mouse_pos[0] - SCREEN_WIDTH / 2
+        target['x'] = mouse_pos[0] - SCREEN_WIDTH / 2 - NETWORK_DISPLAY_WIDTH
         target['y'] = mouse_pos[1] - SCREEN_HEIGHT / 2
 
     # Draw bots and targets
-    screen.fill((255, 255, 255))
+    
     for i in range(NUM_BOTS):
         bot = bots[i]
         target = targets[i]
-        pygame.draw.circle(screen, (255, 0, 0), (int(target['x']) + SCREEN_WIDTH / 2, int(target['y']) + SCREEN_HEIGHT / 2), 8)
-        pygame.draw.circle(screen, ((i * 25) % 230, (i * 50) % 256, (i * 33) % 256), (int(bot['posx']) + SCREEN_WIDTH / 2, int(bot['posy']) + SCREEN_HEIGHT / 2), 8)
+        pygame.draw.circle(screen, (255, 0, 0), (int(target['x']) + SCREEN_WIDTH / 2 + NETWORK_DISPLAY_WIDTH, int(target['y']) + SCREEN_HEIGHT / 2), 8)
+        pygame.draw.circle(screen, ((i * 25) % 230, (i * 50) % 256, (i * 33) % 256), (int(bot['posx']) + SCREEN_WIDTH / 2 + NETWORK_DISPLAY_WIDTH, int(bot['posy']) + SCREEN_HEIGHT / 2), 8)
 
     # Update display
     pygame.display.update()
