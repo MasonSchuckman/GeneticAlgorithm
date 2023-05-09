@@ -31,6 +31,8 @@ public:
   CompositionGradient speciesComposition();
   static std::string compositionString(const CompositionGradient composition);
   static std::string compositionGraph(const CompositionGradient composition, const int charsWide);
+
+  static void writeCompositionsData(const std::vector<CompositionGradient> compositions, std::string filename);
 };
 
 

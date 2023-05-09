@@ -151,3 +151,19 @@ std::string Taxonomy::compositionString(const CompositionGradient composition) {
     }
     return toReturn;
 }
+
+
+void Taxonomy::writeCompositionsData(const std::vector<CompositionGradient> compositions, std::string filename) {
+    std::ofstream compositionsFile(filename);
+
+    if (!compositionsFile.is_open()) 
+        throw std::invalid_argument("unable to export composition gradients to "+filename);
+
+    for(CompositionGradient gradient : compositions) {
+        for(Composition comp : *gradient) 
+            compositionsFile << std::get<0>(comp)->id << ":" << std::get<1>(comp) << ",";
+        compositionsFile << std::endl;
+    }
+
+    compositionsFile.close();
+}

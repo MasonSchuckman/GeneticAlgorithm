@@ -22,6 +22,8 @@
 testNN*.py
 *.gene
 .vscode/*
+venv
+venv/*
 
 # Build results
 [Dd]ebug/

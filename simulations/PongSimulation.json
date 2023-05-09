@@ -14,7 +14,7 @@
     "generations" : 20,
     "base_mutation_rate" : 1,
     "min_mutation_rate" : 0.000001,
-    "mutation_decay_rate" : 0.995,
-    "shift_effectiveness" : 0.02,
+    "mutation_decay_rate" : 0.993,
+    "shift_effectiveness" : 0.2,
     "load_data" : 0
 }
