@@ -16,7 +16,7 @@ ACTOR_SIZE = 2
 FRICTION = 0.95
 
 
-NETWORK_DISPLAY_WIDTH = 50
+NETWORK_DISPLAY_WIDTH = 400
 # Define game colors
 BLACK = (50, 50, 0)
 WHITE = (255, 255, 255)
@@ -25,7 +25,7 @@ import struct
 numLayers = 0
 # Read the all bot format
 def readWeightsAndBiasesAll():
-    with open("allBotsHockey.data", "rb") as infile:
+    with open("allBots.data", "rb") as infile:
         # Read the total number of bots
         TOTAL_BOTS = struct.unpack('i', infile.read(4))[0]
 
@@ -264,10 +264,10 @@ while True:
         bot['posy'] += bot['vely']
 
         botDist = [0, 0]
-        for i in range(2):
-            botDist[i] = math.hypot(
-                ball['posx'] - bots[i]['posx'],
-                ball['posy'] - bots[i]['posx'])
+        for j in range(2):
+            botDist[j] = math.hypot(
+                ball['posx'] - bots[j]['posx'],
+                ball['posy'] - bots[j]['posx'])
         # Bot 0 has a slight disadvantage
         closestBot = int(botDist[1] < botDist[0])
         bots[closestBot]['score'] += 1
@@ -302,19 +302,19 @@ while True:
         ball['posx'] += ball['velx']
         ball['posy'] += ball['vely']
 
-        #draw neural net
-        
-        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
-        display_activations(activations_left, converted_all_weights[i], net_displays[i])
-        #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
-        screen.blit(net_displays[i], net_locations[i])
-
     # Draw bots and targets
     for i in range(NUM_BOTS):
         bot = bots[i]
         pygame.draw.circle(screen, (255 * i, 0, 255 * (1 - i)), ( 
             (bot['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE + NETWORK_DISPLAY_WIDTH, 
             (bot['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
+
+        #draw neural net
+        
+        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
+        display_activations(activations_left, converted_all_weights[i], net_displays[i])
+        #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
+        screen.blit(net_displays[i], net_locations[i])
 
     pygame.draw.circle(screen, (125, 125, 125), 
         ((ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE + NETWORK_DISPLAY_WIDTH, 
@@ -337,7 +337,7 @@ while True:
     # LEFT WALLS
     pygame.draw.rect(screen, (0, 0, 0), 
         pygame.Rect(0 + NETWORK_DISPLAY_WIDTH, 0, 
-        wallWidth + NETWORK_DISPLAY_WIDTH, wallHeight
+        wallWidth, wallHeight
      ))
     pygame.draw.rect(screen, (0, 0, 0), 
         pygame.Rect(0 + NETWORK_DISPLAY_WIDTH, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
