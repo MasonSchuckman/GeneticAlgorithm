@@ -6,13 +6,13 @@ import math
 MAP_WIDTH = 50
 MAP_HEIGHT = 50
 SCREEN_SCALE = 16
-MAX_SPEED = 2
+MAX_SPEED = 1
 MAX_ACCEL = 0.5
 MAX_ROT_SPEED = 30
 GOAL_HEIGHT = 5
 GOAL_DIST = 20
-ACTOR_SIZE = 1
-
+ACTOR_SIZE = 2
+FRICTION = 0.95
 
 import struct
 numLayers = 0
@@ -102,8 +102,8 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
     output[:] += np.dot(inputs, weights)
 
     # Apply activation function (ReLU for non-output layers, sigmoid for output layer)
-    # if layer != len(layershapes) - 1:
-    #     output[output < 0] = 0
+    if layer != len(layershapes) - 1:
+        output[output < 0] = 0
     # else:
     #     #print('sigmoid')
     #     output[:] = 1.0 / (1.0 + np.exp(-output))
@@ -128,12 +128,10 @@ def get_actions_air_hockey(state, net_weights, net_biases):
 
     gamestate = [None] * 2
 
-    # get acceleration
+    # get xAccel
     gamestate[0] = output[0] * MAX_ACCEL
-    # get rot speed
-    gamestate[1] = output[1] * MAX_ROT_SPEED
-    
-    print(gamestate)
+    # get xAccel
+    gamestate[1] = output[1] * MAX_ACCEL
     
     #return inputs
     return gamestate
@@ -146,12 +144,15 @@ bestoffset = 0
 # Define initial bot states, ball positions and networks
 bots = []
 networks = []
-ball = {'posx': 0, 'posy': 0, 'vel': 0, 'dir': 0}
+ball = {'posx': 0, 'posy': -5, 'velx': 0, 'vely': 0}
 gamestatus = {'tick': 0, 'gen': 0}
-bot1 = {'posx': -10, 'posy': 0, 'vel': 0, 'dir': 0, 'score': 0}
+bot1 = {'posx': -10, 'posy': 10, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot1)
-bot2 = {'posx': 8, 'posy': 6, 'vel': 0, 'dir': 0, 'score': 0}
+bot2 = {'posx': 8, 'posy': 6, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot2)
+
+limits = [GOAL_DIST, GOAL_DIST, MAX_SPEED, MAX_SPEED, 1]
+
 for i in range(NUM_BOTS):
     network = {'weights': allWeights[i + bestoffset], 'biases': allBiases[i + bestoffset]}
     networks.append(network)
@@ -174,50 +175,73 @@ while True:
         #state of the sim on this iter
         state = []
 
-        state.append(bots[i % 2]['posx'])
-        state.append(bots[i % 2]['posy'])
+        state.append(bots[i % 2]['posx'] / limits[0])
+        state.append(bots[i % 2]['posy'] / limits[1])
 
-        state.append(bots[i % 2]['vel'])
-        state.append(bots[i % 2]['dir'])
+        state.append(bots[i % 2]['velx'] / limits[2])
+        state.append(bots[i % 2]['vely'] / limits[3])
 
-        state.append(bots[i % 2]['score'])
+        #state.append(bots[i % 2]['score'])
+        state.append(0)
 
         otherInfo = False
 
         if otherInfo:
-            state.append(bots[(i + 1) % 2]['posx'])
-            state.append(bots[(i + 1) % 2]['posy'])    
+            state.append(bots[(i + 1) % 2]['posx'] / limits[0])
+            state.append(bots[(i + 1) % 2]['posy'] / limits[1])    
 
-            state.append(bots[(i + 1) % 2]['velx'])
-            state.append(bots[(i + 1) % 2]['vely'])
+            state.append(bots[(i + 1) % 2]['velx'] / limits[2])
+            state.append(bots[(i + 1) % 2]['vely'] / limits[3])
+            #state.append(bots[(i + 1) % 2]['score'])
+            state.append(0)
         else:
-            state.append(0)
-            state.append(0)
-            state.append(0)
-            state.append(0)
+            state.append(0) # x pos
+            state.append(0) # y pos
+            state.append(0) # x vel
+            state.append(0) # y vel
+            state.append(0) # score
 
-        state.append(ball['posx'])
-        state.append(ball['posy'])
+        state.append(ball['posx'] / limits[0])
+        state.append(ball['posy'] / limits[1])
 
-        state.append(ball['vel'])
-        state.append(ball['dir'])
-        state.append(gamestatus['tick'])
-        state.append(gamestatus['gen'])
+        state.append(ball['velx'] / limits[2])
+        state.append(ball['vely'] / limits[3])
+        #state.append(gamestatus['tick'])
+        state.append(0)
+
+        #Reverse x related info for bot B
+        if i % 2 == 1:
+            for entity in range(3):
+                state[0 + entity * 5] *= -1
+                state[2 + entity * 5] *= -1
 
         inputs = get_actions_air_hockey(state, network['weights'], network['biases'])
         
+        if i == 0:
+            ball['velx'] *= FRICTION
+            ball['vely'] *= FRICTION
 
-        bot['vel'] += inputs[0] * MAX_ACCEL
-        bot['vel'] = max(min(MAX_SPEED, bot['vel']), -MAX_SPEED)
-        bot['dir'] += inputs[1] * MAX_ROT_SPEED
-        if (bot['dir'] > 360): 
-            bot['dir'] -= 360
-        if (bot['dir'] < 0): 
-            bot['dir'] += 360
+        # accelx = inputs[0]
+        # accely = inputs[1]
+        # accel = math.hypot(accelx, accely)
 
-        if (not math.isnan(bot['dir']) and not math.isinf(bot['dir'])):
-            bot['posx'] += bot['vel'] * math.cos(math.radians(bot['dir']))
-            bot['posy'] += bot['vel'] * math.sin(math.radians(bot['dir']))
+        # if(accel > MAX_ACCEL):
+        #     f = MAX_ACCEL / accel 
+        #     accelx *= f
+        #     accely *= f
+
+        # Testing letting the bots control velocity directly
+
+        bot['velx'] = inputs[0] * MAX_SPEED
+        bot['vely'] = inputs[1] * MAX_SPEED
+        speed = math.hypot(bot['velx'], bot['vely'])
+        if(speed > MAX_SPEED):
+            f = MAX_SPEED / speed 
+            bot['velx'] *= f
+            bot['vely'] *= f
+
+        bot['posx'] += bot['velx']
+        bot['posy'] += bot['vely']
 
         botDist = [0, 0]
         for i in range(2):
@@ -225,14 +249,15 @@ while True:
                 ball['posx'] - bots[i]['posx'],
                 ball['posy'] - bots[i]['posx'])
         # Bot 0 has a slight disadvantage
-        closestBot = int(botDist[1] < botDist[0]);
-        bots[closestBot]['score'] += 1;
+        closestBot = int(botDist[1] < botDist[0])
+        bots[closestBot]['score'] += 1
         for i in range(2):
             dist = math.hypot(ball['posx'] - bots[i]['posx'], ball['posy'] - bots[i]['posy']);
-            print(f"Bot{i} dist is {dist}")
             if (dist < ACTOR_SIZE):
-                ball['dir'] = bots[i]['dir']
-                ball['vel'] = bots[i]['vel'] + .1
+                print("HIT")
+                #exit()
+                ball['velx'] = bots[i]['velx']
+                ball['vely'] = bots[i]['vely']
                 bots[i]['score'] += 100
 
 
@@ -243,33 +268,76 @@ while True:
                 # Bot 0 wants to score to the right
                 scorer = int(ball['posy'] > 0)
                 bots[scorer]['score'] += 10000
+                for stat in ['posx','posy','velx','vely']:
+                    for i in range(2):
+                        bots[i][stat] = 0
+                    ball[stat] = 0
+                    
             else:
-                ball['dir'] = 180 - ball['dir'];
-                if (ball['dir'] < 0):
-                    ball['dir'] += 180; # why +180 instead of 360
+                ball['velx'] *= -1
         if (abs(ball['posy']) > GOAL_DIST):
-            ball['dir'] = 360 - ball['dir'];
+            ball['vely'] *= -1
 
-
-        dx = ball['vel'] * math.cos(math.radians(ball['dir']));
-        dy = ball['vel'] * math.sin(math.radians(ball['dir']));
-
-        ball['posx'] += dx;
-        ball['posy'] += dy;
+        ball['posx'] += ball['velx']
+        ball['posy'] += ball['vely']
 
     # Draw bots and targets
     screen.fill((255, 255, 255))
     for i in range(NUM_BOTS):
         bot = bots[i]
-        print(f"Bot{i} ({bot['posx']}, {bot['posy']})")
-        pygame.draw.circle(screen, ((i * 25) % 230, (i * 50) % 256, (i * 33) % 256), 
-            (int(bot['posx']) + MAP_WIDTH / 2 * SCREEN_SCALE, 
-            int(bot['posy']) + MAP_HEIGHT / 2 * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
+        pygame.draw.circle(screen, (255 * i, 0, 255 * (1 - i)), ( 
+            (bot['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
+            (bot['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 
     pygame.draw.circle(screen, (125, 125, 125), 
-        (int(ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
-        int(ball['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
+        ((ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE, 
+        (ball['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
+
+    wallHeight = (MAP_HEIGHT / 2 - GOAL_HEIGHT) * SCREEN_SCALE
+    wallWidth = (MAP_WIDTH / 2 - GOAL_DIST) * SCREEN_SCALE
+    
+    # Draw Goals
+    pygame.draw.rect(screen, (0, 0, 255), 
+        pygame.Rect(0, wallHeight, 
+        wallWidth, 2 * GOAL_HEIGHT * SCREEN_SCALE
+     ))
+    pygame.draw.rect(screen, (255, 0, 0), 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, wallHeight, 
+        wallWidth, 2 * GOAL_HEIGHT * SCREEN_SCALE
+     ))
+    
+
+    # LEFT WALLS
+    pygame.draw.rect(screen, (0, 0, 0), 
+        pygame.Rect(0, 0, 
+        wallWidth, wallHeight
+     ))
+    pygame.draw.rect(screen, (0, 0, 0), 
+        pygame.Rect(0, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
+        wallWidth, wallHeight
+    ))
+        
+    # RIGHT WALLS
+    pygame.draw.rect(screen, (0, 0, 0), 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, 0, 
+        wallWidth, wallHeight
+    ))
+    pygame.draw.rect(screen, (0, 0, 0), 
+        pygame.Rect(MAP_WIDTH * SCREEN_SCALE - wallWidth, MAP_HEIGHT * SCREEN_SCALE - wallHeight, 
+        wallWidth, wallHeight
+     ))
+
+    # ROOF AND FLOOR
+    roofHeight = (MAP_HEIGHT / 2 - GOAL_DIST) * SCREEN_SCALE
+    pygame.draw.rect(screen, (0, 0, 0),
+        pygame.Rect(0, 0, 
+            MAP_WIDTH * SCREEN_SCALE, roofHeight
+    ))
+    pygame.draw.rect(screen, (0, 0, 0),
+        pygame.Rect(0, MAP_HEIGHT * SCREEN_SCALE - roofHeight, 
+            MAP_WIDTH * SCREEN_SCALE, roofHeight
+    ))
 
     # Update display
     pygame.display.update()
-    clock.tick(60)
+    clock.tick(30)

@@ -476,35 +476,33 @@ void read_weights_and_biases(float *weights, float *biases, int numLayers, int *
 }
 
 #include <cub/cub.cuh>
-float Simulator::getAvgDistance(){
+float Simulator::getAvgDistance()
+{
     // Allocate storage for the sum
-    float * sum_d;
+    float *sum_d;
     cudaMalloc((void **)&sum_d, 1 * sizeof(float));
     cudaDeviceSynchronize();
 
     size_t temp_storage_bytes;
-    int* temp_storage=NULL;
+    int *temp_storage = NULL;
     cub::DeviceReduce::Sum(temp_storage, temp_storage_bytes, distances_d, sum_d, bots.size());
-    cudaMalloc(&temp_storage,temp_storage_bytes);
+    cudaMalloc(&temp_storage, temp_storage_bytes);
     cudaDeviceSynchronize();
-    
 
-    
     cub::DeviceReduce::Sum(temp_storage, temp_storage_bytes, distances_d, sum_d, bots.size());
     cudaDeviceSynchronize();
     // Copy result back to host
-    float * sum_h = new float[1];
+    float *sum_h = new float[1];
     check(cudaMemcpy(sum_h, sum_d, 1 * sizeof(float), cudaMemcpyDeviceToHost));
-    //Get average
+    // Get average
     *sum_h /= bots.size();
 
-    //printf("Avg distance = %f\n", *sum_h);
+    // printf("Avg distance = %f\n", *sum_h);
     return *sum_h;
 }
 
-
 #include <chrono>
-void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int* ancestors_h, float* distances_h)
+void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ancestors_h, float *distances_h)
 {
     int totalBots = bots.size();
     int tpb = 32; // threads per block
@@ -523,10 +521,11 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int* ances
     check(cudaMemcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float), cudaMemcpyHostToDevice));
     delete[] startingParams_h;
 
+    
     auto start_time = std::chrono::high_resolution_clock::now();
     // Launch a kernel on the GPU with one block for each simulation/contest
     Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
-
+    
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
     // any errors encountered during the launch.
     check(cudaDeviceSynchronize());
@@ -549,7 +548,6 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int* ances
 
     */
 
-
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
         mutateMagnitude *= mutateDecayRate;
@@ -563,9 +561,10 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int* ances
         shift = iterationsCompleted;
 
     float progThreshold = 1; // This will be calculated properly later
-
+    
     Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
-     nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
+                                                                                  nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
+    
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 
@@ -585,8 +584,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int* ances
     check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
     check(cudaMemcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
     check(cudaMemcpy(ancestors_h, ancestors_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
-
-
+    
     // copy new generation from Device to Host
 
     // Used to decide where to write nextGen population data to
@@ -696,8 +694,7 @@ void Simulator::batchSimulate(int numSimulations)
     float *biases_h = new float[config.totalNeurons * totalBots];
     int *parentSpecimen_h = new int[totalBots];
     int *ancestors_h = new int[totalBots];
-    float * distances_h = new float[totalBots];
-
+    float *distances_h = new float[totalBots];
 
     printf("Allocated host memory.\n");
 
@@ -717,6 +714,7 @@ void Simulator::batchSimulate(int numSimulations)
     printf("Copied data to GPU.\n");
 
     Specimen **previousGeneration;
+    std::vector<std::vector<std::tuple<Species *, float>> *> compositions;
     if (trackingGenetics)
     {
         previousGeneration = new Specimen *[totalBots];
@@ -729,62 +727,45 @@ void Simulator::batchSimulate(int numSimulations)
     std::cout << "total variables in network (weights+biases): " << config.totalNeurons + config.totalWeights << std::endl;
     for (int i = 0; i < numSimulations; i++)
     {
-        std::cout << "gen " << i << std::endl;
         // Only pass the location to where this iteration is writing
         runSimulation(&output_h[i * totalBots], parentSpecimen_h, ancestors_h, distances_h);
-
         // build new speciment objects in order to log history
         copyFromGPU(weights_h, biases_h);
 
-        if (trackingGenetics)
-        {
+        if (trackingGenetics) {
             Specimen **nextGeneration = new Specimen *[totalBots];
-            for (int i = 0; i < totalBots; i++)
-            {
-                Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[i * config.totalNeurons], &weights_h[i * config.totalWeights], "linear");
-                Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[i]]);
 
-                Specimen **nextGeneration = new Specimen *[totalBots];
-                for (int j = 0; j < totalBots; j++)
-                {
-                    Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[j * config.totalNeurons], &weights_h[j * config.totalWeights], "sigmoid");
-                    Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[j]]);
+            for (int j = 0; j < totalBots; j++) {
+                Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[j * config.totalNeurons], &weights_h[j * config.totalWeights], "sigmoid");
+                Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[j]]);
 
-                    nextGeneration[j] = nextSpecimen;
-                }
-
-                // //if (mutateMagnitude > min_mutate_rate)
-                // if(PROGENITOR_THRESHOLD > MIN_THRESHOLD)
-                //     PROGENITOR_THRESHOLD *= std::sqrt(mutateDecayRate);
-
-                // bigger constant = harder to make a new species
-                float MAGIC_CONSTANT = 5;
-                float PROGENITOR_THRESHOLD = 0;
-
-        // for(int b = 0; b < totalBots; b++) {
-        //     PROGENITOR_THRESHOLD += Genome::distance(nextGeneration[b]->genome, previousGeneration[b]->genome);
-        // } 
-        // PROGENITOR_THRESHOLD /= totalBots;
-        PROGENITOR_THRESHOLD = getAvgDistance();
-        PROGENITOR_THRESHOLD *= MAGIC_CONSTANT;
-
-                history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
-                compositions.push_back(history->speciesComposition());
-
-                if (history->getYear() % 10 == 0)
-                    historyGraph(history);
-
-                for (int j = 0; j < totalBots; j++)
-                    history->pruneSpecimen(previousGeneration[j]);
-
-                delete previousGeneration;
-                previousGeneration = nextGeneration;
-                // printAncestry(previousGeneration[0]->species, 0);
+                nextGeneration[j] = nextSpecimen;
             }
+            
+           
+            // bigger constant = harder to make a new species
+            float MAGIC_CONSTANT = 5;
+            float PROGENITOR_THRESHOLD = 0;
+
+            PROGENITOR_THRESHOLD = getAvgDistance();
+            PROGENITOR_THRESHOLD *= MAGIC_CONSTANT;
+
+            history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
+            compositions.push_back(history->speciesComposition());
+
+            if (history->getYear() % 10 == 0)
+                historyGraph(history);
+
+            for (int j = 0; j < totalBots; j++)
+                history->pruneSpecimen(previousGeneration[j]);
+
+            delete previousGeneration;
+            previousGeneration = nextGeneration;
+            // printAncestry(previousGeneration[0]->species, 0);
         }
     }
-
-    Taxonomy::writeCompositionsData(compositions, "comps.txt");
+    if (trackingGenetics)
+        Taxonomy::writeCompositionsData(compositions, "comps.txt");
     printf("Ran simulation.\n");
 
     copyFromGPU(weights_h, biases_h);
@@ -792,44 +773,6 @@ void Simulator::batchSimulate(int numSimulations)
     // Find the best score in each generation
     int lastGenBest = 0;
     analyzeHistory(numSimulations, totalBots, output_h, lastGenBest);
-
-    // Print the last gen's best bot's weights and biases
-    printf("net_weights = np.array([");
-    int WO = 0;
-    for (int layer = 0; layer < config.numLayers - 1; layer++)
-    {
-        int numWeightsInLayer = config.layerShapes[layer] * config.layerShapes[layer + 1];
-        printf("[");
-        for (int i = 0; i < numWeightsInLayer; i++)
-        {
-            printf("%f", weights_h[lastGenBest * config.totalWeights + WO + i]);
-            if (i != numWeightsInLayer - 1)
-                printf(", ");
-        }
-        WO += numWeightsInLayer;
-        printf("]");
-        if (layer != config.numLayers - 2)
-            printf(",\n");
-    }
-    printf("])\n");
-
-    printf("net_biases = np.array([");
-    int BO = config.layerShapes[0];
-    for (int layer = 1; layer < config.numLayers; layer++)
-    {
-        printf("[");
-        for (int i = 0; i < config.layerShapes[layer]; i++)
-        {
-            printf("%f", biases_h[lastGenBest * config.totalNeurons + BO + i]);
-            if (i != config.layerShapes[layer] - 1)
-                printf(", ");
-        }
-        BO += config.layerShapes[layer];
-        printf("]");
-        if (layer != config.numLayers - 1)
-            printf(",\n");
-    }
-    printf("])\n");
 
     write_weights_and_biases(weights_h, biases_h, config.numLayers, config.layerShapes, config.totalWeights, config.totalNeurons, lastGenBest);
     writeWeightsAndBiasesAll(weights_h, biases_h, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);

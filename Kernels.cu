@@ -157,6 +157,7 @@ namespace Kernels
         }
 
         sdata[tid] = threadSum;
+
         __syncthreads();
 
         // Perform reduction across threads in the block
@@ -167,6 +168,7 @@ namespace Kernels
             {
                 sdata[tid] += sdata[tid + s];
             }
+
             __syncthreads(); // make sure all adds at one stage are done!
         }
 
@@ -266,8 +268,8 @@ namespace Kernels
 
                 float totalDistance = blockReduceSum(distance);
                 
-                if (tid == 0)
-                {
+                //if (tid == 0)
+                //{
                     (distances)[botOffsets[bot]] = totalDistance;
                     deltaMagnitude = block_reduce<float>(&(deltas[botOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
 
@@ -281,7 +283,7 @@ namespace Kernels
                         // Reset the deltas for this bot since it is now the prog
                         zeroArray(&(deltas[botOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
                     }
-                }
+                //}
                 __syncthreads();
             }
         }
@@ -321,6 +323,9 @@ namespace Kernels
                 break;
             case 6:
                 (*sim) = new PongSimulation2();
+                break;
+            case 7:
+                (*sim) = new MultiBallPong();
                 break;
             default:
                 printf("Invalid derived class ID. Did you update the kernel switch statement?\n");

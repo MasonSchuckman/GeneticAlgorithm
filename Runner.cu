@@ -66,6 +66,10 @@ FullSimConfig readSimConfig(const std::string &filename)
     {
         sim = new PongSimulation2;
     }
+    else if (simType == "MultiBallPong")
+    {
+        sim = new MultiBallPong;
+    }
     else
     {
         std::cerr << "Unknown simulation type: " << simType << std::endl;

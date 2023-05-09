@@ -68,7 +68,7 @@ PADDLE_HEIGHT = 50
 BALL_SIZE = 10
 
 # Define paddle and ball speeds
-PADDLE_SPEED = 5
+PADDLE_SPEED = 15
 BALL_SPEED = 6
 SPEED_UP_RATE = 1.00
 # Define game colors
@@ -79,7 +79,12 @@ WHITE = (255, 255, 255)
 ball_x = SCREEN_WIDTH // 2
 ball_y = SCREEN_HEIGHT // 2
 ball_vx = random.choice([-BALL_SPEED, BALL_SPEED])
-ball_vy = 0 #random.uniform(-BALL_SPEED, BALL_SPEED)
+ball_vy = random.uniform(-BALL_SPEED, BALL_SPEED)
+ball1 = [ball_x, ball_y, ball_vx, ball_vy]
+ball2 = [ball_x, ball_y - BALL_SIZE * 2.5, -ball_vx, ball_vy]
+
+balls = [ball1, ball2]
+
 left_paddle_x = PADDLE_WIDTH / 2
 left_paddle_y = SCREEN_HEIGHT // 2
 right_paddle_x = PADDLE_WIDTH / 2 + SCREEN_WIDTH - PADDLE_WIDTH
@@ -140,8 +145,8 @@ def get_actions_pong(state, net_weights, net_biases):
     #print(gamestate)
     
     return gamestate
-
 scores = [0,0]
+
 # Main game loop
 running = True
 while running:
@@ -154,10 +159,11 @@ while running:
     for i in range(2):
         state = []
 
+        # Ball 1
         if i == 0:
-            state = [abs(ball_x - left_paddle_x) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
+            state = [abs(balls[0][0] - left_paddle_x) / SCREEN_WIDTH, balls[0][1] / SCREEN_HEIGHT, balls[0][2] / BALL_SPEED, balls[0][3] / BALL_SPEED]  # Ball state
         else:
-            state = [abs(ball_x - right_paddle_x) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, -ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
+            state = [abs(balls[0][0] - right_paddle_x) / SCREEN_WIDTH, balls[0][1] / SCREEN_HEIGHT, -balls[0][2] / BALL_SPEED, balls[0][3] / BALL_SPEED]  # Ball state
 
             
         if i == 0:
@@ -165,7 +171,12 @@ while running:
         else:
             state += [right_paddle_y / SCREEN_HEIGHT, 0]  # Paddle positions
         
-        #state = [305.000000, 240.000000, -5.000000, 0.000000, 5.000000, 455.000000, 635.000000, 455.000000]
+        # Ball 2
+        if i == 0:
+            state += [abs(balls[1][0] - left_paddle_x) / SCREEN_WIDTH, balls[1][1] / SCREEN_HEIGHT, balls[1][2] / BALL_SPEED, balls[1][3] / BALL_SPEED]  # Ball state
+        else:
+            state += [abs(balls[1][0] - right_paddle_x) / SCREEN_WIDTH, balls[1][1] / SCREEN_HEIGHT, -balls[1][2] / BALL_SPEED, balls[1][3] / BALL_SPEED]  # Ball state
+
 
         #print(state)
         acceleration = get_actions_pong(state, networks[i]['weights'], networks[i]['biases'])
@@ -186,53 +197,64 @@ while running:
             right_paddle_y = SCREEN_HEIGHT - PADDLE_HEIGHT
 
     # update game state
-    ball_x += ball_vx
-    ball_y += ball_vy
+    for ball in range (2):
+            
+        balls[ball][0] += balls[ball][2]
+        balls[ball][1] += balls[ball][3]
 
-    if ball_x - BALL_SIZE <= left_paddle_x + PADDLE_WIDTH and ball_y >= left_paddle_y and ball_y <= left_paddle_y + PADDLE_HEIGHT and ball_vx < 0:
-        ball_vx = -ball_vx * SPEED_UP_RATE
-        ball_vy += (ball_y - left_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
-        ball_x += ball_vx
-        ball_y += ball_vy
-    if ball_x + BALL_SIZE >= right_paddle_x and ball_y >= right_paddle_y and ball_y <= right_paddle_y + PADDLE_HEIGHT and ball_vx > 0:
-        ball_vx = -ball_vx * SPEED_UP_RATE
-        ball_vy += (ball_y - right_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
-        ball_x += ball_vx
-        ball_y += ball_vy
-    if ball_y - BALL_SIZE < 0 or ball_y + BALL_SIZE > SCREEN_HEIGHT:
-        ball_vy = -ball_vy
-    
-    if ball_x < 0 or ball_x > SCREEN_WIDTH:
-        if ball_x < 0:
-            scores[1] += 1
+        if balls[ball][0] - BALL_SIZE <= left_paddle_x + PADDLE_WIDTH and balls[ball][1] >= left_paddle_y and balls[ball][1] <= left_paddle_y + PADDLE_HEIGHT and balls[ball][2] < 0:
+            balls[ball][2] = -balls[ball][2] * SPEED_UP_RATE
+            balls[ball][3] += (balls[ball][1] - left_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
+            balls[ball][0] += balls[ball][2]
+            balls[ball][1] += balls[ball][3]
+        if balls[ball][0] + BALL_SIZE >= right_paddle_x and balls[ball][1] >= right_paddle_y and balls[ball][1] <= right_paddle_y + PADDLE_HEIGHT and balls[ball][2] > 0:
+            balls[ball][2] = -balls[ball][2] * SPEED_UP_RATE
+            balls[ball][3] += (balls[ball][1] - right_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
+            balls[ball][0] += balls[ball][2]
+            balls[ball][1] += balls[ball][3]
+        if balls[ball][1] - BALL_SIZE < 0 or balls[ball][1] + BALL_SIZE > SCREEN_HEIGHT:
+            balls[ball][3] = -balls[ball][3]
+        
+        # Score
+        if balls[ball][0] < 0 or balls[ball][0] > SCREEN_WIDTH:
+            if balls[ball][0] < 0:
+                scores[1] += 1
+            else:
+                scores[0] += 1
+
+            balls[ball][2] = -balls[ball][2]
+            balls[ball][3] /= 2
+
+            balls[ball][0] += balls[ball][2] * 2
+            #balls[ball][1] = SCREEN_HEIGHT // 2
+
+            #right_paddle_y = SCREEN_HEIGHT // 2
+            #left_paddle_y = SCREEN_HEIGHT // 2
+
+        # draw game objects
+        if ball == 0:
+            screen.fill(BLACK)
+        pygame.draw.rect(screen, WHITE, (left_paddle_x, left_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
+        pygame.draw.rect(screen, WHITE, (right_paddle_x, right_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
+        
+        if ball == 0:
+            pygame.draw.circle(screen, (255,255,0), (int(balls[ball][0]), int(balls[ball][1])), BALL_SIZE)
         else:
-            scores[0] += 1
-        ball_x = SCREEN_WIDTH // 2
-        ball_y = SCREEN_HEIGHT // 2
-        ball_vx = random.choice([-BALL_SPEED, BALL_SPEED])
-        ball_vy = random.uniform(-BALL_SPEED, BALL_SPEED)
-        right_paddle_y = SCREEN_HEIGHT // 2
-        left_paddle_y = SCREEN_HEIGHT // 2
+            pygame.draw.circle(screen, (0,255,255), (int(balls[ball][0]), int(balls[ball][1])), BALL_SIZE)
 
-    # draw game objects
-    screen.fill(BLACK)
-    pygame.draw.rect(screen, WHITE, (left_paddle_x, left_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
-    pygame.draw.rect(screen, WHITE, (right_paddle_x, right_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
-    pygame.draw.circle(screen, WHITE, (int(ball_x), int(ball_y)), BALL_SIZE)
-
-    # Draw the scores
-    font = pygame.font.Font(None, 36)
-    score1_text = font.render("" + str(scores[0]), True, WHITE)
-    score2_text = font.render("" + str(scores[1]), True, WHITE)
-    score1_rect = score1_text.get_rect()
-    score2_rect = score2_text.get_rect()
-    spacing = 20
-    score1_rect.midtop = (SCREEN_WIDTH // 2 - spacing, 10)
-    score2_rect.midtop = (SCREEN_WIDTH // 2 + spacing, 10)
-    screen.blit(score1_text, score1_rect)
-    screen.blit(score2_text, score2_rect)
-    pygame.display.flip()
-
+        #DRAW THE PLAYER SCORES
+        # Draw the scores
+        font = pygame.font.Font(None, 36)
+        score1_text = font.render("" + str(scores[0]), True, WHITE)
+        score2_text = font.render("" + str(scores[1]), True, WHITE)
+        score1_rect = score1_text.get_rect()
+        score2_rect = score2_text.get_rect()
+        spacing = 20
+        score1_rect.midtop = (SCREEN_WIDTH // 2 - spacing, 10)
+        score2_rect.midtop = (SCREEN_WIDTH // 2 + spacing, 10)
+        screen.blit(score1_text, score1_rect)
+        screen.blit(score2_text, score2_rect)
+        pygame.display.flip()
     # update the display
     pygame.display.update()
     clock.tick(72)

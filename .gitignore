@@ -10,6 +10,8 @@
 *.userosscache
 *.sln.docstates
 .vscode/
+allBots.data
+bestBot.data
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -18,6 +20,7 @@
 # our stuff :)
 *.exe
 *.exp
+*.data
 *.lib
 testNN*.py
 *.gene

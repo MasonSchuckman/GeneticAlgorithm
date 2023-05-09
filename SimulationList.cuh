@@ -8,4 +8,5 @@
 #include "simulations/PongSimulation.cuh"
 #include "simulations/AirHockeySimulation.cuh"
 #include "simulations/PongSimulation2.cuh"
+#include "simulations/MultiBallPong.cuh"
 #endif
