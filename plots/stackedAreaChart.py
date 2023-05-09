@@ -1,16 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
  
-# --- FORMAT 1
+import portGenerationData as pg
+
+
 
 if __name__ == '__main__':
     # Your x and y axis
-    x=range(1,100)
-    y=[ [1,4,6,8,9], [2,2,7,10,12], [2,8,5,10,6] ]
 
+    
+    labels, data = pg.importData('plots/compositions.txt')
+    
+    x = range(len(data[0]))
+    y = data
 
     # Basic stacked area chart.
-    plt.stackplot(x,y, labels=['A','B','C'])
-    plt.legend(loc='upper left')
+    plt.stackplot(x,y, labels=labels)
     plt.show()
  

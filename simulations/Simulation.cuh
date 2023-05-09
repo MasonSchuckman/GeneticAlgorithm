@@ -41,6 +41,7 @@ struct SimConfig{
     // Making this statically allocated might have unforseen consequences, idk.
     int layerShapes[MAX_LAYERS];
     int layerTypes[MAX_LAYERS];
+    int paddedNetworkSize;
 };
 
 class Simulation {

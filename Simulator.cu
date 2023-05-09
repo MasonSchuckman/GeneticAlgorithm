@@ -41,9 +41,25 @@ Simulator::Simulator(vector<Specimen *> bots, Simulation *derived, SimConfig &co
         cudaMalloc((void **)&nextGenBiases_d, totalBots * config.totalNeurons * sizeof(float));
 
         cudaMalloc((void **)&parentSpecimen_d, totalBots * sizeof(int));
+        cudaMalloc((void **)&distances_d, totalBots * sizeof(float));
+        cudaMalloc((void **)&ancestors_d, totalBots * sizeof(int));
+
+        // Initialize as zeros
+        cudaMemset(distances_d, 0, totalBots * sizeof(float));
+
+        int networkSize = (config.totalNeurons + config.totalWeights);
+        // We need to pad deltas_d with zeros at the end of every bot's network so we can call reduce() on each bot's array easily.
+        // To do that, each bot's deltas array needs to be a multiple of 32.
+        int padding = 32 - (networkSize % 32);
+        if (padding == 32)
+            padding = 0;
+
+        cudaMalloc((void **)&deltas_d, totalBots * (networkSize + padding) * sizeof(float));
+        cudaMemset(deltas_d, 0, totalBots * (networkSize + padding) * sizeof(float));
+        this->config.paddedNetworkSize = (networkSize + padding);
 
         // Copy the config over to GPU memory
-        check(cudaMemcpyToSymbol(config_d, &config, sizeof(SimConfig)));
+        check(cudaMemcpyToSymbol(config_d, &this->config, sizeof(SimConfig)));
 
         // Setup the simulation class on the GPU
         cudaMalloc(&sim_d, sizeof(Simulation **));
@@ -61,6 +77,10 @@ Simulator::~Simulator()
     cudaFree(biases_d);
     cudaFree(nextGenBiases_d);
     cudaFree(nextGenWeights_d);
+    cudaFree(parentSpecimen_d);
+    cudaFree(distances_d);
+    cudaFree(deltas_d);
+    cudaFree(ancestors_d);
 
     // Free the simulation class on the GPU
     Kernels::delete_function<<<1, 1>>>(sim_d);
@@ -143,6 +163,15 @@ void Simulator::copyToGPU(int *&layerShapes_h, float *&startingParams_h,
 
     check(cudaMemcpy(biases_d, biases_h, totalBots * config.totalNeurons * sizeof(float), cudaMemcpyHostToDevice));
     check(cudaMemcpy(nextGenBiases_d, biases_h, totalBots * config.totalNeurons * sizeof(float), cudaMemcpyHostToDevice));
+
+    // Quick and easy fix for initializing ancestors
+    int *ancestors_h = new int[totalBots];
+    for (int i = 0; i < totalBots; i++)
+    {
+        ancestors_h[i] = i;
+    }
+    check(cudaMemcpy(ancestors_d, ancestors_h, totalBots * sizeof(int), cudaMemcpyHostToDevice));
+    delete[] ancestors_h;
 }
 
 // Copies the weights and biases of all the bots back to the host
@@ -504,7 +533,11 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h)
     int shift = (int)(((double)rand() / RAND_MAX) * totalBots * shiftEffectiveness) % totalBots;
     if (shiftEffectiveness < 0)
         shift = iterationsCompleted;
-    Kernels::mutate<<<numBlocks, tpb>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d, shift);
+
+    float progThreshold = 1; // This will be calculated properly later
+
+    Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+                                                                                  nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, shift);
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 
@@ -620,7 +653,7 @@ void historyGraph(Taxonomy *history)
 
 void Simulator::batchSimulate(int numSimulations)
 {
-    bool trackingGenetics = false;
+    bool trackingGenetics = true;
 
     printf("num bots = %d, numLayers = %d, num weights = %d, numNeurons = %d\n", bots.size(), config.numLayers, config.totalWeights, config.totalNeurons);
     int totalBots = bots.size();
@@ -659,8 +692,15 @@ void Simulator::batchSimulate(int numSimulations)
     }
 
     // Invoke the kernel
+
+    std::cout << "total weights: " << config.totalNeurons + config.totalWeights << std::endl;
+
+    vector<std::vector<std::tuple<Species *, float>> *> compositions;
+
+
     for (int i = 0; i < numSimulations; i++)
     {
+        std::cout << "gen " << i << std::endl;
         // Only pass the location to where this iteration is writing
         runSimulation(&output_h[i * totalBots], parentSpecimen_h);
 
@@ -675,23 +715,47 @@ void Simulator::batchSimulate(int numSimulations)
                 Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[i * config.totalNeurons], &weights_h[i * config.totalWeights], "linear");
                 Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[i]]);
 
-                nextGeneration[i] = nextSpecimen;
+                Specimen **nextGeneration = new Specimen *[totalBots];
+                for (int j = 0; j < totalBots; j++)
+                {
+                    Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[j * config.totalNeurons], &weights_h[j * config.totalWeights], "sigmoid");
+                    Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[j]]);
+
+                    nextGeneration[j] = nextSpecimen;
+                }
+
+                // //if (mutateMagnitude > min_mutate_rate)
+                // if(PROGENITOR_THRESHOLD > MIN_THRESHOLD)
+                //     PROGENITOR_THRESHOLD *= std::sqrt(mutateDecayRate);
+
+                // bigger constant = harder to make a new species
+                float MAGIC_CONSTANT = 5;
+                float PROGENITOR_THRESHOLD = 0;
+
+                for (int b = 0; b < totalBots; b++)
+                {
+                    PROGENITOR_THRESHOLD += Genome::distance(nextGeneration[b]->genome, previousGeneration[b]->genome);
+                }
+                PROGENITOR_THRESHOLD /= totalBots;
+                PROGENITOR_THRESHOLD *= MAGIC_CONSTANT;
+
+                history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
+                compositions.push_back(history->speciesComposition());
+
+                if (history->getYear() % 10 == 0)
+                    historyGraph(history);
+
+                for (int j = 0; j < totalBots; j++)
+                    history->pruneSpecimen(previousGeneration[j]);
+
+                delete previousGeneration;
+                previousGeneration = nextGeneration;
+                // printAncestry(previousGeneration[0]->species, 0);
             }
-
-            float PROGENITOR_THRESHOLD = 1000;
-            history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
-
-            for (int i = 0; i < totalBots; i++)
-                history->pruneSpecimen(previousGeneration[i]);
-
-            delete previousGeneration;
-            previousGeneration = nextGeneration;
-
-            if (history->getYear() % 25 == 0)
-                historyGraph(history);
         }
-        // printAncestry(previousGeneration[0]->species, 0);
     }
+
+    Taxonomy::writeCompositionsData(compositions, "comps.txt");
     printf("Ran simulation.\n");
 
     copyFromGPU(weights_h, biases_h);
@@ -768,8 +832,7 @@ void Simulator::batchSimulate(int numSimulations)
     delete[] weights_h;
     delete[] biases_h;
 }
-
-Bot *Simulator::getBest()
-{
-    return nullptr;
-}
+// Bot *Simulator::getBest()
+// {
+//     return nullptr;
+// }

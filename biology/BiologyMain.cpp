@@ -20,9 +20,9 @@ void printAncestry(Species* species, int offset);
 
 int SHAPE[] = {2,2,2};
 int SHAPE_LENGTH = sizeof(SHAPE) / sizeof(int);
-int POPULATION_COUNT = 300000;
-int EPOCHS = 500;
-float PROGENITOR_THRESHOLD = 0.95f;
+int POPULATION_COUNT = 30000;
+int EPOCHS = 2000;
+float PROGENITOR_THRESHOLD = 3.5f;
 int GRAPH_NUM_ROWS = 10;
 
 int EFFECTIVENESS = 30000;
@@ -31,13 +31,6 @@ Genome* idealNetwork = new Genome(SHAPE, SHAPE_LENGTH);
 
 int main() {
     srand(7);
-
-    cout << idealNetwork->bodyString() << endl << endl;
-    idealNetwork->exportWeights("test");
-    Genome* newG = new Genome("test");
-    cout << newG->bodyString() << endl;
-    newG->exportWeights("test2");
-    return 0;
     
     Specimen** genesisPopulation = generatePopulation(POPULATION_COUNT, SHAPE, SHAPE_LENGTH);
 
@@ -47,19 +40,22 @@ int main() {
 
     Taxonomy history(population, POPULATION_COUNT);
 
+    std::vector<CompositionGradient> gradients;
+
     for(int i = 0; i < EPOCHS; i++) {
         auto compositions = history.speciesComposition();
+        gradients.push_back(compositions);
+
         int lastRow = std::min((float) GRAPH_NUM_ROWS, (float) compositions->size());
         std::vector<std::tuple<Species*, float>> topCompositions(compositions->begin(), compositions->begin() + lastRow);
         
-        for(int i = 0; i++ < 30; cout << endl);
-        cout << std::flush;
+        // for(int i = 0; i++ < 30; cout << endl);
+        // cout << std::flush;
 
-        cout << "generation " << history.getYear()+1 << endl;
-        cout << Taxonomy::compositionGraph(&topCompositions, 40) << endl;
-        cout << Taxonomy::compositionString(&topCompositions) << endl << std::flush;
-        std::this_thread::sleep_for(std::chrono::milliseconds(0));
-
+        // cout << "generation " << history.getYear()+1 << endl;
+        // cout << Taxonomy::compositionGraph(&topCompositions, 40) << endl;
+        // cout << Taxonomy::compositionString(&topCompositions) << endl << std::flush;
+        
         Specimen** newPopulation = stepGeneration(population);
         idealNetwork = idealNetwork->mitosis(0.8,0.05,0);
         history.incrementGeneration(newPopulation, POPULATION_COUNT, PROGENITOR_THRESHOLD);
@@ -71,9 +67,8 @@ int main() {
         population = newPopulation;
     } 
     
-    for(int i = 0; i < POPULATION_COUNT; i++)
-        printAncestry(genesisPopulation[i]->species, 0);
-}
+    history.writeCompositionsData(gradients, "compositions.txt");
+} 
 
 
 void printAncestry(Species* species, int offset) {
