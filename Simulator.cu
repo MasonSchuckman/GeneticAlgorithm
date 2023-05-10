@@ -31,11 +31,11 @@ Simulator::Simulator(vector<Specimen *> bots, Simulation *derived, SimConfig &co
     }
     else
     {
-        cudaMalloc((void **)&startingParams_d, config.numStartingParams * sizeof(float));
-        cudaMalloc((void **)&output_d, totalBots * sizeof(float));
+        Malloc((void **)&startingParams_d, config.numStartingParams * sizeof(float));
+        Malloc((void **)&output_d, totalBots * sizeof(float));
 
-        cudaMalloc((void **)&weights_d, config.totalWeights * totalBots * sizeof(float));
-        cudaMalloc((void **)&nextGenWeights_d, config.totalWeights * totalBots * sizeof(float));
+        Malloc((void **)&weights_d, config.totalWeights * totalBots * sizeof(float));
+        Malloc((void **)&nextGenWeights_d, config.totalWeights * totalBots * sizeof(float));
 
         cudaMalloc((void **)&biases_d, totalBots * config.totalNeurons * sizeof(float));
         cudaMalloc((void **)&nextGenBiases_d, totalBots * config.totalNeurons * sizeof(float));
@@ -70,8 +70,8 @@ Simulator::Simulator(vector<Specimen *> bots, Simulation *derived, SimConfig &co
 
 Simulator::~Simulator()
 {
-    cudaFree(layerShapes_d);
-    cudaFree(startingParams_d);
+    Free(layerShapes_d);
+    Free(startingParams_d);
     cudaFree(output_d);
     cudaFree(weights_d);
     cudaFree(biases_d);
@@ -83,8 +83,6 @@ Simulator::~Simulator()
     cudaFree(ancestors_d);
 
     // Free the simulation class on the GPU
-    Kernels::delete_function<<<1, 1>>>(sim_d);
-    check(cudaDeviceSynchronize());
 
     cudaFree(sim_d);
 }
@@ -518,7 +516,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     float *startingParams_h = new float[config.numStartingParams];
     derived->getStartingParams(startingParams_h);
 
-    check(cudaMemcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float), cudaMemcpyHostToDevice));
+    memcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float));
     delete[] startingParams_h;
 
     
@@ -526,9 +524,6 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     // Launch a kernel on the GPU with one block for each simulation/contest
     Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
     
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    check(cudaDeviceSynchronize());
     auto end_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     // std::cout << "Simulation time taken: " << elapsed_time << " ms\n";
@@ -562,8 +557,14 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
 
     float progThreshold = 1; // This will be calculated properly later
     
-    Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
-                                                                                  nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
+    // CPU version
+    for (int blockid = 0; blockid < numBlocks; blockid++) {
+        mutate((totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+            nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift, blockid))
+    }
+    // GPU version
+    // Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+    //                                                                               nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
     
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
@@ -581,9 +582,9 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     weights_d = temp;
 
     // Copy output vector from GPU buffer to host memory.
-    check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
-    check(cudaMemcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
-    check(cudaMemcpy(ancestors_h, ancestors_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
+    memcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost);
+    memcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost);
+    memcpy(ancestors_h, ancestors_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost);
     
     // copy new generation from Device to Host
 

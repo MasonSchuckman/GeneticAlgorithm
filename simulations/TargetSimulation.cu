@@ -73,9 +73,8 @@ __device__ void TargetSimulation::setupSimulation(const float *startingParams, f
     __syncthreads();
 }
 
-__device__ void TargetSimulation::setActivations(float *gamestate, float ** activs, int iter)
+ void TargetSimulation::setActivationsCpu(float *gamestate, float ** activs, int iter, int tid)
 {
-    int tid = threadIdx.x;
     const int numInputs = 6;
     if (tid < numInputs)
     {
@@ -87,10 +86,8 @@ __device__ void TargetSimulation::setActivations(float *gamestate, float ** acti
     }
 }
 
-__device__ void TargetSimulation::eval(float **actions, float *gamestate)
+__device__ void TargetSimulation::eval(float **actions, float *gamestate, int tid)
 {
-    int tid = threadIdx.x;
-
     // LIST OF GAMESTATE VARIABLES
     //  0: x vel
     //  1: y vel
@@ -114,8 +111,6 @@ __device__ void TargetSimulation::eval(float **actions, float *gamestate)
         // }
     }
 
-    __syncthreads();
-
     if (tid == 0)
     {
         float xVel = gamestate[0];
@@ -130,7 +125,6 @@ __device__ void TargetSimulation::eval(float **actions, float *gamestate)
         gamestate[2] += gamestate[0];
         gamestate[3] += gamestate[1];
     }
-    __syncthreads();
 }
 
 __device__ int TargetSimulation::checkFinished(float *gamestate)

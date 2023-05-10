@@ -49,7 +49,7 @@ public:
     __host__ __device__ Simulation() {}
     __host__ __device__ virtual ~Simulation() {}
 
-    __host__ virtual void getStartingParams(float * startingParams) = 0;
+    __host__ virtual void getStartingParams(float * startingParams, int tid, int blockid) = 0;
     // actions and gamestate are both shared memory variables. The exact way they're used is
     // simulation dependent.
     __device__ virtual void eval(float ** actions, float * gamestate) = 0;

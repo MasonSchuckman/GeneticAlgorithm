@@ -186,111 +186,105 @@ namespace Kernels
 
     // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
     // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
-    __global__ void mutate(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies,
-                           float *nextGenWeights, float *nextGenBiases, float *distances, float *deltas, int *ancestors, float progThreshold, const int gen, const int shift)
+    __global__ void mutate_cpu(const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies,
+                           float *nextGenWeights, float *nextGenBiases, float *distances, float *deltas, int *ancestors, float progThreshold, const int gen, const int shift, const int blockIdX)
     {
-        int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
-        int tid = threadIdx.x;                           // thread id (within a block)
+        int block = blockIdX;
+        int stride = 32;
 
-        int block = blockIdx.x;
-        int stride = blockDim.x;
+        for (int tid = 0; tid < 32; tid++) {
+            int gid = tid + block * 32; // global id
 
-        // prevent OOB errors
-        if (block < n / 2)
-        {
-            curandState_t state;
-            curand_init(blockIdx.x + shift, threadIdx.x, 0, &state);
 
-            float rand = 0;
- // calcuate the offset for this block's bot(s)
-            int offsetBot1 = block * 2;
-            int offsetBot2 = (block * 2 + shift * 2 + 1) % n;
-            int inputBotOffsets[2] = {offsetBot1, offsetBot2};
-            int outputBotOffsets[2] = {offsetBot1, offsetBot2};
-
-            // Compare the two bots that competed in the mutation phase
-            if(config_d.directContest == 1){
-                inputBotOffsets[0] = offsetBot1;
-                inputBotOffsets[1] = offsetBot1 + 1;
-            }
-            
-
-            float botScore1 = simulationOutcome[inputBotOffsets[0]];
-            float botScore2 = simulationOutcome[inputBotOffsets[1]];
-            if(botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
-                printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, inputBotOffsets[0], inputBotOffsets[1]);
-            
-            int winnerBotOffset;
-            if (botScore1 > botScore2)
+            // prevent OOB errors
+            if (block < n / 2)
             {
-                winnerBotOffset = inputBotOffsets[0];
-            }
-            else
-            {
-                winnerBotOffset = inputBotOffsets[1];
-            }
+                curandState_t state;
+                curand_init(blockIdx.x + shift, threadIdx.x, 0, &state);
 
-            // keeping track of the parent specimen from which the children came from
-            childSpecies[outputBotOffsets[0]] = winnerBotOffset;
-            childSpecies[outputBotOffsets[1]] = winnerBotOffset;
+                float rand = 0;
+    // calcuate the offset for this block's bot(s)
+                int offsetBot1 = block * 2;
+                int offsetBot2 = (block * 2 + shift * 2 + 1) % n;
+                int inputBotOffsets[2] = {offsetBot1, offsetBot2};
+                int outputBotOffsets[2] = {offsetBot1, offsetBot2};
 
-
-            __syncthreads();
-            float biasMagnification = 10.0f;
-
-            float distance = 0;       // Distance from the parent
-            float deltaMagnitude = 0; // deltaMagnitude is the L1 norm of a bot's genome and the progenitor it decended from.
-
-            for (int bot = 0; bot < 2; bot++)
-            {
-                // Write this bot's updated weights
-                for (int i = tid; i < config_d.totalWeights; i += stride)
-                {
-                    if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
-                        rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
-                    distance += fabsf(rand);
-
-                    (deltas)[i + outputBotOffsets[bot] * config_d.paddedNetworkSize] += rand;
-                    (nextGenWeights)[i + outputBotOffsets[bot] * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
+                // Compare the two bots that competed in the mutation phase
+                if(config_d.directContest == 1){
+                    inputBotOffsets[0] = offsetBot1;
+                    inputBotOffsets[1] = offsetBot1 + 1;
                 }
-
-                // Write this bot's updated biases
-                // We can skip the first layer since the input layer shouldn't have biases.
-                for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
-                {
-                    if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
-                        rand = curand_uniform(&state) * randomMagnitude *  biasMagnification * 2 - randomMagnitude *  biasMagnification;
-                    distance += fabsf(rand);
-
-                    (deltas)[i + config_d.totalWeights + outputBotOffsets[bot] * config_d.paddedNetworkSize] += rand;
-                    (nextGenBiases)[i + outputBotOffsets[bot] * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
-                }
-
-                float totalDistance = blockReduceSum(distance);
-                deltaMagnitude = block_reduce<float>(&(deltas[outputBotOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
-
-                if (tid == 0)                
-                    (distances)[outputBotOffsets[bot]] = totalDistance;
-                __syncthreads();
-                    // if (blockIdx.x == 0)
-                    //     printf("delta mag = %f\n", deltaMagnitude);
-                    // Check if child is a new species
-                    if (deltaMagnitude >= progThreshold)
-                    {
-                        if (tid == 0)
-                            (ancestors)[outputBotOffsets[bot]] = outputBotOffsets[bot] + gen * n;
-
-                        __syncthreads();
-                        // Reset the deltas for this bot since it is now the prog
-                        zeroArray(&(deltas[outputBotOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
-                    }
                 
-                __syncthreads();
+
+                float botScore1 = simulationOutcome[inputBotOffsets[0]];
+                float botScore2 = simulationOutcome[inputBotOffsets[1]];
+                if(botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
+                    printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, inputBotOffsets[0], inputBotOffsets[1]);
+                
+                int winnerBotOffset;
+                if (botScore1 > botScore2)
+                {
+                    winnerBotOffset = inputBotOffsets[0];
+                }
+                else
+                {
+                    winnerBotOffset = inputBotOffsets[1];
+                }
+
+                // keeping track of the parent specimen from which the children came from
+                childSpecies[outputBotOffsets[0]] = winnerBotOffset;
+                childSpecies[outputBotOffsets[1]] = winnerBotOffset;
+
+
+                float biasMagnification = 10.0f;
+
+                float distance = 0;       // Distance from the parent
+                float deltaMagnitude = 0; // deltaMagnitude is the L1 norm of a bot's genome and the progenitor it decended from.
+
+                for (int bot = 0; bot < 2; bot++)
+                {
+                    // Write this bot's updated weights
+                    for (int i = tid; i < config_d.totalWeights; i += stride)
+                    {
+                        if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
+                            rand = curand_uniform(&state) * randomMagnitude * 2 - randomMagnitude;
+                        distance += fabsf(rand);
+
+                        (deltas)[i + outputBotOffsets[bot] * config_d.paddedNetworkSize] += rand;
+                        (nextGenWeights)[i + outputBotOffsets[bot] * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
+                    }
+
+                    // Write this bot's updated biases
+                    // We can skip the first layer since the input layer shouldn't have biases.
+                    for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
+                    {
+                        if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
+                            rand = curand_uniform(&state) * randomMagnitude *  biasMagnification * 2 - randomMagnitude *  biasMagnification;
+                        distance += fabsf(rand);
+
+                        (deltas)[i + config_d.totalWeights + outputBotOffsets[bot] * config_d.paddedNetworkSize] += rand;
+                        (nextGenBiases)[i + outputBotOffsets[bot] * config_d.totalNeurons] = (allBiases)[i + winnerBotOffset * config_d.totalNeurons] + rand;
+                    }
+
+                    float totalDistance = blockReduceSum(distance);
+                    deltaMagnitude = block_reduce<float>(&(deltas[outputBotOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
+
+                    if (tid == 0)                
+                        (distances)[outputBotOffsets[bot]] = totalDistance;
+                        // if (blockIdx.x == 0)
+                        //     printf("delta mag = %f\n", deltaMagnitude);
+                        // Check if child is a new species
+                        if (deltaMagnitude >= progThreshold)
+                        {
+                            if (tid == 0)
+                                (ancestors)[outputBotOffsets[bot]] = outputBotOffsets[bot] + gen * n;
+
+                            // Reset the deltas for this bot since it is now the prog
+                            zeroArray(&(deltas[outputBotOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
+                        }
+                }
             }
         }
-
-        __syncthreads();
-
         return;
     }
 
@@ -502,8 +496,9 @@ namespace Kernels
     }
 
     // TODO: compare performance of this vs simulateShared2
-    __global__ void simulateShared_noStaticArrays(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
+    __global__ void simulateShared_noStaticArrays(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output, int blockid)
     {
+        for (number in 32) :D
 
         int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
         int tid = threadIdx.x;                           // thread id (within a block)
@@ -649,7 +644,7 @@ namespace Kernels
                 // printf("about to eval\n");
 
                 // update simulation/game state based on bot actions
-                (*sim)->eval(&activations, gamestate);
+                (*sim)->eval(&activations, gamestate, tid, blockid);
 
                 if ((*sim)->checkFinished(gamestate) == 1)
                 {
