@@ -73,6 +73,13 @@ void TargetSimulation::setupSimulation(int tid, int block, const float *starting
 
 void TargetSimulation::setActivations(int tid, int block, float *gamestate, float ** activs, int iter)
 {
+    // if(block == 1){
+    //     printf("gamestate:\n");
+    //     for(int i = 0; i < 10; i++){
+    //         printf("%f ", gamestate[i]);
+    //     }
+    //     printf("\n");
+    // }
     const int numInputs = 6;
     for(int i = 0; i < numInputs; i++)
         activs[0][i] = gamestate[i];

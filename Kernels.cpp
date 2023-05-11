@@ -20,21 +20,40 @@ namespace Kernels
     {
         int stride = 32;
 
+        // if(blockIdx == 1){
+        //     printf("Input:\n");
+        //     for(int i = 0; i < input_size; i++){
+        //         printf("%f ", inputs[i]);
+        //     }
+        //     printf("\n");
+        // }
+
         // Initialize output to biases
         for (int i = 0; i < output_size; i++)
         {
             output[i] = biases[i];
         }
 
-        // Compute dot product of input and weights
-        for (int i = 0; i < input_size; i++)
-        {
-            for (int j = 0; j < output_size; j++)
+        //for(int tid = 0; tid < 32; tid++){
+            // Compute dot product of input and weights
+            for (int i = 0; i < input_size; i++)
             {
-                output[j] += inputs[i] * weights[i * output_size + j];
-            }
-        }
+                for (int j = 0; j < output_size; j++)
+                //for (int j = tid; j < output_size; j += stride)
 
+                {
+                    output[j] += inputs[i] * weights[i * output_size + j];
+                }
+            }
+        //}
+        
+        // if(blockIdx == 1){
+        //     printf("Output:\n");
+        //     for(int i = 0; i < output_size; i++){
+        //         printf("%f ", output[i]);
+        //     }
+        //     printf("\n");
+        // }
         //  Apply activation function
         switch (config_d.layerTypes[layer])
         {
