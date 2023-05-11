@@ -3,9 +3,9 @@
  deletes all relevant dynamic members of the class
 */
 Genome::~Genome() {
-  delete shape;
-  delete biases;
-  delete connections;
+  delete [] shape;
+  delete [] biases;
+  delete [] connections;
 }
 
 /**

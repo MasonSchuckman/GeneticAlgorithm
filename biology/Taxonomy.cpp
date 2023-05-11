@@ -91,7 +91,10 @@ CompositionGradient Taxonomy::speciesComposition() {
         if(composition.find(species) != composition.end()) 
             density = composition.at(species);
         
-        composition.insert_or_assign(species, density + percentPerSpecimen);
+        // if(composition.find(species) != composition.end()) 
+        //     composition.at(species) += percentPerSpecimen;
+        
+        // composition.insert_or_assign(species, density + percentPerSpecimen);
     }
 
     auto toReturn = new std::vector<std::tuple<Species*, float>>();
