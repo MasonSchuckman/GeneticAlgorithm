@@ -183,10 +183,17 @@ void Simulator::copyFromGPU(float *&weights_h, float *&biases_h)
     check(cudaMemcpy(biases_h, nextGenBiases_d, totalBots * config.totalNeurons * sizeof(float), cudaMemcpyDeviceToHost));
 }
 
+
 #include <fstream>
 void writeWeightsAndBiasesAll(float *weights_h, float *biases_h, int TOTAL_BOTS, int totalWeights, int totalNeurons, int numLayers, int *layerShapes)
 {
-    std::ofstream outfile("allBots.data", std::ios::out | std::ios::binary); // this might be more space efficient
+    writeWeightsAndBiasesAll(float *weights_h, float *biases_h, int TOTAL_BOTS, int totalWeights, int totalNeurons, int numLayers, int *layerShapes, "allBots.data");
+}
+
+
+void writeWeightsAndBiasesAll(float *weights_h, float *biases_h, int TOTAL_BOTS, int totalWeights, int totalNeurons, int numLayers, int *layerShapes, std::string filepath)
+{
+    std::ofstream outfile(filepath, std::ios::out | std::ios::binary); // this might be more space efficient
     // std::ofstream outfile("allBots.data");
     //  outfile << "all bots:\n";
     //  Write the total number of bots
@@ -715,6 +722,7 @@ void Simulator::batchSimulate(int numSimulations)
 
     Specimen **previousGeneration;
     std::vector<std::vector<std::tuple<Species *, float>> *> compositions;
+    std::vector<Specimen*> everyNthBot;
     if (trackingGenetics)
     {
         previousGeneration = new Specimen *[totalBots];
@@ -753,8 +761,10 @@ void Simulator::batchSimulate(int numSimulations)
             history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
             compositions.push_back(history->speciesComposition());
 
-            if (history->getYear() % 10 == 0)
+            if (history->getYear() % 100 == 0){
+                everyNthBot.push_back(nextGeneration[0]);
                 historyGraph(history);
+            }
 
             for (int j = 0; j < totalBots; j++)
                 history->pruneSpecimen(previousGeneration[j]);
@@ -764,8 +774,32 @@ void Simulator::batchSimulate(int numSimulations)
             // printAncestry(previousGeneration[0]->species, 0);
         }
     }
-    if (trackingGenetics)
+    if (trackingGenetics) {
         Taxonomy::writeCompositionsData(compositions, "comps.txt");
+
+        int numHistorics = everyNthBot.size();
+
+        float* biases_hist = new float[numHistorics * config.totalNeurons];
+        int biases_offset = 0;
+        float* weights_hist = new float[numHistorics * config.totalWeights];
+        int weights_offset = 0;
+
+        for(Specimen* historicBot : everyNthBot) {
+            for(int neuron = 0; neuron < config.totalNeurons; neuron++)
+                biases_hist[neuron + biases_offset] = historicBot->genome->biases[neuron];
+            biases_offset += config.totalNeurons;
+
+            for(int weight = 0; weight < config.totalWeights; weight++)
+                biases_hist[weight + weights_offset] = historicBot->genome->connections[weight];
+            biases_offset += config.totalWeights;
+        }
+
+        writeWeightsAndBiasesAll(weights_hist, biases_hist, numHistorics, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes, "historic.data");
+
+
+
+
+    }
     printf("Ran simulation.\n");
 
     copyFromGPU(weights_h, biases_h);

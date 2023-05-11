@@ -71,6 +71,8 @@ private:
     
     void readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int * layerShapes);
 
+    void readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int * layerShapes, std::string filepath);
+
     //Reads in saved weights and biases if it matches the current config
     void loadData_(float *weights_h, float *biases_h);
 
