@@ -2,8 +2,43 @@
 #include <random>
 #include <cmath>
 #include <cstring>
+#include <thread>
+#include <vector>
 
 using std::vector;
+
+constexpr int NUM_THREADS = 4; // Number of threads
+
+// Function to be executed by each thread
+void Simulator::processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
+                                      const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d)
+{
+
+    for (int block = startBlock; block < endBlock; block++)
+    {
+        float *sharedMem = new float[sharedMemNeeded];
+        Kernels::simulateShared2(block, sharedMem, numBlocks, &derived, weights_d, biases_d, startingParams_d,
+                                 output_d);
+        delete[] sharedMem;
+    }
+}
+
+// Function to be executed by each thread
+void Simulator::processBlocksMutate(int startBlock, int endBlock, int totalBots, float mutateMagnitude, float *weights_d,
+                                    float *biases_d, float *output_d, int *parentSpecimen_d, float *nextGenWeights_d,
+                                    float *nextGenBiases_d, float *distances_d, float *deltas_d, int *ancestors_d,
+                                    float progThreshold, int iterationsCompleted, int shift)
+{
+
+    for (int block = startBlock; block < endBlock; block++)
+    {
+        float *sharedMem = new float[config.paddedNetworkSize];
+        Kernels::mutate(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+                        nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold,
+                        iterationsCompleted, shift);
+        delete[] sharedMem;
+    }
+}
 
 SimConfig config_d;
 
@@ -14,24 +49,22 @@ Simulator::Simulator(vector<Specimen *> bots, Simulation *derived, SimConfig &co
 
     int botNetSize = (config.totalNeurons + config.totalWeights); // how many indices a single bot uses in the networks_h array.
 
-    
-
     // Allocate GPU buffers
     // Note: all GPU arrays are member variables.
     layerShapes_d = new int[config.numLayers];
     startingParams_d = new float[config.numStartingParams];
     output_d = new float[totalBots];
-    
+
     weights_d = new float[totalBots * config.totalWeights];
     nextGenWeights_d = new float[totalBots * config.totalWeights];
 
-    biases_d = new float [totalBots * config.totalNeurons];
-    nextGenBiases_d = new float [totalBots * config.totalNeurons];
+    biases_d = new float[totalBots * config.totalNeurons];
+    nextGenBiases_d = new float[totalBots * config.totalNeurons];
 
     parentSpecimen_d = new int[totalBots];
     distances_d = new float[totalBots];
     ancestors_d = new int[totalBots];
-    
+
     // Initialize as zeros
     memset(distances_d, 0, totalBots * sizeof(float));
 
@@ -49,24 +82,21 @@ Simulator::Simulator(vector<Specimen *> bots, Simulation *derived, SimConfig &co
     // Copy the config over to GPU memory
     this->sim_d = &derived;
     config_d = this->config;
-
 }
 
 Simulator::~Simulator()
 {
-    delete [] (layerShapes_d);
-    delete [] (startingParams_d);
-    delete [] (output_d);
-    delete [] (weights_d);
-    delete [] (biases_d);
-    delete [] (nextGenBiases_d);
-    delete [] (nextGenWeights_d);
-    delete [] (parentSpecimen_d);
-    delete [] (distances_d);
-    delete [] (deltas_d);
-    delete [] (ancestors_d);
-
-    
+    delete[] (layerShapes_d);
+    delete[] (startingParams_d);
+    delete[] (output_d);
+    delete[] (weights_d);
+    delete[] (biases_d);
+    delete[] (nextGenBiases_d);
+    delete[] (nextGenWeights_d);
+    delete[] (parentSpecimen_d);
+    delete[] (distances_d);
+    delete[] (deltas_d);
+    delete[] (ancestors_d);
 }
 
 void Simulator::simulate()
@@ -459,7 +489,8 @@ float Simulator::getAvgDistance()
 {
     float sum_d = 0;
 
-    for(int i = 0; i < bots.size(); i++){
+    for (int i = 0; i < bots.size(); i++)
+    {
         sum_d += distances_d[i];
     }
 
@@ -490,37 +521,49 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     memcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float));
     delete[] startingParams_h;
 
-    
     auto start_time = std::chrono::high_resolution_clock::now();
     // Launch a kernel on the GPU with one block for each simulation/contest
-    //Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
-    for(int block = 0; block < numBlocks; block++){
-        float * sharedMem = new float[sharedMemNeeded];
-        Kernels::simulateShared2(block, sharedMem, numBlocks, &derived, weights_d, biases_d, startingParams_d, output_d);
-        delete [] sharedMem;
-    }
+    // Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
+    bool multithread = true;
 
+    if (!multithread)
+    {
+        for (int block = 0; block < numBlocks; block++)
+        {
+            float *sharedMem = new float[sharedMemNeeded];
+            Kernels::simulateShared2(block, sharedMem, numBlocks, &derived, weights_d, biases_d, startingParams_d, output_d);
+            delete[] sharedMem;
+        }
+    }
+    else
+    {
+        // // Calculate the number of blocks per thread
+        int blocksPerThread = numBlocks / NUM_THREADS;
+
+        // Create a vector to store the thread objects
+        std::vector<std::thread> threads;
+
+        for (int i = 0; i < NUM_THREADS; i++) {
+            int startBlock = i * blocksPerThread;
+            int endBlock = (i == NUM_THREADS - 1) ? numBlocks : (startBlock + blocksPerThread);
+
+            // Create a thread and pass the necessary arguments
+            threads.emplace_back(std::thread(processBlocksSimulate, startBlock, endBlock, sharedMemNeeded, numBlocks,
+                                 weights_d, biases_d, startingParams_d, output_d));
+        }
+
+        // Wait for all threads to finish
+        for (auto& thread : threads) {
+            thread.join();
+        }
+    }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
     // any errors encountered during the launch.
     auto end_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    // std::cout << "Simulation time taken: " << elapsed_time << " ms\n";
-
-    // Idea for mutating:
-    /*
-    if not a direct contest:
-        One block looks at two bots, determined by the blockId * 2, and (blockId * 2 + iter*2 + 1 + (optional) shuffleSeed*2) % numBots
-        The block can then write the 2 new children data where the parents were.
-
-    if a direct contest:
-        if 1 bot per team:
-            each block looks at two bots, and checks which one won. The winner will split into two children, and the block will write the data to
-            blockId * 2 and (blockId*2 + iter*2 + 1 + (optional) shuffleSeed*2) % numBots (assumes numBots is even.)
-        if 2 bots per team:
-
-
-    */
+    if (iterationsCompleted % 1 == 0)
+        std::cout << "Simulation time taken: " << elapsed_time << " ms\n";
 
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
@@ -535,21 +578,49 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
         shift = iterationsCompleted;
 
     float progThreshold = 1; // This will be calculated properly later
-    
 
-    for(int block = 0; block < numBlocks; block++){
-        float * sharedMem = new float[config.paddedNetworkSize];
-        Kernels::mutate(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
-                                                                                  nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
-        delete [] sharedMem;
+    auto start_time_mutate = std::chrono::high_resolution_clock::now();
+    if (!multithread)
+    {
+        for (int block = 0; block < numBlocks; block++)
+        {
+            float *sharedMem = new float[config.paddedNetworkSize];
+            Kernels::mutate(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+                            nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
+            delete[] sharedMem;
+        }
+    }
+    else
+    {
+        // Calculate the number of blocks per thread
+        int blocksPerThread = numBlocks / NUM_THREADS;
+
+        // Create a vector to store the thread objects
+        std::vector<std::thread> threads;
+
+        for (int i = 0; i < NUM_THREADS; i++) {
+            int startBlock = i * blocksPerThread;
+            int endBlock = (i == NUM_THREADS - 1) ? numBlocks : (startBlock + blocksPerThread);
+
+            // Create a thread and pass the necessary arguments
+            threads.emplace_back(std::thread(processBlocksMutate, startBlock, endBlock, totalBots, mutateMagnitude, weights_d,
+                                 biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d,
+                                 distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift));
+        }
+
+        // Wait for all threads to finish
+        for (auto& thread : threads) {
+            thread.join();
+        }
     }
     // Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
     //                                                                               nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
-    
+
     end_time = std::chrono::high_resolution_clock::now();
 
-    elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    // std::cout << "Mutation time taken: " << elapsed_time << " ms\n";
+    elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_mutate).count();
+    if (iterationsCompleted % 25 == 0)
+        std::cout << "Mutation time taken: " << elapsed_time << " ms\n";
 
     // swap which weights/biases arrays are "current"
     float *temp = nextGenBiases_d;
@@ -564,13 +635,15 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     memcpy(output_h, output_d, totalBots * sizeof(float));
     memcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int));
     memcpy(ancestors_h, ancestors_d, totalBots * sizeof(int));
-    
+
     // copy new generation from Device to Host
 
     // Used to decide where to write nextGen population data to
     iterationsCompleted++;
-    if (iterationsCompleted % 1 == 0)
+    if (iterationsCompleted % 25 == 0)
     {
+        elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
         printf("iter %d, mutate scale = %f. Shift = %d", iterationsCompleted, mutateMagnitude, shift);
         std::cout << " Generation took " << elapsed_time << " ms.\n";
     }
@@ -712,17 +785,18 @@ void Simulator::batchSimulate(int numSimulations)
         // build new speciment objects in order to log history
         copyFromGPU(weights_h, biases_h);
 
-        if (trackingGenetics) {
+        if (trackingGenetics)
+        {
             Specimen **nextGeneration = new Specimen *[totalBots];
 
-            for (int j = 0; j < totalBots; j++) {
+            for (int j = 0; j < totalBots; j++)
+            {
                 Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[j * config.totalNeurons], &weights_h[j * config.totalWeights], "sigmoid");
                 Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[j]]);
 
                 nextGeneration[j] = nextSpecimen;
             }
-            
-           
+
             // bigger constant = harder to make a new species
             float MAGIC_CONSTANT = 5;
             float PROGENITOR_THRESHOLD = 0;

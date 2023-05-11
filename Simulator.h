@@ -42,6 +42,15 @@ public:
     int loadData = 0;
 
 private:
+    void processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
+                   const float* weights_d, const float* biases_d, const float* startingParams_d, float* output_d);
+    
+
+    void processBlocksMutate(int startBlock, int endBlock, int totalBots, float mutateMagnitude, float* weights_d,
+                   float* biases_d, float* output_d, int* parentSpecimen_d, float* nextGenWeights_d,
+                   float* nextGenBiases_d, float* distances_d, float* deltas_d, int* ancestors_d,
+                   float progThreshold, int iterationsCompleted, int shift);
+
     float getAvgDistance();
 
     void formatBotData(int *& layerShapes_h, float *&startingParams_h, 
