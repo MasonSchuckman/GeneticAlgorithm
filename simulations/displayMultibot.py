@@ -97,12 +97,12 @@ def readWeightsAndBiasesAll():
             all_weights.append(weights)
             all_biases.append(biases)
 
-    return layerShapes, all_weights, all_biases
+    return layerShapes, all_weights, all_biases, TOTAL_BOTS
 
 
 # Reads the one bot format
-def read_weights_and_biases():
-    with open('weights.data', 'r') as f:
+def read_weights_and_biases(filename):
+    with open(filename, 'r') as f:
         data = f.read()
 
     weights_start = data.index("net_weights") + 13
@@ -184,10 +184,13 @@ def get_actions_multibot(state, net_weights, net_biases):
     return gamestate
 
 # Read in the bots' networks
-layershapes, allWeights, allBiases = readWeightsAndBiasesAll()
+layershapes, allWeights, allBiases, numBots = readWeightsAndBiasesAll()
 converted_all_weights = convert_weights(allWeights, layershapes)
 
-NUM_BOTS = 2
+# how many bots (at most) do you want to show?
+NUM_BOTS = 20
+
+NUM_BOTS = min(NUM_BOTS,numBots)
 bestoffset = 0
 # Define initial bot states, target positions and networks
 bots = []
@@ -228,11 +231,11 @@ while True:
         #state of the sim on this iter
         state = []
 
-        state.append(bots[i % 2]['posx'])
-        state.append(bots[i % 2]['posy'])
+        state.append(bots[i % NUM_BOTS]['posx'])
+        state.append(bots[i % NUM_BOTS]['posy'])
 
-        state.append(bots[i % 2]['velx'])
-        state.append(bots[i % 2]['vely'])
+        state.append(bots[i % NUM_BOTS]['velx'])
+        state.append(bots[i % NUM_BOTS]['vely'])
 
         otherInfo = False
 
@@ -270,9 +273,9 @@ while True:
         bot['posy'] += bot['vely']
 
         activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
-        display_activations(activations_left, converted_all_weights[i], net_displays[i])
+        #display_activations(activations_left, converted_all_weights[i], net_displays[i])
         #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
-        screen.blit(net_displays[i], net_locations[i])
+        #screen.blit(net_displays[i], net_locations[i])
 
     # Get current mouse positions and update target positions
     mouse_pos = pygame.mouse.get_pos()
