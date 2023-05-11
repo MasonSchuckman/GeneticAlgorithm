@@ -272,14 +272,12 @@ namespace Kernels
                 if (tid == 0)                
                     (distances)[outputBotOffsets[bot]] = totalDistance;
                 __syncthreads();
-                    // if (blockIdx.x == 0)
-                    //     printf("delta mag = %f\n", deltaMagnitude);
+                   
                     // Check if child is a new species
                     if (deltaMagnitude >= progThreshold)
                     {
                         if (tid == 0)
                             (ancestors)[outputBotOffsets[bot]] = outputBotOffsets[bot] + gen * n;
-
                         __syncthreads();
                         // Reset the deltas for this bot since it is now the prog
                         zeroArray(&(deltas[outputBotOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);

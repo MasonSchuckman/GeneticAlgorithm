@@ -681,7 +681,7 @@ void historyGraph(Taxonomy *history)
 
 void Simulator::batchSimulate(int numSimulations)
 {
-    bool trackingGenetics = false;
+    bool trackingGenetics = true;
 
     printf("num bots = %d, numLayers = %d, num weights = %d, numNeurons = %d\n", bots.size(), config.numLayers, config.totalWeights, config.totalNeurons);
     int totalBots = bots.size();
@@ -744,7 +744,7 @@ void Simulator::batchSimulate(int numSimulations)
             
            
             // bigger constant = harder to make a new species
-            float MAGIC_CONSTANT = 5;
+            float MAGIC_CONSTANT = 50;
             float PROGENITOR_THRESHOLD = 0;
 
             PROGENITOR_THRESHOLD = getAvgDistance();
