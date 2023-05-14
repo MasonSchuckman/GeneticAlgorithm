@@ -50,6 +50,14 @@ FullSimConfig readSimConfig(const std::string &filename)
     if (simType == "TargetSimulation")
     {
         sim = new TargetSimulation;
+    }else 
+    if (simType == "PongSimulation2")
+    {
+        sim = new PongSimulation2;
+    }
+    else if (simType == "MultiBallPong")
+    {
+        sim = new MultiBallPong;
     }
     
     else

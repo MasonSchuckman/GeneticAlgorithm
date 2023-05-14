@@ -2,19 +2,19 @@
     "simulation": "TargetSimulation",
     "neural_net": {
         "num_layers": 3,
-        "layer_shapes": [6, 32, 4],
-        "layer_types" : [1, 0]
+        "layer_shapes": [6, 4, 4],
+        "layer_types" : [0,0]
     },
     "bots_per_sim": 1,
-    "max_iters": 1000,
+    "max_iters": 300,
     "total_bots": 12,
     "num_starting_params": 5,
     "direct_contest": 0,
     "bots_per_team": 0,
-    "generations" :10,
-    "base_mutation_rate" : 0.1,
+    "generations" : 2500,
+    "base_mutation_rate" : 0.01,
     "min_mutation_rate" : 0.000001,
-    "mutation_decay_rate" : 0.992,
-    "shift_effectiveness" : 0.1,
+    "mutation_decay_rate" : 0.998,
+    "shift_effectiveness" : 0.5,
     "load_data" : 0
 }

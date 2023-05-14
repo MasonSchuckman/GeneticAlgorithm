@@ -58,7 +58,7 @@ def readWeightsAndBiasesAll():
 pygame.init()
 
 # Set up the game window
-NETWORK_DISPLAY_WIDTH = 400
+NETWORK_DISPLAY_WIDTH = 600
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
 screen = pygame.display.set_mode((SCREEN_WIDTH + NETWORK_DISPLAY_WIDTH * 2, SCREEN_HEIGHT))
@@ -73,8 +73,8 @@ PADDLE_HEIGHT = 62
 BALL_SIZE = 10
 
 # Define paddle and ball speeds
-PADDLE_SPEED = 6
-BALL_SPEED = 7
+PADDLE_SPEED = 5
+BALL_SPEED = 8
 SPEED_UP_RATE = 1.00
 # Define game colors
 BLACK = (50, 50, 0)
@@ -84,7 +84,7 @@ WHITE = (255, 255, 255)
 ball_x = SCREEN_WIDTH // 2
 ball_y = SCREEN_HEIGHT // 2
 ball_vx = random.choice([-BALL_SPEED, BALL_SPEED])
-ball_vy = 0 #random.uniform(-BALL_SPEED, BALL_SPEED)
+ball_vy = random.uniform(-BALL_SPEED, BALL_SPEED)
 left_paddle_x = PADDLE_WIDTH / 2
 left_paddle_y = SCREEN_HEIGHT // 2
 right_paddle_x = PADDLE_WIDTH / 2 + SCREEN_WIDTH - PADDLE_WIDTH
@@ -226,6 +226,15 @@ while running:
         else:
             right_paddle_y += acceleration[0]
 
+        #player = False
+        mouse_pos = pygame.mouse.get_pos()
+        #print(mouse_pos[0])
+        if abs(mouse_pos[0] - SCREEN_WIDTH // 2 - NETWORK_DISPLAY_WIDTH) < (SCREEN_WIDTH / 2 + 20):
+            
+            target = []
+            targety = mouse_pos[1]# - SCREEN_HEIGHT / 2
+            right_paddle_y = targety
+
         # Keep paddles within screen boundaries
         if left_paddle_y < 0:
             left_paddle_y = 0
@@ -236,8 +245,7 @@ while running:
         elif right_paddle_y > SCREEN_HEIGHT - PADDLE_HEIGHT:
             right_paddle_y = SCREEN_HEIGHT - PADDLE_HEIGHT
 
-        #draw neural net
-        
+        #draw neural net        
         activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
         display_activations(activations_left, converted_all_weights[i], net_displays[i])
         #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)

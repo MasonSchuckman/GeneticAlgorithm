@@ -3,6 +3,7 @@ import random
 import numpy as np
 import math
 import struct
+from network_visualizer import *
 
 #nvcc -rdc=true -lineinfo -o runner .\biology\Genome.cpp .\Simulator.cu .\Runner.cu .\Kernels.cu .\simulations\BasicSimulation.cu .\simulations\TargetSimulation.cu .\simulations\MultibotSimulation.cu .\simulations\AirHockeySimulation.cu .\simulations\PongSimulation.cu
 
@@ -12,7 +13,7 @@ def readWeightsAndBiasesAll():
     with open("allBots.data", "rb") as infile:
         # Read the total number of bots
         TOTAL_BOTS = struct.unpack('i', infile.read(4))[0]
-
+        TOTAL_BOTS = 2
         # Read the total number of weights and neurons
         totalWeights = struct.unpack('i', infile.read(4))[0]
         totalNeurons = struct.unpack('i', infile.read(4))[0]
@@ -56,24 +57,33 @@ def readWeightsAndBiasesAll():
 pygame.init()
 
 # Set up the game window
+NETWORK_DISPLAY_WIDTH = 600
+
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+screen = pygame.display.set_mode((SCREEN_WIDTH + NETWORK_DISPLAY_WIDTH * 2, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
 pygame.display.set_caption("Pong")
 
 # Define paddle and ball dimensions
 PADDLE_WIDTH = 10
-PADDLE_HEIGHT = 50
+PADDLE_HEIGHT = 60
 BALL_SIZE = 10
 
 # Define paddle and ball speeds
-PADDLE_SPEED = 15
-BALL_SPEED = 6
+PADDLE_SPEED = 10
+BALL_SPEED = 5
 SPEED_UP_RATE = 1.00
 # Define game colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+
+
+network_display_left = pygame.Surface((NETWORK_DISPLAY_WIDTH, SCREEN_HEIGHT))
+network_display_right = pygame.Surface((NETWORK_DISPLAY_WIDTH, SCREEN_HEIGHT))
+
+net_displays = [network_display_left, network_display_right]
+net_locations = [(0,0), (SCREEN_WIDTH + NETWORK_DISPLAY_WIDTH, 0)]
 
 # Define game state variables
 ball_x = SCREEN_WIDTH // 2
@@ -96,6 +106,7 @@ best = 0
 layershapes, all_weights, all_biases = readWeightsAndBiasesAll()
 networks = [{'weights': all_weights[best], 'biases': all_biases[best]},
             {'weights': all_weights[best + 1], 'biases': all_biases[best + 1]}]
+converted_all_weights = convert_weights(all_weights, layershapes)
 
 
 
@@ -138,9 +149,19 @@ def get_actions_pong(state, net_weights, net_biases):
     #print(output)
     gamestate = [None] * 2
 
-    
-    gamestate[0] = min(1, max(-1, output[0])) * PADDLE_SPEED
+    #print('output = ', output)
+    #gamestate[0] = min(1, max(-1, output[0])) * PADDLE_SPEED
+    max_val = output[0]
+    choice = 0
 
+    for action in range(1, 3):
+        #if action != 1:
+        if output[action] > max_val:
+            max_val = output[action]
+            choice = action
+    #print("max val = {}, choice = {}".format(max_val, choice))
+    # Update bot's position
+    gamestate[0] = (choice - 1) * PADDLE_SPEED  # left paddle y += action * paddle speed
     
     #print(gamestate)
     
@@ -150,6 +171,7 @@ scores = [0,0]
 # Main game loop
 running = True
 while running:
+    screen.fill(BLACK)
     # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -196,6 +218,12 @@ while running:
         elif right_paddle_y > SCREEN_HEIGHT - PADDLE_HEIGHT:
             right_paddle_y = SCREEN_HEIGHT - PADDLE_HEIGHT
 
+        #draw neural net        
+        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
+        display_activations(activations_left, converted_all_weights[i], net_displays[i])
+        #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
+        screen.blit(net_displays[i], net_locations[i])
+
     # update game state
     for ball in range (2):
             
@@ -232,15 +260,14 @@ while running:
             #left_paddle_y = SCREEN_HEIGHT // 2
 
         # draw game objects
-        if ball == 0:
-            screen.fill(BLACK)
-        pygame.draw.rect(screen, WHITE, (left_paddle_x, left_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
-        pygame.draw.rect(screen, WHITE, (right_paddle_x, right_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
+          
+        pygame.draw.rect(screen, WHITE, (left_paddle_x + NETWORK_DISPLAY_WIDTH, left_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
+        pygame.draw.rect(screen, WHITE, (right_paddle_x + NETWORK_DISPLAY_WIDTH, right_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))
         
         if ball == 0:
-            pygame.draw.circle(screen, (255,255,0), (int(balls[ball][0]), int(balls[ball][1])), BALL_SIZE)
+            pygame.draw.circle(screen, (255,255,0), (int(balls[ball][0]) + NETWORK_DISPLAY_WIDTH, int(balls[ball][1])), BALL_SIZE)
         else:
-            pygame.draw.circle(screen, (0,255,255), (int(balls[ball][0]), int(balls[ball][1])), BALL_SIZE)
+            pygame.draw.circle(screen, (0,255,255), (int(balls[ball][0]) + NETWORK_DISPLAY_WIDTH, int(balls[ball][1])), BALL_SIZE)
 
         #DRAW THE PLAYER SCORES
         # Draw the scores
@@ -250,8 +277,8 @@ while running:
         score1_rect = score1_text.get_rect()
         score2_rect = score2_text.get_rect()
         spacing = 20
-        score1_rect.midtop = (SCREEN_WIDTH // 2 - spacing, 10)
-        score2_rect.midtop = (SCREEN_WIDTH // 2 + spacing, 10)
+        score1_rect.midtop = (SCREEN_WIDTH // 2 - spacing + NETWORK_DISPLAY_WIDTH, 10)
+        score2_rect.midtop = (SCREEN_WIDTH // 2 + spacing + NETWORK_DISPLAY_WIDTH, 10)
         screen.blit(score1_text, score1_rect)
         screen.blit(score2_text, score2_rect)
         pygame.display.flip()

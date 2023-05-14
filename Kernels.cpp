@@ -64,7 +64,7 @@ namespace Kernels
         // ReLU
         case 1:
         {
-            for (int i = 0; i < output_size; i++)
+            for (int i = 0; i < output_size; i++)            
                 output[i] = output[i] > 0 ? output[i] : 0; // max(output[i],0)
         }
         break;
@@ -128,18 +128,22 @@ namespace Kernels
             childSpecies[outputBotOffsets[0]] = winnerBotOffset;
             childSpecies[outputBotOffsets[1]] = winnerBotOffset;
 
-            float biasMagnification = 10.0f;
+            float biasMagnification = 1.0f;
+            
 
             float distance = 0;       // Distance from the parent
             float deltaMagnitude = 0; // deltaMagnitude is the L1 norm of a bot's genome and the progenitor it decended from.
 
             for (int bot = 0; bot < 2; bot++)
             {
+                float adjRandomMagnitude = randomMagnitude;
+                if(bot == 0)
+                    adjRandomMagnitude /= 10;
                 // Write this bot's updated weights
                 for (int i = 0; i < config_d.totalWeights; i++)
                 {
-                    if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
-                        rand = ((double)std::rand() / (RAND_MAX)) * randomMagnitude * 2 - randomMagnitude;
+                    //if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
+                    rand = ((double)std::rand() / (RAND_MAX)) * adjRandomMagnitude * 2 - adjRandomMagnitude;
                     distance += std::abs(rand);
                     //printf("INFO : %d %d\n", i + outputBotOffsets[bot] * config_d.paddedNetworkSize, config_d.paddedNetworkSize);
                     (deltas)[i + outputBotOffsets[bot] * config_d.paddedNetworkSize] += rand;
@@ -150,8 +154,8 @@ namespace Kernels
                 // We can skip the first layer since the input layer shouldn't have biases.
                 for (int i = 0 + config_d.layerShapes[0]; i < config_d.totalNeurons; i++)
                 {
-                    if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
-                        rand = ((double)std::rand() / (RAND_MAX)) * randomMagnitude * biasMagnification * 2 - randomMagnitude * biasMagnification;
+                    //if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
+                    rand = ((double)std::rand() / (RAND_MAX)) * adjRandomMagnitude * biasMagnification * 2 - adjRandomMagnitude * biasMagnification;
                     distance += std::abs(rand);
 
                     (deltas)[i + config_d.totalWeights + outputBotOffsets[bot] * config_d.paddedNetworkSize] += rand;
@@ -215,6 +219,8 @@ namespace Kernels
             float *weights = s;
             float *biases = weights + config_d.totalWeights * config_d.bpb;
             float *activations = biases + config_d.totalNeurons * config_d.bpb;
+
+            
 
             // Copy this block's weights and biases to the shared arrays.
             for (int i = 0; i < config_d.totalWeights * config_d.bpb; i++)

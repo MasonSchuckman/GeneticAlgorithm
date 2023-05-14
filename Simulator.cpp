@@ -7,32 +7,32 @@
 
 using std::vector;
 
-constexpr int NUM_THREADS = 4; // Number of threads
+constexpr int NUM_THREADS = 6; // Number of threads
 
 // Function to be executed by each thread
-void Simulator::processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
-                                      const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d)
+void processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
+                                      const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d, Simulation**derived)
 {
 
     for (int block = startBlock; block < endBlock; block++)
     {
         float *sharedMem = new float[sharedMemNeeded];
-        Kernels::simulateShared2(block, sharedMem, numBlocks, &derived, weights_d, biases_d, startingParams_d,
+        Kernels::simulateShared2(block, sharedMem, numBlocks, derived, weights_d, biases_d, startingParams_d,
                                  output_d);
         delete[] sharedMem;
     }
 }
 
 // Function to be executed by each thread
-void Simulator::processBlocksMutate(int startBlock, int endBlock, int totalBots, float mutateMagnitude, float *weights_d,
+void processBlocksMutate(int startBlock, int endBlock, int totalBots, float mutateMagnitude, float *weights_d,
                                     float *biases_d, float *output_d, int *parentSpecimen_d, float *nextGenWeights_d,
                                     float *nextGenBiases_d, float *distances_d, float *deltas_d, int *ancestors_d,
-                                    float progThreshold, int iterationsCompleted, int shift)
+                                    float progThreshold, int iterationsCompleted, int shift, int paddedNetworkSize)
 {
 
     for (int block = startBlock; block < endBlock; block++)
     {
-        float *sharedMem = new float[config.paddedNetworkSize];
+        float *sharedMem = new float[paddedNetworkSize];
         Kernels::mutate(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
                         nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold,
                         iterationsCompleted, shift);
@@ -504,6 +504,8 @@ float Simulator::getAvgDistance()
 #include <chrono>
 void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ancestors_h, float *distances_h)
 {
+    int printInterval = 25;
+
     int totalBots = bots.size();
     int tpb = 32; // threads per block
     int numBlocks = (totalBots / config.bpb);
@@ -549,7 +551,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
 
             // Create a thread and pass the necessary arguments
             threads.emplace_back(std::thread(processBlocksSimulate, startBlock, endBlock, sharedMemNeeded, numBlocks,
-                                 weights_d, biases_d, startingParams_d, output_d));
+                                 weights_d, biases_d, startingParams_d, output_d, &derived));
         }
 
         // Wait for all threads to finish
@@ -562,8 +564,8 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     // any errors encountered during the launch.
     auto end_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    if (iterationsCompleted % 1 == 0)
-        std::cout << "Simulation time taken: " << elapsed_time << " ms\n";
+    if (iterationsCompleted % printInterval == 0)
+        std::cout << "Simulation time taken: " << elapsed_time << " ms\t";
 
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
@@ -605,7 +607,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
             // Create a thread and pass the necessary arguments
             threads.emplace_back(std::thread(processBlocksMutate, startBlock, endBlock, totalBots, mutateMagnitude, weights_d,
                                  biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d,
-                                 distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift));
+                                 distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift, config.paddedNetworkSize));
         }
 
         // Wait for all threads to finish
@@ -619,8 +621,8 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     end_time = std::chrono::high_resolution_clock::now();
 
     elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_mutate).count();
-    if (iterationsCompleted % 25 == 0)
-        std::cout << "Mutation time taken: " << elapsed_time << " ms\n";
+    if (iterationsCompleted % printInterval == 0)
+        std::cout << "Mutation time taken: " << elapsed_time << " ms\t";
 
     // swap which weights/biases arrays are "current"
     float *temp = nextGenBiases_d;
@@ -640,7 +642,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
 
     // Used to decide where to write nextGen population data to
     iterationsCompleted++;
-    if (iterationsCompleted % 25 == 0)
+    if (iterationsCompleted % printInterval == 0)
     {
         elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
 
@@ -817,6 +819,10 @@ void Simulator::batchSimulate(int numSimulations)
             previousGeneration = nextGeneration;
             // printAncestry(previousGeneration[0]->species, 0);
         }
+
+        //if(i % 100 == 0)
+        //    writeWeightsAndBiasesAll(weights_h, biases_h, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);
+
     }
     if (trackingGenetics)
         Taxonomy::writeCompositionsData(compositions, "comps.txt");

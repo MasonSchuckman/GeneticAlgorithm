@@ -3,5 +3,7 @@
 
 
 #include "simulations/TargetSimulation.h"
+#include "simulations/PongSimulation2.h"
+#include "simulations/MultiBallPong.h"
 
 #endif

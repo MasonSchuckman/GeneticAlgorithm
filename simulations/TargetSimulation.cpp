@@ -30,8 +30,8 @@ void TargetSimulation::getStartingParams(float * startingParams){
     //random starting pos
     float startingX = distr(eng);
     float startingY = distr(eng);
-
-    double r = 5.0 + iterationsCompleted / 10; // radius of circle
+    srand(iterationsCompleted);
+    double r = 5.0 + iterationsCompleted / 50; // radius of circle
     double angle = ((double)rand() / RAND_MAX) * 2 * 3.14159; // generate random angle between 0 and 2*pi
     targetX = r * std::cos(angle); // compute x coordinate
     targetY = r * std::sin(angle); // compute y coordinate
@@ -158,6 +158,10 @@ int TargetSimulation::checkFinished(int tid, int block, float *gamestate)
         gamestate[5] = new_y;
     
     }
+
+    // if(block == 0 && dist < epsilon){
+    //     printf("Reached target, iter = %d\n", (int)gamestate[7]);
+    // }
 
     // return dist < epsilon;
     return false;
