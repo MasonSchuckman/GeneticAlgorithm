@@ -1,9 +1,9 @@
 {
     "simulation": "MultiBallPong",
     "neural_net": {
-        "num_layers": 7,
-        "layer_shapes": [10,8,7,6,5,4,3],
-        "layer_types" : [1,1,1,1,1,0],
+        "num_layers": 12,
+        "layer_shapes": [10,10,9,8,7,6,6,6,6,6,6,1],
+        "layer_types" : [1,1,1,1,1,1,1,1,1,1,0],
 
         "num_layers2": 13,
         "layer_shapes2": [10,10,9,8,8,8,8,8,8,8,8,8,3],
@@ -15,10 +15,10 @@
     "num_starting_params": 9,
     "direct_contest": 1,
     "bots_per_team": 0,
-    "generations" : 1300,
+    "generations" : 1000,
     "base_mutation_rate" : 2,
     "min_mutation_rate" : 0.000001,
     "mutation_decay_rate" : 0.995,
-    "shift_effectiveness" : 0.01,
+    "shift_effectiveness" : 0.05,
     "load_data" : 0
 }

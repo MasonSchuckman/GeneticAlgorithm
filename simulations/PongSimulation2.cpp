@@ -88,13 +88,13 @@ void PongSimulation2::setActivations(int tid, int block, float *gamestate, float
     // rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);
 
     activs[0][4] = gamestate[5] / HEIGHT; // left paddle y
-    // activs[0][5] = (gamestate[7] + rand) / HEIGHT; // right paddle y //skew the other bot's pos a little
-    activs[0][5] = 0;
+    activs[0][5] = (gamestate[7]) / HEIGHT; // right paddle y //skew the other bot's pos a little
+    //activs[0][5] = 0;
     // rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);
 
     activs[1][4] = gamestate[7] / HEIGHT; // right paddle y
-    // activs[1][5] = (gamestate[5] + rand) / HEIGHT; // left paddle y
-    activs[1][5] = 0;
+    activs[1][5] = (gamestate[5]) / HEIGHT; // left paddle y
+    //activs[1][5] = 0;
 }
 
 // The actions are the outputs of the neural networks that control the paddles. They are the normalized velocities of the paddles in the y direction
@@ -109,6 +109,29 @@ void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate
     //     printf("\nActions: %f, %f\n", actions[0][0], actions[1][0]);
 
     // }
+
+    // Update the paddle positions based on actions and physics
+    gamestate[5] += fminf(1.0, fmaxf(-1.0, actions[0][0])) * PADDLE_SPEED; // left paddle y += action * paddle speed
+    gamestate[7] += fminf(1.0, fmaxf(-1.0, actions[1][0])) * PADDLE_SPEED; // right paddle y += action * paddle speed
+
+    // for(int bot = 0; bot < 2; bot++){
+    //     float max = actions[bot][0];
+    //     int choice = 0;
+        
+    //     for(int action = 1; action < 3; action++){
+    //         if(actions[bot][action] > max)
+    //         {
+    //             max = actions[bot][action];
+    //             choice = action;
+    //         }
+    //     }
+    //     //printf("Max val = %f, choice = %d\n", max, choice);
+    //     // Update bot's position
+    //     gamestate[5 + bot * 2] += (choice - 1) * PADDLE_SPEED; // left paddle y += action * paddle speed
+
+    // }
+
+    
     // Update the ball position and velocity based on physics
     gamestate[0] += gamestate[2]; // ball x += ball vx
     gamestate[1] += gamestate[3]; // ball y += ball vy
@@ -118,6 +141,7 @@ void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate
     if (gamestate[1] < BALL_RADIUS || gamestate[1] > HEIGHT - BALL_RADIUS)
     {                       // top or bottom wall collision
         gamestate[3] *= -1; // invert ball vy
+        gamestate[1] += gamestate[3]; // ball y += ball vy
     }
 
     // calculate the ball's new vx and vy after a collision with the left paddle
@@ -157,27 +181,10 @@ void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate
         gamestate[10]++;
     }
 
-    // Update the paddle positions based on actions and physics
-    gamestate[5] += fminf(1.0, fmaxf(-1.0, actions[0][0])) * PADDLE_SPEED; // left paddle y += action * paddle speed
-    gamestate[7] += fminf(1.0, fmaxf(-1.0, actions[1][0])) * PADDLE_SPEED; // right paddle y += action * paddle speed
+    
 
-    // Clamp the paddle positions to the screen boundaries
-    if (gamestate[5] < PADDLE_HEIGHT / 2)
-    {
-        gamestate[5] = PADDLE_HEIGHT / 2;
-    }
-    if (gamestate[5] > HEIGHT - PADDLE_HEIGHT / 2)
-    {
-        gamestate[5] = HEIGHT - PADDLE_HEIGHT / 2;
-    }
-    if (gamestate[7] < PADDLE_HEIGHT / 2)
-    {
-        gamestate[7] = PADDLE_HEIGHT / 2;
-    }
-    if (gamestate[7] > HEIGHT - PADDLE_HEIGHT / 2)
-    {
-        gamestate[7] = HEIGHT - PADDLE_HEIGHT / 2;
-    }
+
+    
 
     gamestate[8]++;
 }
@@ -203,14 +210,14 @@ void PongSimulation2::setOutput(int tid, int block, float *output, float *gamest
     // if (gamestate[10] > gamestate[9])
     if (gamestate[0] < 0)
     { // left paddle lost
-        output[block * 2 + 0] = -1;
+        output[block * 2 + 0] = -abs(gamestate[5] - gamestate[1]); // The bot who loses gets a score of negative <dist to ball> (closer to ball the better)
         output[block * 2 + 1] = gamestate[10];
     }
     else // if (gamestate[0] > WIDTH)
     {
         // right paddle lost
         output[block * 2 + 0] = gamestate[9];
-        output[block * 2 + 1] = -1;
+        output[block * 2 + 1] = -abs(gamestate[7] - gamestate[1]);
     }
     if (block == 0 && (int)startingParams_d[8] % 25 == 0)
         printf("Touches: %d, %d\n", (int)gamestate[9], (int)gamestate[10]);

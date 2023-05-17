@@ -40,6 +40,7 @@ public:
     float mutateDecayRate = 0.99f;
     float shiftEffectiveness = 1.0f;
     int loadData = 0;
+    int NUM_THREADS = 4; // Number of threads
 
 private:
     // void processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,

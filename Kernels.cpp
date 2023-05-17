@@ -4,6 +4,25 @@
 
 extern SimConfig config_d;
 
+int tournamentSelection(const int n, float *simulationOutcome, int tournamentSize, std::uniform_int_distribution<> &dis, std::mt19937 &gen)
+{
+
+    int best = 0;
+    float bestFitness = -9999999999999.0f; // Assuming fitness is a value that higher is better
+
+    for (int i = 0; i < tournamentSize; ++i)
+    {
+        int individual = dis(gen);
+        if (simulationOutcome[individual] > bestFitness)
+        {
+            best = individual;
+            bestFitness = simulationOutcome[individual];
+        }
+    }
+
+    return best;
+}
+
 namespace Kernels
 {
     /**
@@ -34,19 +53,19 @@ namespace Kernels
             output[i] = biases[i];
         }
 
-        //for(int tid = 0; tid < 32; tid++){
-            // Compute dot product of input and weights
-            for (int i = 0; i < input_size; i++)
-            {
-                for (int j = 0; j < output_size; j++)
-                //for (int j = tid; j < output_size; j += stride)
+        // for(int tid = 0; tid < 32; tid++){
+        //  Compute dot product of input and weights
+        for (int i = 0; i < input_size; i++)
+        {
+            for (int j = 0; j < output_size; j++)
+            // for (int j = tid; j < output_size; j += stride)
 
-                {
-                    output[j] += inputs[i] * weights[i * output_size + j];
-                }
+            {
+                output[j] += inputs[i] * weights[i * output_size + j];
             }
+        }
         //}
-        
+
         // if(blockIdx == 1){
         //     printf("Output:\n");
         //     for(int i = 0; i < output_size; i++){
@@ -64,7 +83,7 @@ namespace Kernels
         // ReLU
         case 1:
         {
-            for (int i = 0; i < output_size; i++)            
+            for (int i = 0; i < output_size; i++)
                 output[i] = output[i] > 0 ? output[i] : 0; // max(output[i],0)
         }
         break;
@@ -76,7 +95,14 @@ namespace Kernels
                 output[i] = 1.0f / (1.0f + expf(-output[i]));
         }
         break;
-
+        
+        // Tanh
+        case 3:
+        {
+            for (int i = 0; i < output_size; i++)
+                output[i] = tanhf(output[i]);
+        }
+        break;
         // Default is linear
         default:
             break;
@@ -129,7 +155,6 @@ namespace Kernels
             childSpecies[outputBotOffsets[1]] = winnerBotOffset;
 
             float biasMagnification = 1.0f;
-            
 
             float distance = 0;       // Distance from the parent
             float deltaMagnitude = 0; // deltaMagnitude is the L1 norm of a bot's genome and the progenitor it decended from.
@@ -137,15 +162,15 @@ namespace Kernels
             for (int bot = 0; bot < 2; bot++)
             {
                 float adjRandomMagnitude = randomMagnitude;
-                if(bot == 0)
+                if (bot == 0)
                     adjRandomMagnitude /= 10;
                 // Write this bot's updated weights
                 for (int i = 0; i < config_d.totalWeights; i++)
                 {
-                    //if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
+                    // if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
                     rand = ((double)std::rand() / (RAND_MAX)) * adjRandomMagnitude * 2 - adjRandomMagnitude;
                     distance += std::abs(rand);
-                    //printf("INFO : %d %d\n", i + outputBotOffsets[bot] * config_d.paddedNetworkSize, config_d.paddedNetworkSize);
+                    // printf("INFO : %d %d\n", i + outputBotOffsets[bot] * config_d.paddedNetworkSize, config_d.paddedNetworkSize);
                     (deltas)[i + outputBotOffsets[bot] * config_d.paddedNetworkSize] += rand;
                     (nextGenWeights)[i + outputBotOffsets[bot] * config_d.totalWeights] = (allWeights)[i + winnerBotOffset * config_d.totalWeights] + rand;
                 }
@@ -154,7 +179,7 @@ namespace Kernels
                 // We can skip the first layer since the input layer shouldn't have biases.
                 for (int i = 0 + config_d.layerShapes[0]; i < config_d.totalNeurons; i++)
                 {
-                    //if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
+                    // if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
                     rand = ((double)std::rand() / (RAND_MAX)) * adjRandomMagnitude * biasMagnification * 2 - adjRandomMagnitude * biasMagnification;
                     distance += std::abs(rand);
 
@@ -170,9 +195,9 @@ namespace Kernels
                 }
 
                 (distances)[outputBotOffsets[bot]] = totalDistance;
-                //if (block == 0)
-                //    printf("delta mag = %f\n", deltaMagnitude);
-                // Check if child is a new species
+                // if (block == 0)
+                //     printf("delta mag = %f\n", deltaMagnitude);
+                //  Check if child is a new species
                 if (deltaMagnitude >= progThreshold)
                 {
                     (ancestors)[outputBotOffsets[bot]] = outputBotOffsets[bot] + gen * n;
@@ -183,6 +208,91 @@ namespace Kernels
                     {
                         deltas[outputBotOffsets[bot] + i] = 0;
                     }
+                }
+            }
+        }
+
+        return;
+    }
+
+    // Each block will go through each layer of its respective bot(s), and threads will edit individual weights/biases.
+    // The nextGenWeights/biases arrays are the exact same shape and size of the allWeights/biases arrays, but with the genetic information of the next generation.
+    void mutate2(int block, const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome,
+                 float *nextGenWeights, float *nextGenBiases, const int generation, const int shift, std::mt19937 &gen)
+    {
+
+        // prevent OOB errors
+        if (block < n / 2)
+        {
+            float rand = 0;
+            // calcuate the offset for this block's bot(s)
+            int offsetBot1 = block * 2;
+            int offsetBot2 = (block * 2 + shift * 2 + 1) % n;
+            int inputBotOffsets[2]; // The bots we're breeding are selected via tournament selection
+
+            // The output locations are scattered in a way such that no two blocks' output locations will conflict with each other.
+            int outputBotOffsets[2] = {offsetBot1, offsetBot2};
+
+            // Get the two parents
+            int tournamentSize = 3;
+            std::uniform_int_distribution<> dis(0, n - 1);
+            inputBotOffsets[0] = tournamentSelection(n, simulationOutcome, tournamentSize, dis, gen);
+            inputBotOffsets[1] = tournamentSelection(n, simulationOutcome, tournamentSize, dis, gen);
+
+            // Calculate locations for parent and child network locations
+            const float *parentWeights[2] = {(allWeights + inputBotOffsets[0] * config_d.totalWeights), (allWeights + inputBotOffsets[1] * config_d.totalWeights)};
+            const float *parentBiases[2] = {(allBiases + inputBotOffsets[0] * config_d.totalNeurons), (allBiases + inputBotOffsets[1] * config_d.totalNeurons)};
+
+            float *childWeights[2] = {(nextGenWeights + outputBotOffsets[0] * config_d.totalWeights), (nextGenWeights + outputBotOffsets[1] * config_d.totalWeights)};
+            float *childBiases[2] = {(nextGenBiases + outputBotOffsets[0] * config_d.totalNeurons), (nextGenBiases + outputBotOffsets[1] * config_d.totalNeurons)};
+
+            // Copy the parent's DNA to the children
+            for (int i = 0; i < 2; i++)
+            {
+                // printf("Offsets:\n Child: %d, Parent: %d\n", outputBotOffsets[i], inputBotOffsets[i]);
+                memcpy(childWeights[i], parentWeights[i], config_d.totalWeights * sizeof(float));
+                memcpy(childBiases[i], parentBiases[i], config_d.totalNeurons * sizeof(float));
+            }
+
+            // Perform crossover at a random location for the weights
+            std::uniform_int_distribution<> disWeights(0, config_d.totalWeights - 1);
+            int crossoverPoint = disWeights(gen);
+            float avg = 0;
+            for (int i = crossoverPoint; i < config_d.totalWeights; i++)
+            {
+                std::swap(childWeights[0][i], childWeights[1][i]);
+
+                // avg = (childWeights[0][i] + childWeights[1][i]) / 2;
+                // childWeights[0][i] = avg;
+                // childWeights[1][i] = avg;
+            }
+
+            // Perform crossover at a random location for the biases
+            std::uniform_int_distribution<> disBiases(config_d.layerShapes[0], config_d.totalNeurons - 1);
+            crossoverPoint = disBiases(gen);
+
+            for (int i = crossoverPoint; i < config_d.totalNeurons; i++)
+            {
+                std::swap(childBiases[0][i], childBiases[1][i]);
+                // get average
+                // avg = (childBiases[0][i] + childBiases[1][i]) / 2;
+                // childBiases[0][i] = avg;
+                // childBiases[1][i] = avg;
+            }
+
+            // Apply some mutations to the children
+            for (int child = 0; child < 2; child++)
+            {
+                for (int i = 0; i < config_d.totalWeights; i++)
+                {
+                    rand = ((double)std::rand() / (RAND_MAX)) * randomMagnitude * 2 - randomMagnitude;
+                    childWeights[child][i] += rand;
+                }
+
+                for (int i = 0; i < config_d.totalNeurons; i++)
+                {
+                    rand = ((double)std::rand() / (RAND_MAX)) * randomMagnitude * 2 - randomMagnitude;
+                    childBiases[child][i] += rand;
                 }
             }
         }
@@ -219,8 +329,6 @@ namespace Kernels
             float *weights = s;
             float *biases = weights + config_d.totalWeights * config_d.bpb;
             float *activations = biases + config_d.totalNeurons * config_d.bpb;
-
-            
 
             // Copy this block's weights and biases to the shared arrays.
             for (int i = 0; i < config_d.totalWeights * config_d.bpb; i++)

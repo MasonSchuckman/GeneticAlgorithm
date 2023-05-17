@@ -6,7 +6,7 @@ from network_visualizer import *
 # Define constants
 MAP_WIDTH = 50
 MAP_HEIGHT = 50
-SCREEN_SCALE = 16
+SCREEN_SCALE = 14
 MAX_SPEED = 1
 MAX_ACCEL = 0.5
 MAX_ROT_SPEED = 30
@@ -16,7 +16,7 @@ ACTOR_SIZE = 2
 FRICTION = 0.95
 
 
-NETWORK_DISPLAY_WIDTH = 400
+NETWORK_DISPLAY_WIDTH = 600
 # Define game colors
 BLACK = (50, 50, 0)
 WHITE = (255, 255, 255)
@@ -138,12 +138,12 @@ def get_actions_air_hockey(state, net_weights, net_biases):
     gamestate = [None] * 2
 
     # get xAccel
-    gamestate[0] = output[0] * MAX_ACCEL
+    #gamestate[0] = output[0] * MAX_ACCEL
     # get xAccel
-    gamestate[1] = output[1] * MAX_ACCEL
+    #gamestate[1] = output[1] * MAX_ACCEL
     
     #return inputs
-    return gamestate
+    return output
 
 # Read in the bots' networks
 layershapes, allWeights, allBiases = readWeightsAndBiasesAll()
@@ -155,7 +155,7 @@ bestoffset = 0
 # Define initial bot states, ball positions and networks
 bots = []
 networks = []
-ball = {'posx': 0, 'posy': -5, 'velx': 0, 'vely': 0}
+ball = {'posx': 0, 'posy': 0, 'velx': 0, 'vely': 0}
 gamestatus = {'tick': 0, 'gen': 0}
 bot1 = {'posx': -10, 'posy': 10, 'velx': 0, 'vely': 0, 'score': 0}
 bots.append(bot1)
@@ -186,7 +186,7 @@ while True:
             quit()
 
     
-
+    states = []
     # Get actions from neural networks
     for i in range(NUM_BOTS):
         bot = bots[i]
@@ -198,62 +198,52 @@ while True:
         state.append(bots[i % 2]['posx'] / limits[0])
         state.append(bots[i % 2]['posy'] / limits[1])
 
-        state.append(bots[i % 2]['velx'] / limits[2])
-        state.append(bots[i % 2]['vely'] / limits[3])
-
-        #state.append(bots[i % 2]['score'])
-        state.append(0)
-
         otherInfo = False
 
         if otherInfo:
             state.append(bots[(i + 1) % 2]['posx'] / limits[0])
-            state.append(bots[(i + 1) % 2]['posy'] / limits[1])    
-
-            state.append(bots[(i + 1) % 2]['velx'] / limits[2])
-            state.append(bots[(i + 1) % 2]['vely'] / limits[3])
-            #state.append(bots[(i + 1) % 2]['score'])
-            state.append(0)
+            state.append(bots[(i + 1) % 2]['posy'] / limits[1]) 
         else:
             state.append(0) # x pos
-            state.append(0) # y pos
-            state.append(0) # x vel
-            state.append(0) # y vel
-            state.append(0) # score
+            state.append(0) # y pos            
 
         state.append(ball['posx'] / limits[0])
         state.append(ball['posy'] / limits[1])
 
         state.append(ball['velx'] / limits[2])
         state.append(ball['vely'] / limits[3])
-        #state.append(gamestatus['tick'])
-        state.append(0)
+        states.append(state)
 
         #Reverse x related info for bot B
         if i % 2 == 1:
-            for entity in range(3):
-                state[0 + entity * 5] *= -1
-                state[2 + entity * 5] *= -1
+            for j in range(8):
+                if j % 2 == 0:
+                    state[j] *= -1
+                
 
         inputs = get_actions_air_hockey(state, network['weights'], network['biases'])
         
         if i == 0:
             ball['velx'] *= FRICTION
             ball['vely'] *= FRICTION
+        
+        velx = inputs[0]
+        vely = inputs[1]
 
-        # accelx = inputs[0]
-        # accely = inputs[1]
-        # accel = math.hypot(accelx, accely)
+        if i == 1:
+            velx *= -1
+        
+        accel = math.hypot(velx, vely)
 
-        # if(accel > MAX_ACCEL):
-        #     f = MAX_ACCEL / accel 
-        #     accelx *= f
-        #     accely *= f
+        if(accel > MAX_SPEED):
+            f = MAX_SPEED / accel 
+            velx *= f
+            vely *= f
 
         # Testing letting the bots control velocity directly
 
-        bot['velx'] = inputs[0] * MAX_SPEED
-        bot['vely'] = inputs[1] * MAX_SPEED
+        bot['velx'] = velx
+        bot['vely'] = vely
         speed = math.hypot(bot['velx'], bot['vely'])
         if(speed > MAX_SPEED):
             f = MAX_SPEED / speed 
@@ -262,6 +252,21 @@ while True:
 
         bot['posx'] += bot['velx']
         bot['posy'] += bot['vely']
+        
+        if math.hypot(bot['posx'], bot['posy']) > GOAL_DIST * 2:
+            bot['posx'] /= 2
+            bot['posy'] /= 2
+
+        if(i % 2 == 1):
+            #print('bot = ',bot['posx'], bot['posy'])
+           
+            mouse_pos = pygame.mouse.get_pos()
+            #print('mouse = ', mouse_pos)
+            #print(mouse_pos[0])
+            if abs(mouse_pos[0] - SCREEN_WIDTH // 2 - NETWORK_DISPLAY_WIDTH) < (SCREEN_WIDTH / 2 + 20):
+                bot['posx'] = (mouse_pos[0] - SCREEN_WIDTH // 2 - NETWORK_DISPLAY_WIDTH) / SCREEN_SCALE
+                bot['posy'] = (mouse_pos[1] - SCREEN_HEIGHT // 2) / SCREEN_SCALE
+                
 
         botDist = [0, 0]
         for j in range(2):
@@ -276,8 +281,11 @@ while True:
             if (dist < ACTOR_SIZE):
                 print("HIT")
                 #exit()
-                ball['velx'] = bots[i]['velx']
-                ball['vely'] = bots[i]['vely']
+                xDif = ball['posx'] - bots[i]['posx']
+                yDif = ball['posy'] - bots[i]['posy']
+
+                ball['velx'] = xDif / 4
+                ball['vely'] = yDif / 4
                 bots[i]['score'] += 100
         
 
@@ -310,13 +318,12 @@ while True:
             (bot['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 
         #draw neural net
-        
-        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
+        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], states[i], layershapes, numLayers)
         display_activations(activations_left, converted_all_weights[i], net_displays[i])
         #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
         screen.blit(net_displays[i], net_locations[i])
 
-    pygame.draw.circle(screen, (125, 125, 125), 
+    pygame.draw.circle(screen, (225, 225, 225), 
         ((ball['posx'] + MAP_WIDTH / 2) * SCREEN_SCALE + NETWORK_DISPLAY_WIDTH, 
         (ball['posy'] + MAP_HEIGHT / 2) * SCREEN_SCALE), ACTOR_SIZE / 2 * SCREEN_SCALE)
 

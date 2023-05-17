@@ -101,25 +101,48 @@ void MultiBallPong::setActivations(int tid, int block, float *gamestate, float *
 
         for (int i = 0; i < 4; i++)
         {
-            if (i == 0)
-            {
-                // Ball 1
-                activs[0][i] = fabsf(gamestate[4] - gamestate[0]) / LimitsMultiball[i];
-                activs[1][i] = fabsf(gamestate[6] - gamestate[0]) / LimitsMultiball[i];
+            if(iter % 2 == 0){
+                if (i == 0)
+                {
+                    // Ball 1
+                    activs[0][i] = fabsf(gamestate[4] - gamestate[0]) / LimitsMultiball[i];
+                    activs[1][i] = fabsf(gamestate[6] - gamestate[0]) / LimitsMultiball[i];
 
-                // Ball 2
-                activs[0][i + 6] = fabsf(gamestate[4] - gamestate[ball2]) / LimitsMultiball[i];
-                activs[1][i + 6] = fabsf(gamestate[6] - gamestate[ball2]) / LimitsMultiball[i];
-            }
-            else
-            {
-                // Ball 1
-                activs[0][i] = gamestate[i] / LimitsMultiball[i];
-                activs[1][i] = gamestate[i] / LimitsMultiball[i];
+                    // Ball 2
+                    activs[0][i + 6] = fabsf(gamestate[4] - gamestate[ball2]) / LimitsMultiball[i];
+                    activs[1][i + 6] = fabsf(gamestate[6] - gamestate[ball2]) / LimitsMultiball[i];
+                }
+                else
+                {
+                    // Ball 1
+                    activs[0][i] = gamestate[i] / LimitsMultiball[i];
+                    activs[1][i] = gamestate[i] / LimitsMultiball[i];
 
-                // Ball 2
-                activs[0][i + 6] = gamestate[i + ball2] / LimitsMultiball[i];
-                activs[1][i + 6] = gamestate[i + ball2] / LimitsMultiball[i];
+                    // Ball 2
+                    activs[0][i + 6] = gamestate[i + ball2] / LimitsMultiball[i];
+                    activs[1][i + 6] = gamestate[i + ball2] / LimitsMultiball[i];
+                }
+            }else{
+                if (i == 0)
+                {
+                    // Ball 1
+                    activs[0][i + 6] = fabsf(gamestate[4] - gamestate[0]) / LimitsMultiball[i];
+                    activs[1][i + 6] = fabsf(gamestate[6] - gamestate[0]) / LimitsMultiball[i];
+
+                    // Ball 2
+                    activs[0][i] = fabsf(gamestate[4] - gamestate[ball2]) / LimitsMultiball[i];
+                    activs[1][i] = fabsf(gamestate[6] - gamestate[ball2]) / LimitsMultiball[i];
+                }
+                else
+                {
+                    // Ball 1
+                    activs[0][i + 6] = gamestate[i] / LimitsMultiball[i];
+                    activs[1][i + 6] = gamestate[i] / LimitsMultiball[i];
+
+                    // Ball 2
+                    activs[0][i] = gamestate[i + ball2] / LimitsMultiball[i];
+                    activs[1][i] = gamestate[i + ball2] / LimitsMultiball[i];
+                }
             }
         }
         activs[1][2] *= -1;
@@ -146,6 +169,50 @@ void MultiBallPong::eval(int tid, int block, float **actions, float *gamestate)
         float randDirRate = 0.9;
         int balls = 2;
         int ballIdx[2] = {0, ball2};
+
+
+        // Update the paddle positions based on actions and physics
+        //printf("output : %f %f %f\n", actions[0][0], actions[0][1], actions[0][2]);
+
+        // action 0 = go up, 1 = stay still, 2 = go down
+        // for(int bot = 0; bot < 2; bot++){
+        //     float max = actions[bot][0];
+        //     int choice = 0;
+            
+        //     for(int action = 1; action < 3; action++){
+        //         if(actions[bot][action] > max)
+        //         {
+        //             max = actions[bot][action];
+        //             choice = action;
+        //         }
+        //     }
+        //     //printf("Max val = %f, choice = %d\n", max, choice);
+        //     // Update bot's position
+        //     gamestate[5 + bot * 2] += (choice - 1) * PADDLE_SPEED; // left paddle y += action * paddle speed
+
+        // }
+        gamestate[5] += fminf(1.0, fmaxf(-1.0, actions[0][0])) * PADDLE_SPEED; // left paddle y += action * paddle speed
+        gamestate[7] += fminf(1.0, fmaxf(-1.0, actions[1][0])) * PADDLE_SPEED; // right paddle y += action * paddle speed
+
+        // Clamp the paddle positions to the screen boundaries
+        if (gamestate[5] < PADDLE_HEIGHT / 2)
+        {
+            gamestate[5] = PADDLE_HEIGHT / 2;
+        }
+        if (gamestate[5] > HEIGHT - PADDLE_HEIGHT / 2)
+        {
+            gamestate[5] = HEIGHT - PADDLE_HEIGHT / 2;
+        }
+        if (gamestate[7] < PADDLE_HEIGHT / 2)
+        {
+            gamestate[7] = PADDLE_HEIGHT / 2;
+        }
+        if (gamestate[7] > HEIGHT - PADDLE_HEIGHT / 2)
+        {
+            gamestate[7] = HEIGHT - PADDLE_HEIGHT / 2;
+        }
+
+
 
         for (int i = 0; i < balls; i++)
         {
@@ -206,47 +273,7 @@ void MultiBallPong::eval(int tid, int block, float **actions, float *gamestate)
         }
 
 
-        // Update the paddle positions based on actions and physics
-        //printf("output : %f %f %f\n", actions[0][0], actions[0][1], actions[0][2]);
-
-        // action 0 = go up, 1 = stay still, 2 = go down
-        for(int bot = 0; bot < 2; bot++){
-            float max = actions[bot][0];
-            int choice = 0;
-            
-            for(int action = 1; action < 3; action++){
-                if(actions[bot][action] > max)
-                {
-                    max = actions[bot][action];
-                    choice = action;
-                }
-            }
-            //printf("Max val = %f, choice = %d\n", max, choice);
-            // Update bot's position
-            gamestate[5 + bot * 2] += (choice - 1) * PADDLE_SPEED; // left paddle y += action * paddle speed
-
-        }
-        // gamestate[5] += fminf(1.0, fmaxf(-1.0, actions[0][0])) * PADDLE_SPEED; // left paddle y += action * paddle speed
-        // gamestate[7] += fminf(1.0, fmaxf(-1.0, actions[1][0])) * PADDLE_SPEED; // right paddle y += action * paddle speed
-
-        // Clamp the paddle positions to the screen boundaries
-        if (gamestate[5] < PADDLE_HEIGHT / 2)
-        {
-            gamestate[5] = PADDLE_HEIGHT / 2;
-        }
-        if (gamestate[5] > HEIGHT - PADDLE_HEIGHT / 2)
-        {
-            gamestate[5] = HEIGHT - PADDLE_HEIGHT / 2;
-        }
-        if (gamestate[7] < PADDLE_HEIGHT / 2)
-        {
-            gamestate[7] = PADDLE_HEIGHT / 2;
-        }
-        if (gamestate[7] > HEIGHT - PADDLE_HEIGHT / 2)
-        {
-            gamestate[7] = HEIGHT - PADDLE_HEIGHT / 2;
-        }
-
+        
         gamestate[8]++;
     
 
@@ -290,12 +317,9 @@ int MultiBallPong::checkFinished(int tid, int block, float *gamestate)
             gamestate[ballIdx[i] + 1] += gamestate[ballIdx[i] + 3];
             //gamestate[ballIdx[i] + 1] = HEIGHT / 2 + (int)((gamestate[8] + gamestate[11]) * 10) % (int)(HEIGHT - BALL_RADIUS) + (int)BALL_RADIUS * 2;
 
-
-            
-
         }
     }
-    int max = 6;
+    int max = 4;
     if(gamestate[16] > max || gamestate[17] > max)
         return 1;
     // if (gamestate[0] < 0 || gamestate[0] > WIDTH)

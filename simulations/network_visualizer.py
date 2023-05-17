@@ -69,6 +69,7 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer,
 
     # Apply activation function (ReLU for non-output layers, sigmoid for output layer)
     if layer != len(layershapes) - 1:
+        #output=np.tanh(output)
         output[output < 0] = 0
     # else:
     #     #print('sigmoid')

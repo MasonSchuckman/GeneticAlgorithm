@@ -118,7 +118,8 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
     output[:] += np.dot(inputs, weights)
 
     # Apply activation function (ReLU for non-output layers, sigmoid for output layer)
-    if layer != len(layershapes) - 1:
+    if layer != len(layershapes) - 1:        
+        #output = np.tanh(output)
         output[output < 0] = 0
     # else:
     #     #print('sigmoid')
@@ -150,6 +151,19 @@ def get_actions_pong(state, net_weights, net_biases):
     
     gamestate[0] = min(1, max(-1, output[0])) * PADDLE_SPEED
 
+
+    # max_val = output[0]
+    # choice = 0
+
+    # for action in range(1, 3):
+    #     #if action != 1:
+    #     if output[action] > max_val:
+    #         max_val = output[action]
+    #         choice = action
+    # #print("max val = {}, choice = {}".format(max_val, choice))
+    # # Update bot's position
+    # gamestate[0] = (choice - 1) * PADDLE_SPEED  # left paddle y += action * paddle speed
+    
     
     #print(gamestate)
     
@@ -173,33 +187,7 @@ while running:
             running = False
     
     # update game state
-    ball_x += ball_vx
-    ball_y += ball_vy
-
-    if ball_x - BALL_SIZE <= left_paddle_x + PADDLE_WIDTH and ball_y >= left_paddle_y and ball_y <= left_paddle_y + PADDLE_HEIGHT and ball_vx < 0:
-        ball_vx = -ball_vx * SPEED_UP_RATE
-        ball_vy += (ball_y - left_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
-        ball_x += ball_vx * 2
-        ball_y += ball_vy
-    if ball_x + BALL_SIZE >= right_paddle_x and ball_y >= right_paddle_y and ball_y <= right_paddle_y + PADDLE_HEIGHT and ball_vx > 0:
-        ball_vx = -ball_vx * SPEED_UP_RATE
-        ball_vy += (ball_y - right_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
-        ball_x += ball_vx * 2
-        ball_y += ball_vy
-    if ball_y - BALL_SIZE < 0 or ball_y + BALL_SIZE > SCREEN_HEIGHT:
-        ball_vy = -ball_vy
     
-    if ball_x < 0 or ball_x > SCREEN_WIDTH:
-        if ball_x < 0:
-            scores[1] += 1
-        else:
-            scores[0] += 1
-        ball_x = SCREEN_WIDTH // 2
-        ball_y = SCREEN_HEIGHT // 2
-        ball_vx = random.choice([-BALL_SPEED, BALL_SPEED])
-        ball_vy = random.uniform(-BALL_SPEED, BALL_SPEED)
-        right_paddle_y = SCREEN_HEIGHT // 2
-        left_paddle_y = SCREEN_HEIGHT // 2
 
     # Update paddle positions using neural networks
     for i in range(2):
@@ -210,12 +198,19 @@ while running:
         else:
             state = [abs(ball_x - right_paddle_x) / SCREEN_WIDTH, ball_y / SCREEN_HEIGHT, -ball_vx / BALL_SPEED, ball_vy / BALL_SPEED]  # Ball state
 
-            
-        if i == 0:
-            state += [left_paddle_y / SCREEN_HEIGHT, 0]  # Paddle positions
+
+        otherInfo = True
+        if otherInfo:
+            if i == 0:
+                state += [left_paddle_y / SCREEN_HEIGHT, left_paddle_y / SCREEN_HEIGHT]  # Paddle positions
+            else:
+                state += [right_paddle_y / SCREEN_HEIGHT, right_paddle_y / SCREEN_HEIGHT]  # Paddle positions
         else:
-            state += [right_paddle_y / SCREEN_HEIGHT, 0]  # Paddle positions
-        
+            if i == 0:
+                state += [left_paddle_y / SCREEN_HEIGHT, 0]  # Paddle positions
+            else:
+                state += [right_paddle_y / SCREEN_HEIGHT, 0]  # Paddle positions
+            
         #state = [305.000000, 240.000000, -5.000000, 0.000000, 5.000000, 455.000000, 635.000000, 455.000000]
 
         #print(state)
@@ -250,7 +245,36 @@ while running:
         display_activations(activations_left, converted_all_weights[i], net_displays[i])
         #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
         screen.blit(net_displays[i], net_locations[i])
+    
+    ball_x += ball_vx
+    ball_y += ball_vy
 
+    if ball_y - BALL_SIZE < 0 or ball_y + BALL_SIZE > SCREEN_HEIGHT:
+        ball_vy = -ball_vy
+        ball_y += ball_vy
+    if ball_x - BALL_SIZE <= left_paddle_x + PADDLE_WIDTH and ball_y >= left_paddle_y and ball_y <= left_paddle_y + PADDLE_HEIGHT and ball_vx < 0:
+        ball_vx = -ball_vx * SPEED_UP_RATE
+        ball_vy += (ball_y - left_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
+        ball_x += ball_vx * 2
+        ball_y += ball_vy
+    if ball_x + BALL_SIZE >= right_paddle_x and ball_y >= right_paddle_y and ball_y <= right_paddle_y + PADDLE_HEIGHT and ball_vx > 0:
+        ball_vx = -ball_vx * SPEED_UP_RATE
+        ball_vy += (ball_y - right_paddle_y - PADDLE_HEIGHT / 2) / (PADDLE_HEIGHT / 2) * BALL_SPEED
+        ball_x += ball_vx * 2
+        ball_y += ball_vy
+    
+    
+    if ball_x < 0 or ball_x > SCREEN_WIDTH:
+        if ball_x < 0:
+            scores[1] += 1
+        else:
+            scores[0] += 1
+        ball_x = SCREEN_WIDTH // 2
+        ball_y = SCREEN_HEIGHT // 2
+        ball_vx = random.choice([-BALL_SPEED, BALL_SPEED])
+        ball_vy = random.uniform(-BALL_SPEED, BALL_SPEED)
+        right_paddle_y = SCREEN_HEIGHT // 2
+        left_paddle_y = SCREEN_HEIGHT // 2
     
     
     

@@ -150,18 +150,18 @@ def get_actions_pong(state, net_weights, net_biases):
     gamestate = [None] * 2
 
     #print('output = ', output)
-    #gamestate[0] = min(1, max(-1, output[0])) * PADDLE_SPEED
-    max_val = output[0]
-    choice = 0
+    gamestate[0] = min(1, max(-1, output[0])) * PADDLE_SPEED
+    # max_val = output[0]
+    # choice = 0
 
-    for action in range(1, 3):
-        #if action != 1:
-        if output[action] > max_val:
-            max_val = output[action]
-            choice = action
-    #print("max val = {}, choice = {}".format(max_val, choice))
-    # Update bot's position
-    gamestate[0] = (choice - 1) * PADDLE_SPEED  # left paddle y += action * paddle speed
+    # for action in range(1, 3):
+    #     #if action != 1:
+    #     if output[action] > max_val:
+    #         max_val = output[action]
+    #         choice = action
+    # #print("max val = {}, choice = {}".format(max_val, choice))
+    # # Update bot's position
+    # gamestate[0] = (choice - 1) * PADDLE_SPEED  # left paddle y += action * paddle speed
     
     #print(gamestate)
     

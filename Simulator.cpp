@@ -4,10 +4,10 @@
 #include <cstring>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 using std::vector;
 
-constexpr int NUM_THREADS = 6; // Number of threads
 
 // Function to be executed by each thread
 void processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
@@ -23,21 +23,33 @@ void processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, in
     }
 }
 
+
+
 // Function to be executed by each thread
 void processBlocksMutate(int startBlock, int endBlock, int totalBots, float mutateMagnitude, float *weights_d,
                                     float *biases_d, float *output_d, int *parentSpecimen_d, float *nextGenWeights_d,
                                     float *nextGenBiases_d, float *distances_d, float *deltas_d, int *ancestors_d,
-                                    float progThreshold, int iterationsCompleted, int shift, int paddedNetworkSize)
+                                    float progThreshold, int iterationsCompleted, int shift, int paddedNetworkSize, int type)
 {
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
     for (int block = startBlock; block < endBlock; block++)
     {
-        float *sharedMem = new float[paddedNetworkSize];
-        Kernels::mutate(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
-                        nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold,
-                        iterationsCompleted, shift);
-        delete[] sharedMem;
+        if(type == -1){
+            Kernels::mutate2(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d,nextGenWeights_d, nextGenBiases_d,iterationsCompleted, shift, gen);
+
+        }else{
+            float *sharedMem = new float[paddedNetworkSize];
+            
+            Kernels::mutate(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+                            nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold,
+                            iterationsCompleted, shift);
+            delete[] sharedMem;
+        }
     }
+    //printf("%d Exit mutate\n", startBlock);
 }
 
 SimConfig config_d;
@@ -156,8 +168,10 @@ void Simulator::formatBotData(int *&layerShapes_h, float *&startingParams_h,
     }
 
     for (int i = 0; i < totalBots * config.totalNeurons; i++)
+        //biases_h[i] = ((double)rand()/RAND_MAX - 0.5) * 10;
         biases_h[i] = 0;
     for (int i = 0; i < totalBots * config.totalWeights; i++)
+        //weights_h[i] = ((double)rand()/RAND_MAX - 0.5) * 1;;
         weights_h[i] = 0;
 }
 
@@ -586,10 +600,15 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     {
         for (int block = 0; block < numBlocks; block++)
         {
-            float *sharedMem = new float[config.paddedNetworkSize];
-            Kernels::mutate(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
-                            nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
-            delete[] sharedMem;
+            // float *sharedMem = new float[config.paddedNetworkSize];
+            // Kernels::mutate(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
+            //                 nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
+            // delete[] sharedMem;
+
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            Kernels::mutate2(block, totalBots, mutateMagnitude, weights_d, biases_d, output_d,nextGenWeights_d, nextGenBiases_d,iterationsCompleted, shift, gen);
+
         }
     }
     else
@@ -607,7 +626,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
             // Create a thread and pass the necessary arguments
             threads.emplace_back(std::thread(processBlocksMutate, startBlock, endBlock, totalBots, mutateMagnitude, weights_d,
                                  biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d,
-                                 distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift, config.paddedNetworkSize));
+                                 distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift, config.paddedNetworkSize, config.directContest));
         }
 
         // Wait for all threads to finish
@@ -847,7 +866,7 @@ void Simulator::batchSimulate(int numSimulations)
     {
         if (savedWeights[i] != weights_h[i])
         {
-            printf("iter %d\tsaved : %f\ttrue : %f\n", i, savedWeights[i], weights_h[i]);
+            //printf("iter %d\tsaved : %f\ttrue : %f\n", i, savedWeights[i], weights_h[i]);
             passed = 0;
         }
     }

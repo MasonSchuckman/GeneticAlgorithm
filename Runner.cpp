@@ -59,7 +59,9 @@ FullSimConfig readSimConfig(const std::string &filename)
     {
         sim = new MultiBallPong;
     }
-    
+    else if (simType == "AirHockeySimulation"){
+        sim = new AirHockeySimulation;
+    }    
     else
     {
         std::cerr << "Unknown simulation type: " << simType << std::endl;
@@ -80,7 +82,7 @@ FullSimConfig readSimConfig(const std::string &filename)
 
     // Note: the totalBots we put in the json is log_2 of what we simulate.
     int totalBots = configFile["total_bots"].get<int>();
-    totalBots = (int)std::pow(2, totalBots);
+    //totalBots = (int)std::pow(2, totalBots);
 
     int numStartingParams = configFile["num_starting_params"].get<int>();
     int directContest = configFile["direct_contest"].get<int>();
@@ -93,6 +95,7 @@ FullSimConfig readSimConfig(const std::string &filename)
     float mutationDecayRate = configFile["mutation_decay_rate"].get<float>();
     float shiftEffectiveness = configFile["shift_effectiveness"].get<float>();
 
+    
     int loadData = configFile["load_data"].get<int>();
     SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams, directContest, botsPerTeam);
 
@@ -111,9 +114,9 @@ FullSimConfig readSimConfig(const std::string &filename)
 //SimConfig config_d;
 
 
-Taxonomy* testSim(std::string configFile)
+Taxonomy* testSim(std::string configFile, int numThreads)
 {
-    std::cout << "Testing " << configFile << std::endl;
+    std::cout << "Testing " << configFile << " with " << numThreads << " threads." <<  std::endl;
 
     FullSimConfig fullConfig = readSimConfig(configFile);
 
@@ -134,6 +137,7 @@ Taxonomy* testSim(std::string configFile)
     engine.mutateMagnitude = fullConfig.baseMutationRate;
     engine.mutateDecayRate = fullConfig.mutationDecayRate;
     engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
+    engine.NUM_THREADS = numThreads;
 
     if (fullConfig.loadData == 1)
     {
@@ -158,11 +162,13 @@ int main(int argc, char* argv[])
     Taxonomy* resultsHistory;
     if (argc == 1) {
         std::cout << "Testing Multibot\n";
-        resultsHistory = testSim("MultibotSimConfig.json");
+        resultsHistory = testSim("MultibotSimConfig.json", 4);
     }
     else {
         std::cout << "Test user specified file\n";
-        resultsHistory = testSim(argv[1]);
+        int numThreads = atoi(argv[2]);
+        resultsHistory = testSim(argv[1], numThreads);
+        
     }
     
     //testAirHockey();

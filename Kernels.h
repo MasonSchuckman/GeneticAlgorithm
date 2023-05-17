@@ -1,6 +1,8 @@
 #ifndef KERNELS_H
 #define KERNELS_H
 #include "SimulationList.h"
+#include <algorithm>
+#include <random>
 
 
 namespace Kernels
@@ -9,6 +11,9 @@ namespace Kernels
 
     void mutate(int block, const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, int *childSpecies, 
                            float *nextGenWeights, float *nextGenBiases, float * distances,  float * deltas, int * ancestors, float progThreshold, const int gen, const int shift);
+
+    void mutate2(int block, const int n, const float randomMagnitude, const float *allWeights, const float *allBiases, float *simulationOutcome, 
+                float *nextGenWeights, float *nextGenBiases, const int generation, const int shift, std::mt19937 & gen);
 };
 
 #endif
