@@ -10,7 +10,7 @@ from network_visualizer import *
 numLayers = 0
 # Read the all bot format
 def readWeightsAndBiasesAll():
-    with open("allBots.data", "rb") as infile:
+    with open("allBotsMULTIPONG.data", "rb") as infile:
         # Read the total number of bots
         TOTAL_BOTS = struct.unpack('i', infile.read(4))[0]
         TOTAL_BOTS = 2
