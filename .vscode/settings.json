@@ -72,6 +72,7 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "thread": "cpp",
-        "complex": "cpp"
+        "complex": "cpp",
+        "mutex": "cpp"
     }
 }

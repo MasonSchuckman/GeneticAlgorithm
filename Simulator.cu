@@ -504,6 +504,8 @@ float Simulator::getAvgDistance()
 #include <chrono>
 void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ancestors_h, float *distances_h)
 {
+    int printInterval = 25;
+
     int totalBots = bots.size();
     int tpb = 32; // threads per block
     int numBlocks = (totalBots / config.bpb);
@@ -521,32 +523,60 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     check(cudaMemcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float), cudaMemcpyHostToDevice));
     delete[] startingParams_h;
 
-    
     auto start_time = std::chrono::high_resolution_clock::now();
-    // Launch a kernel on the GPU with one block for each simulation/contest
-    Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
-    
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    check(cudaDeviceSynchronize());
     auto end_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    // std::cout << "Simulation time taken: " << elapsed_time << " ms\n";
-
-    // Idea for mutating:
-    /*
-    if not a direct contest:
-        One block looks at two bots, determined by the blockId * 2, and (blockId * 2 + iter*2 + 1 + (optional) shuffleSeed*2) % numBots
-        The block can then write the 2 new children data where the parents were.
-
-    if a direct contest:
-        if 1 bot per team:
-            each block looks at two bots, and checks which one won. The winner will split into two children, and the block will write the data to
-            blockId * 2 and (blockId*2 + iter*2 + 1 + (optional) shuffleSeed*2) % numBots (assumes numBots is even.)
-        if 2 bots per team:
 
 
-    */
+    if (this->loadData == -1)
+    {
+        //printf("\nRunning shared mem version\t");
+
+        start_time = std::chrono::high_resolution_clock::now();
+        // Launch a kernel on the GPU with one block for each simulation/contest
+        Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
+
+        // cudaDeviceSynchronize waits for the kernel to finish, and returns
+        // any errors encountered during the launch.
+        check(cudaDeviceSynchronize());
+        end_time = std::chrono::high_resolution_clock::now();
+        elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        if (iterationsCompleted % printInterval == 0)
+            std::cout << "(Shared ver) Simulation time taken: " << elapsed_time << " ms\t";
+
+        check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
+        float totalClocks = 0;
+        for (int i = 0; i < totalBots; i++)
+        {
+            totalClocks += output_h[i];
+        }
+        //printf("Total clocks = %f\n", totalClocks);
+    }
+    else
+    {
+
+        //printf("Running constant mem version\t");
+
+        start_time = std::chrono::high_resolution_clock::now();
+        // Launch a kernel on the GPU with one block for each simulation/contest
+        Kernels::simulateShared3<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
+
+        // cudaDeviceSynchronize waits for the kernel to finish, and returns
+        // any errors encountered during the launch.
+        check(cudaDeviceSynchronize());
+        end_time = std::chrono::high_resolution_clock::now();
+        elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        if (iterationsCompleted % printInterval == 0)
+            std::cout << "(Const ver) Simulation time taken: " << elapsed_time << " ms\t";
+
+        check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
+        float totalClocks = 0;
+        for (int i = 0; i < totalBots; i++)
+        {
+            totalClocks += output_h[i];
+        }
+        //printf("Total clocks = %f\n", totalClocks);
+    }
 
     // slowly reduce the mutation rate until it hits a lower bound
     if (mutateMagnitude > min_mutate_rate)
@@ -561,15 +591,17 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
         shift = iterationsCompleted;
 
     float progThreshold = 1; // This will be calculated properly later
-    
+
+    auto start_time_mutate = std::chrono::high_resolution_clock::now();
     Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
                                                                                   nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
-    
+
     check(cudaDeviceSynchronize());
     end_time = std::chrono::high_resolution_clock::now();
 
-    elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    // std::cout << "Mutation time taken: " << elapsed_time << " ms\n";
+    elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_mutate).count();
+    if (iterationsCompleted % printInterval == 0)
+        std::cout << "Mutation time taken: " << elapsed_time << " ms\n";
 
     // swap which weights/biases arrays are "current"
     float *temp = nextGenBiases_d;
@@ -584,13 +616,14 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     check(cudaMemcpy(output_h, output_d, totalBots * sizeof(float), cudaMemcpyDeviceToHost));
     check(cudaMemcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
     check(cudaMemcpy(ancestors_h, ancestors_d, totalBots * sizeof(int), cudaMemcpyDeviceToHost));
-    
+    end_time = std::chrono::high_resolution_clock::now();
     // copy new generation from Device to Host
 
     // Used to decide where to write nextGen population data to
     iterationsCompleted++;
-    if (iterationsCompleted % 25 == 0)
+    if (iterationsCompleted % printInterval == 0)
     {
+        elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
         printf("iter %d, mutate scale = %f. Shift = %d", iterationsCompleted, mutateMagnitude, shift);
         std::cout << " Generation took " << elapsed_time << " ms.\n";
     }
@@ -681,7 +714,7 @@ void historyGraph(Taxonomy *history)
 
 void Simulator::batchSimulate(int numSimulations)
 {
-    bool trackingGenetics = true;
+    bool trackingGenetics = false;
 
     printf("num bots = %d, numLayers = %d, num weights = %d, numNeurons = %d\n", bots.size(), config.numLayers, config.totalWeights, config.totalNeurons);
     int totalBots = bots.size();
@@ -732,17 +765,18 @@ void Simulator::batchSimulate(int numSimulations)
         // build new speciment objects in order to log history
         copyFromGPU(weights_h, biases_h);
 
-        if (trackingGenetics) {
+        if (trackingGenetics)
+        {
             Specimen **nextGeneration = new Specimen *[totalBots];
 
-            for (int j = 0; j < totalBots; j++) {
+            for (int j = 0; j < totalBots; j++)
+            {
                 Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[j * config.totalNeurons], &weights_h[j * config.totalWeights], "sigmoid");
                 Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[j]]);
 
                 nextGeneration[j] = nextSpecimen;
             }
-            
-           
+
             // bigger constant = harder to make a new species
             float MAGIC_CONSTANT = 50;
             float PROGENITOR_THRESHOLD = 0;

@@ -90,7 +90,7 @@ FullSimConfig readSimConfig(const std::string &filename)
 
     // Note: the totalBots we put in the json is log_2 of what we simulate.
     int totalBots = configFile["total_bots"].get<int>();
-    totalBots = (int)std::pow(2, totalBots);
+    //totalBots = (int)std::pow(2, totalBots);
 
     int numStartingParams = configFile["num_starting_params"].get<int>();
     int directContest = configFile["direct_contest"].get<int>();
@@ -171,10 +171,9 @@ Taxonomy* testSim(std::string configFile)
     engine.mutateDecayRate = fullConfig.mutationDecayRate;
     engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
 
-    if (fullConfig.loadData == 1)
-    {
-        engine.loadData = 1;
-    }
+    
+    engine.loadData = fullConfig.loadData;
+    
 
     engine.batchSimulate(fullConfig.generations);
 

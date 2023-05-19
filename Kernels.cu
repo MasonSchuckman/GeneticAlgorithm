@@ -37,17 +37,27 @@ namespace Kernels
         {
             output[i] = biases[i];
         }
-
+        __syncthreads();
         // Compute dot product of input and weights
-#pragma unroll 4
-        for (int i = 0; i < input_size; i++)
-        {
-#pragma unroll
-            for (int j = tid; j < output_size; j += stride)
-            {
-                output[j] += inputs[i] * weights[i * output_size + j];
-            }
-        }
+// #pragma unroll 4
+//         for (int i = 0; i < input_size; i++)
+//         {
+// #pragma unroll
+//             for (int j = tid; j < output_size; j += stride)
+//             {
+//                 output[j] += inputs[i] * weights[i * output_size + j];
+//             }
+//         }
+
+        #pragma unroll
+	for (int j = tid; j < output_size; j += stride)
+	{
+		#pragma unroll
+		for (int i = 0; i < input_size; i++)
+		{
+			output[j] += inputs[i] * weights[i * output_size + j];
+		}
+	}
 
 #ifdef DEBUG
         if (threadIdx.x == 0 && blockIdx.x == 0)
@@ -64,6 +74,86 @@ namespace Kernels
 
         //  Apply activation function
         switch (config_d.layerTypes[layer])
+        {
+        // linear
+        case 0:
+            break;
+
+        // ReLU
+        case 1:
+        {
+            for (int i = tid; i < output_size; i += stride)
+                output[i] = output[i] > 0 ? output[i] : 0; // max(output[i],0)
+        }
+        break;
+
+        // Sigmoid
+        case 2:
+        {
+            for (int i = tid; i < output_size; i += stride)
+                output[i] = 1.0f / (1.0f + expf(-output[i]));
+        }
+        break;
+
+        // Default is linear
+        default:
+            break;
+        }
+
+        __syncthreads();
+    }
+
+    __device__ void forward_propagation(const float *inputs, const float *weights, const float *biases, float *output, int input_size, int output_size, int layer, int layerType)
+    {
+        int stride = blockDim.x;
+        int tid = threadIdx.x;
+#ifdef DEBUG
+        if (threadIdx.x == 0)
+        {
+            printf("Biases : ");
+            for (int i = 0; i < output_size; i++)
+            {
+                printf("%f, ", biases[i]);
+            }
+            printf("\n");
+        }
+#endif
+        // Initialize output to biases
+        for (int i = threadIdx.x; i < output_size; i += stride)
+        {
+            output[i] = biases[i];
+        }
+        __syncthreads();
+        // Compute dot product of input and weights
+        for (int j = tid; j < output_size; j += stride)
+        {
+            float sum1 = 0;
+            float sum2 = 0;
+
+            //#pragma unroll 4
+            for (int i = 0; i < input_size; i += 2)
+            {
+                sum1 += inputs[i] * weights[i * output_size + j];
+                sum2 += inputs[i + 1] * weights[(i + 1) * output_size + j];
+            }
+            output[j] = sum1 + sum2;
+        }
+
+#ifdef DEBUG
+        if (threadIdx.x == 0 && blockIdx.x == 0)
+        {
+
+            printf("Activs : ");
+            for (int i = 0; i < output_size; i++)
+                printf("%f, ", output[i]);
+            printf("\n\n");
+        }
+#endif // DEBUG
+
+        __syncthreads();
+
+        //  Apply activation function
+        switch (layerType)
         {
         // linear
         case 0:
@@ -124,7 +214,7 @@ namespace Kernels
         return;
     }
 
-    using namespace cub;   
+    using namespace cub;
     __device__ float blockReduceSum(float val)
     {
         __syncthreads();
@@ -132,7 +222,7 @@ namespace Kernels
         typedef cub::BlockReduce<float, 32> BlockReduceT;
         // Allocate shared memory for BlockReduce
         __shared__ typename BlockReduceT::TempStorage temp_storage;
-        
+
         // Compute the block-wide sum for thread0
         float aggregate = BlockReduceT(temp_storage).Sum(val);
 
@@ -202,24 +292,24 @@ namespace Kernels
             curand_init(blockIdx.x + shift, threadIdx.x, 0, &state);
 
             float rand = 0;
- // calcuate the offset for this block's bot(s)
+            // calcuate the offset for this block's bot(s)
             int offsetBot1 = block * 2;
             int offsetBot2 = (block * 2 + shift * 2 + 1) % n;
             int inputBotOffsets[2] = {offsetBot1, offsetBot2};
             int outputBotOffsets[2] = {offsetBot1, offsetBot2};
 
             // Compare the two bots that competed in the mutation phase
-            if(config_d.directContest == 1){
+            if (config_d.directContest == 1)
+            {
                 inputBotOffsets[0] = offsetBot1;
                 inputBotOffsets[1] = offsetBot1 + 1;
             }
-            
 
             float botScore1 = simulationOutcome[inputBotOffsets[0]];
             float botScore2 = simulationOutcome[inputBotOffsets[1]];
-            if(botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
+            if (botScore1 == 0 && botScore2 == 0 && threadIdx.x == 0)
                 printf("Error. Both zero. block = %d, offset1 = %d, offset2 = %d\n", blockIdx.x, inputBotOffsets[0], inputBotOffsets[1]);
-            
+
             int winnerBotOffset;
             if (botScore1 > botScore2)
             {
@@ -233,7 +323,6 @@ namespace Kernels
             // keeping track of the parent specimen from which the children came from
             childSpecies[outputBotOffsets[0]] = winnerBotOffset;
             childSpecies[outputBotOffsets[1]] = winnerBotOffset;
-
 
             __syncthreads();
             float biasMagnification = 10.0f;
@@ -259,7 +348,7 @@ namespace Kernels
                 for (int i = tid + config_d.layerShapes[0]; i < config_d.totalNeurons; i += stride)
                 {
                     if (bot == 1) // Only add noise to bot 1 (bot 0 stays the same as the winner)
-                        rand = curand_uniform(&state) * randomMagnitude *  biasMagnification * 2 - randomMagnitude *  biasMagnification;
+                        rand = curand_uniform(&state) * randomMagnitude * biasMagnification * 2 - randomMagnitude * biasMagnification;
                     distance += fabsf(rand);
 
                     (deltas)[i + config_d.totalWeights + outputBotOffsets[bot] * config_d.paddedNetworkSize] += rand;
@@ -269,20 +358,20 @@ namespace Kernels
                 float totalDistance = blockReduceSum(distance);
                 deltaMagnitude = block_reduce<float>(&(deltas[outputBotOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
 
-                if (tid == 0)                
+                if (tid == 0)
                     (distances)[outputBotOffsets[bot]] = totalDistance;
                 __syncthreads();
-                   
-                    // Check if child is a new species
-                    if (deltaMagnitude >= progThreshold)
-                    {
-                        if (tid == 0)
-                            (ancestors)[outputBotOffsets[bot]] = outputBotOffsets[bot] + gen * n;
-                        __syncthreads();
-                        // Reset the deltas for this bot since it is now the prog
-                        zeroArray(&(deltas[outputBotOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
-                    }
-                
+
+                // Check if child is a new species
+                if (deltaMagnitude >= progThreshold)
+                {
+                    if (tid == 0)
+                        (ancestors)[outputBotOffsets[bot]] = outputBotOffsets[bot] + gen * n;
+                    __syncthreads();
+                    // Reset the deltas for this bot since it is now the prog
+                    zeroArray(&(deltas[outputBotOffsets[bot] * config_d.paddedNetworkSize]), config_d.paddedNetworkSize);
+                }
+
                 __syncthreads();
             }
         }
@@ -351,7 +440,181 @@ namespace Kernels
     // (Hopefully this will lead to higher FLOPS).
 
     __device__ int counter = 0;
-    __global__ void simulateShared2(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
+    __global__ void simulateShared2(const int n, Simulation **sim_d, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
+    {
+        
+        int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
+        int tid = threadIdx.x;                           // thread id (within a block)
+
+        int block = blockIdx.x;
+        int stride = blockDim.x;
+
+        // prevent OOB errors
+        if (block < n)
+        {
+            __shared__ Simulation ** sim;
+            if(tid == 0)
+                sim = sim_d; 
+            // hard coding this makes things *much* simpler. We can change it if needed.
+            __shared__ float gamestate[64];
+            __shared__ int layerShapes[8];
+            __shared__ int layerTypes[8];
+            int numLayers = config_d.numLayers;
+            int bpb = config_d.bpb;
+            if (tid == 0)
+            {
+                for (int i = 0; i < numLayers; i++)
+                {
+                    layerShapes[i] = config_d.layerShapes[i];
+
+                    if (i < numLayers - 2)
+                        layerTypes[i] = config_d.layerTypes[i];
+                }
+            }
+            (*sim)->setupSimulation(startingParams, gamestate);
+
+            // shared mem layout is w1,w2...,w_bpt,b1,b2,...,b_bpt,a_1,a_2,...,a_bpt
+            // declare our block of shared memory
+            extern __shared__ float s[];
+
+            // split our shared memory block into the weights, biases, and activations
+            float *weights = s;
+            float *biases = weights + config_d.totalWeights * bpb;
+            float *activations = biases + config_d.totalNeurons * bpb;
+
+#ifdef DEBUG
+            printf("Weights = %p\n", weights);
+            printf("biases  = %p\n", biases);
+            printf("activs  = %p\n", activations);
+#endif
+
+            __syncthreads();
+            // Copy this block's weights and biases to the shared arrays.
+            for (int i = tid; i < config_d.totalWeights * bpb; i += stride)
+            {
+                weights[i] = (allWeights)[block * config_d.totalWeights * bpb + i];
+            }
+            for (int i = tid; i < config_d.totalNeurons * bpb; i += stride)
+            {
+                biases[i] = (allBiases)[block * config_d.totalNeurons * bpb + i];
+            }
+
+            __syncthreads();
+
+            // Seperate the bot(s) data
+            const float *ws[MAX_BOTS_PER_SIM]; // abbreviation for "bot weights"
+            const float *bs[MAX_BOTS_PER_SIM]; // abbreviation for "bot biases"
+            float *activs[MAX_BOTS_PER_SIM];   // abbreviation for "bot activations"
+
+            // The pointers in this array point to the last layer of each bots' neural net.
+            // This makes it easier to pass the bots' actions' for each iteration.
+            float *actions[MAX_BOTS_PER_SIM];
+
+            // Populate the arrays created above
+            for (int i = 0; i < bpb; i++)
+            {
+                ws[i] = weights + config_d.totalWeights * i;
+                bs[i] = biases + config_d.totalNeurons * i;
+                activs[i] = activations + config_d.totalNeurons * i;
+
+                // TODO: check if this correctly offsets actions[i] to point to the last layer of bot_i's activations network.
+                actions[i] = activs[i] + config_d.totalNeurons - config_d.layerShapes[numLayers - 1];
+            }
+            if (tid == 0)
+                output[block] = 0;
+            __syncthreads();
+
+            int maxIters = config_d.maxIters;
+            bool finished = false;
+
+            int iter = 0; // current timestep of simulation we're on
+
+            // run the simulation loop.
+            while (!finished)
+            {
+                // Set the activations for this bot this iteration
+                (*sim)->setActivations(gamestate, activs, iter);
+                __syncthreads();
+
+                // It's important to remember that activs and ws and bs are essentially 2d arrays. That's why indexing them is tricky and weird.
+                // Poll the NN for actions.
+                for (int bot = 0; bot < bpb; bot++)
+                {
+                    clock_t start_time = clock();
+
+                    // All of these offsets are to account for the multiple layers in the network.
+                    int WO = 0; // weights offset
+                    int BO = 0; // biases offset
+                    int AO = 0; // activs offset
+                    int numBiases;
+                    int numWeights;
+                    for (int layer = 0; layer < numLayers - 1; layer++)
+                    {
+                        numBiases = layerShapes[layer];
+                        numWeights = numBiases * layerShapes[layer + 1];
+
+                        // forward_propagation(float* input, float* weights, float* biases, float* output, int input_size, int output_size)
+                        forward_propagation(activs[bot] + AO, ws[bot] + WO, bs[bot] + numBiases + BO, activs[bot] + AO + numBiases, numBiases, layerShapes[layer + 1], layer, layerTypes[layer]);
+
+                        // This register-less version had almost identical performance
+                        // forward_propagation(activs(bot) + numBiases * layer, ws(bot) + numWeights * layer, bs(bot) + numBiases * (layer + 1), activs(bot) + numBiases * (layer + 1), numBiases, config_d.layerShapes[layer + 1]);
+
+                        AO += numBiases;
+                        WO += numWeights;
+                        BO += numBiases;
+                    }
+
+                    clock_t end_time = clock();
+                    if (tid == 0)
+                        output[block] += (float)(end_time - start_time);
+                    // if(blockIdx.x == 0 && threadIdx.x == 0)
+                    //     printf("Foward Time = %d\n", (int)(end_time-start_time));
+                }
+
+                // update simulation/game state based on bot actions
+                (*sim)->eval(actions, gamestate);
+
+                if ((*sim)->checkFinished(gamestate) == 1)
+                {
+                    finished = true;
+                }
+
+                __syncthreads();
+                iter++;
+                if (iter >= maxIters || finished)
+                {
+                    finished = true;
+                    //(*sim)->setOutput(output, gamestate, startingParams);
+                    __syncthreads();
+                    // if(threadIdx.x == 0 && output[blockIdx.x * 2] == 0 || output[blockIdx.x * 2 + 1] == 0){
+                    //     printf("block %d is zero at iter %f\n", blockIdx.x, startingParams[8]);
+                    // }
+                }
+            }
+
+#ifdef DEBUG
+            if (tid == 0 && blockIdx.x == 0)
+            {
+                printf("Activations:\n");
+                int AO = 0; // "activs offset"
+                for (int layer = 0; layer < numLayers; layer++)
+                {
+                    printf("Layer %d, size = %d, AO = %d\n", layer, layerShapes[layer], AO);
+                    for (int i = 0; i < layerShapes[layer]; i++)
+                    {
+                        printf("%f, ", activs[0][AO + i]);
+                    }
+                    AO += layerShapes[layer];
+                    printf("\n");
+                }
+                printf("\n");
+            }
+#endif
+        }
+        return;
+    }
+
+    __global__ void simulateShared3(const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
     {
 
         int gid = threadIdx.x + blockIdx.x * blockDim.x; // global id
@@ -366,6 +629,14 @@ namespace Kernels
 
             // hard coding this makes things *much* simpler. We can change it if needed.
             __shared__ float gamestate[64];
+            float *layerShapes = gamestate + 32;
+            if (tid == 0)
+            {
+                for (int i = 0; i < config_d.numLayers - 1; i++)
+                {
+                    layerShapes[i] = config_d.layerShapes[i];
+                }
+            }
             (*sim)->setupSimulation(startingParams, gamestate);
 
             // shared mem layout is w1,w2...,w_bpt,b1,b2,...,b_bpt,a_1,a_2,...,a_bpt
@@ -415,6 +686,8 @@ namespace Kernels
                 // TODO: check if this correctly offsets actions[i] to point to the last layer of bot_i's activations network.
                 actions[i] = activs[i] + config_d.totalNeurons - config_d.layerShapes[config_d.numLayers - 1];
             }
+            if (tid == 0)
+                output[block] = 0;
             __syncthreads();
 
             int maxIters = config_d.maxIters;
@@ -433,6 +706,8 @@ namespace Kernels
                 // Poll the NN for actions.
                 for (int bot = 0; bot < config_d.bpb; bot++)
                 {
+                    clock_t start_time = clock();
+
                     // All of these offsets are to account for the multiple layers in the network.
                     int WO = 0; // weights offset
                     int BO = 0; // biases offset
@@ -454,6 +729,12 @@ namespace Kernels
                         WO += numWeights;
                         BO += numBiases;
                     }
+
+                    clock_t end_time = clock();
+                    if (tid == 0)
+                        output[block] += (int)(end_time - start_time);
+                    // if(blockIdx.x == 0 && threadIdx.x == 0)
+                    //     printf("Foward Time = %d\n", (int)(end_time-start_time));
                 }
 
                 // update simulation/game state based on bot actions
@@ -469,7 +750,7 @@ namespace Kernels
                 if (iter >= maxIters || finished)
                 {
                     finished = true;
-                    (*sim)->setOutput(output, gamestate, startingParams);
+                    //(*sim)->setOutput(output, gamestate, startingParams);
                     __syncthreads();
                     // if(threadIdx.x == 0 && output[blockIdx.x * 2] == 0 || output[blockIdx.x * 2 + 1] == 0){
                     //     printf("block %d is zero at iter %f\n", blockIdx.x, startingParams[8]);
