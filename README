@@ -1,0 +1,18 @@
+Just a quick and dirty readme file for this project:
+There are two "main" branches: main and CPU. 
+
+main was the original branch and features GPU training. This turned out to be pretty limiting 
+due to trying to optimize CUDA code for a range of NN sizes. 
+
+CPU was a derivative branch. It supports only CPU training, but is much more flexible in terms of what
+kind of network you can train, and thus shows much better performance. The restrictions
+that were imposed on the GPU branch were lifted for this branch (I think).
+
+
+
+Build command for main (GPU) branch:
+nvcc -rdc=true -lineinfo -o runner .\biology\Genome.cpp .\biology\Species.cpp .\biology\Specimen.cpp .\biology\Taxonomy.cpp .\Simulator.cu .\Runner.cu .\Kernels.cu .\simulations\BasicSimulation.cu .\simulations\TargetSimulation.cu .\simulations\MultibotSimulation.cu .\simulations\AirHockeySimulation.cu .\simulations\PongSimulation.cu .\simulations\PongSimulation2.cu .\simulations\MultiBallPong.cu -O3 -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64\cl.exe"
+Note: you will likely have to replace the path at the end to match where you have cl.exe.
+
+Build command for CPU branch:
+g++ -pthread *.cpp .\simulations\*.cpp .\biology\*.cpp  -o runner -g -O3
