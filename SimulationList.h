@@ -6,5 +6,6 @@
 #include "simulations/PongSimulation2.h"
 #include "simulations/MultiBallPong.h"
 #include "simulations/AirHockeySimulation.h"
+#include "simulations/CartPoleSimulation.h"
 
 #endif

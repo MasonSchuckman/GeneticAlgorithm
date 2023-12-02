@@ -2,19 +2,19 @@
     "simulation": "PongSimulation2",
     "neural_net": {
         "num_layers": 8,
-        "layer_shapes": [6,6,6,6,6,6,6,1],
+        "layer_shapes": [6,16,12,8,6,6,6,1],
         "layer_types" : [1,1,1,1,1,1,0]
     },
     "bots_per_sim": 2,
-    "max_iters": 1600,
-    "total_bots": 11,
+    "max_iters": 3600,
+    "total_bots": 4096,
     "num_starting_params": 9,
     "direct_contest": 1,
     "bots_per_team": 0,
-    "generations" : 1500,
+    "generations" : 2500,
     "base_mutation_rate" : 1,
     "min_mutation_rate" : 0.000001,
-    "mutation_decay_rate" : 0.993,
+    "mutation_decay_rate" : 0.998,
     "shift_effectiveness" : 0.01,
     "load_data" : 0
 }

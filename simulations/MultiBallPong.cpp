@@ -354,6 +354,13 @@ void MultiBallPong::setOutput(int tid, int block, float *output, float *gamestat
     
 }
 
+Eigen::MatrixXd MultiBallPong::getState(float & action, float & reward, float *gamestate)
+{
+	Eigen::MatrixXd state(1,10);
+	return state;
+}
+
+
 // The ID is a unique identifier for this simulation type
 int MultiBallPong::getID()
 {

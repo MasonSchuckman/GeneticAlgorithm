@@ -13,17 +13,54 @@ using std::vector;
 void processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
                                       const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d, Simulation**derived)
 {
+    float *sharedMem = new float[sharedMemNeeded];
 
     for (int block = startBlock; block < endBlock; block++)
     {
-        float *sharedMem = new float[sharedMemNeeded];
-        Kernels::simulateShared2(block, sharedMem, numBlocks, derived, weights_d, biases_d, startingParams_d,
-                                 output_d);
-        delete[] sharedMem;
+        
+        Kernels::simulateShared2(block, sharedMem, numBlocks, derived, weights_d, 
+                            biases_d, startingParams_d, output_d);
+        // Zero out the shared mem
+        memset(sharedMem, 0, sharedMemNeeded * sizeof(float));
+        
     }
+    delete[] sharedMem;
+
 }
 
+// Function to be executed by each thread
+void processBlocksSimulateSaveHistory(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
+                                      const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d, Simulation**derived)
+{
+    float *sharedMem = new float[sharedMemNeeded];
 
+
+    float fractionSaved = 0.1f;
+    int totalEpisodes = endBlock - startBlock + 1;
+    int totalSaved = fractionSaved * totalEpisodes + 1;
+    int saveInterval = totalEpisodes / totalSaved;
+
+    std::vector<episodeHistory> histories;
+    histories.reserve(totalSaved);
+
+    int c = 0;
+    for (int block = startBlock; block < endBlock; block++)
+    {
+        if(c % saveInterval == 0){
+            histories.push_back(Kernels::simulateShared3(block, sharedMem, numBlocks, derived, weights_d, 
+                                biases_d, startingParams_d, output_d));
+        }else{
+            Kernels::simulateShared2(block, sharedMem, numBlocks, derived, weights_d, 
+                                biases_d, startingParams_d, output_d);
+        }
+        
+        // Zero out the shared mem
+        memset(sharedMem, 0, sharedMemNeeded * sizeof(float));
+        c++;
+    }
+    delete[] sharedMem;
+
+}
 
 // Function to be executed by each thread
 void processBlocksMutate(int startBlock, int endBlock, int totalBots, float mutateMagnitude, float *weights_d,
@@ -558,7 +595,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
 
         // Create a vector to store the thread objects
         std::vector<std::thread> threads;
-
+        
         for (int i = 0; i < NUM_THREADS; i++) {
             int startBlock = i * blocksPerThread;
             int endBlock = (i == NUM_THREADS - 1) ? numBlocks : (startBlock + blocksPerThread);
@@ -574,8 +611,6 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
         }
     }
 
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
     auto end_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     if (iterationsCompleted % printInterval == 0)

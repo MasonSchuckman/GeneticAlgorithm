@@ -114,23 +114,7 @@ void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate
     gamestate[5] += fminf(1.0, fmaxf(-1.0, actions[0][0])) * PADDLE_SPEED; // left paddle y += action * paddle speed
     gamestate[7] += fminf(1.0, fmaxf(-1.0, actions[1][0])) * PADDLE_SPEED; // right paddle y += action * paddle speed
 
-    // for(int bot = 0; bot < 2; bot++){
-    //     float max = actions[bot][0];
-    //     int choice = 0;
-        
-    //     for(int action = 1; action < 3; action++){
-    //         if(actions[bot][action] > max)
-    //         {
-    //             max = actions[bot][action];
-    //             choice = action;
-    //         }
-    //     }
-    //     //printf("Max val = %f, choice = %d\n", max, choice);
-    //     // Update bot's position
-    //     gamestate[5 + bot * 2] += (choice - 1) * PADDLE_SPEED; // left paddle y += action * paddle speed
-
-    // }
-
+    
     
     // Update the ball position and velocity based on physics
     gamestate[0] += gamestate[2]; // ball x += ball vx
@@ -181,11 +165,6 @@ void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate
         gamestate[10]++;
     }
 
-    
-
-
-    
-
     gamestate[8]++;
 }
 
@@ -222,6 +201,14 @@ void PongSimulation2::setOutput(int tid, int block, float *output, float *gamest
     if (block == 0 && (int)startingParams_d[8] % 25 == 0)
         printf("Touches: %d, %d\n", (int)gamestate[9], (int)gamestate[10]);
 }
+
+Eigen::MatrixXd PongSimulation2::getState(float & action, float & reward, float *gamestate)
+{
+	Eigen::MatrixXd state(1,10);
+	return state;
+}
+
+
 
 // The ID is a unique identifier for this simulation type
 int PongSimulation2::getID()

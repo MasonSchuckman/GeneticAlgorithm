@@ -4,7 +4,7 @@
 #include "math.h"
 #include <math.h>
 #include <stdio.h>
-
+#include <Eigen/Dense>
 //abstract class (interface) for what defines a valid simulation
 
 // These are needed for compile time understanding of static arrays in kernels.
@@ -64,6 +64,8 @@ public:
 
     virtual void setOutput(int tid, int block, float * output, float * gamestate, const float * startingParams_d) = 0;
 
+    //Called at end of each iteration. Used for Reinforcement Learning.
+    virtual Eigen::MatrixXd getState(float & action, float & reward, float *gamestate) = 0;
     //NOTE: The ID this function returns MUST be unique for each derived class!
     virtual int getID() = 0;
     

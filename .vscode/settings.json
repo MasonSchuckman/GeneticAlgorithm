@@ -72,6 +72,22 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "thread": "cpp",
-        "complex": "cpp"
+        "complex": "cpp",
+        "bit": "cpp",
+        "*.tcc": "cpp",
+        "condition_variable": "cpp",
+        "cwctype": "cpp",
+        "deque": "cpp",
+        "unordered_set": "cpp",
+        "memory_resource": "cpp",
+        "optional": "cpp",
+        "string_view": "cpp",
+        "hash_map": "cpp",
+        "future": "cpp",
+        "mutex": "cpp",
+        "numbers": "cpp",
+        "semaphore": "cpp",
+        "stop_token": "cpp",
+        "cinttypes": "cpp"
     }
 }

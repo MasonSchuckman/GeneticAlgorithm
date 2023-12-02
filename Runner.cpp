@@ -62,6 +62,9 @@ FullSimConfig readSimConfig(const std::string &filename)
     else if (simType == "AirHockeySimulation"){
         sim = new AirHockeySimulation;
     }    
+    else if (simType == "CartPoleSimulation"){
+        sim = new CartPoleSimulation;
+    }    
     else
     {
         std::cerr << "Unknown simulation type: " << simType << std::endl;

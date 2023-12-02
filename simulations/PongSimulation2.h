@@ -24,6 +24,8 @@ public:
     int checkFinished(int tid, int block, float * gamestate);
 
     void setOutput(int tid, int block, float * output, float * gamestate, const float * startingParams_d);
+    
+    Eigen::MatrixXd getState(float & action, float & reward, float *gamestate);
 
     int getID();
 

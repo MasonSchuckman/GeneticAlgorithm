@@ -1,0 +1,20 @@
+{
+    "simulation": "CartPoleSimulation",
+    "neural_net": {
+        "num_layers": 5,
+        "layer_shapes": [4, 6, 4, 2, 1],
+        "layer_types" : [1, 1, 1, 0]
+    },
+    "bots_per_sim": 1,
+    "max_iters": 1800,
+    "total_bots": 512,
+    "num_starting_params": 4,
+    "direct_contest": 0,
+    "bots_per_team": 0,
+    "generations" : 2000,
+    "base_mutation_rate" : 0.25,
+    "min_mutation_rate" : 0.00001,
+    "mutation_decay_rate" : 0.993,
+    "shift_effectiveness" : 0.2,
+    "load_data" : 0
+}

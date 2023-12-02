@@ -353,6 +353,13 @@ void AirHockeySimulation::setOutput(int tid, int block, float *output, float *ga
 		printf("Block %d AScore = %f, BScore = %f, counter = %d, touches = %f, %f\n", block, gamestate[score_offset], gamestate[actor_state_len + score_offset], (int)startingParams_d[2], gamestate[20], gamestate[21]);
 }
 
+Eigen::MatrixXd AirHockeySimulation::getState(float & action, float & reward, float *gamestate)
+{
+	Eigen::MatrixXd state(1,10);
+	return state;
+}
+
+
 int AirHockeySimulation::getID()
 {
 	return 5;
