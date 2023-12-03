@@ -619,6 +619,7 @@ using Eigen::VectorXd;
                 VectorXd action = agent.chooseAction(state);
                 for(int index = 0; index < action.size(); index++)
                     actions[0][index] = action(index);
+                
 
                 // update simulation/game state based on bot actions
                 (*sim)->eval(0, block, actions, gamestate);
@@ -638,12 +639,11 @@ using Eigen::VectorXd;
                 history.states[iter] = (*sim)->getState(history.actions[iter], history.rewards[iter], gamestate);
                 if(finished){
                     history.rewards[iter] = -10;
-                    float scaler = .95f;
-                    for(int i = iter - 1; i > iter - 10; i--){
-                        history.rewards[i] -= 10 * scaler;
+                    float scaler = .96f;
+                    for(int i = iter - 1; i > std::max(iter - 30, 0); i--){
+                        history.rewards[i] -= 10  * scaler;
                         scaler *= scaler;
-                    }
-                   
+                    }                   
                 }
 
                 iter++;

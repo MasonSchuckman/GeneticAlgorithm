@@ -2,6 +2,10 @@
 #include <cmath>
 #include <random>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include <Eigen/Dense>
 using Eigen::MatrixXd;
 
@@ -29,10 +33,10 @@ gamestate[6] // Action taken this iteration
 void CartPoleSimulation::getStartingParams(float *startingParams)
 {
     // Initialize cartpole starting parameters
-    startingParams[0] = 0.0; // Cart Position
-    startingParams[1] = 0.0; // Cart Velocity
-    startingParams[2] = (((double)rand() / RAND_MAX) - 0.5) * .1; // Pole Angle (radians)
-    startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * .1; // Pole Angular Velocity
+    startingParams[0] = (((double)rand() / RAND_MAX) - 0.5) * .01; // Cart Position
+    startingParams[1] = (((double)rand() / RAND_MAX) - 0.5) * .01; // Cart Velocity
+    startingParams[2] = (((double)rand() / RAND_MAX) - 0.5) * .01; // Pole Angle (radians)
+    startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * .01; // Pole Angular Velocity
 }
 
 void CartPoleSimulation::setupSimulation(int tid, int block, const float *startingParams, float *gamestate)
@@ -69,7 +73,7 @@ void CartPoleSimulation::eval(int tid, int block, float **actions, float *gamest
 
     float cosTheta = cos(gamestate[2]);
     float sinTheta = sin(gamestate[2]);
-
+    //printf("theta = %f\n", gamestate[2]); 
     float temp = (force + POLE_MASS * POLE_LENGTH * gamestate[3] * gamestate[3] * sinTheta) / TOTAL_MASS;
     float angularAccel = (GRAVITY * sinTheta - cosTheta * temp) / (POLE_LENGTH * (4.0 / 3.0 - POLE_MASS * cosTheta * cosTheta / TOTAL_MASS));
     float linearAccel = temp - POLE_MASS * POLE_LENGTH * angularAccel * cosTheta / TOTAL_MASS;
@@ -81,6 +85,10 @@ void CartPoleSimulation::eval(int tid, int block, float **actions, float *gamest
     gamestate[3] += TAU * angularAccel;
     gamestate[5] = 1; //reward for this iteration
     gamestate[4] += 1; // increment iteration
+
+    //Reduce reward for large angles
+    const float angleScale = 0.02;
+    gamestate[5] -= angleScale * abs(gamestate[2]) - angleScale * abs(angularAccel); //we want theta close to zero.
 }
 
 int CartPoleSimulation::checkFinished(int tid, int block, float *gamestate)

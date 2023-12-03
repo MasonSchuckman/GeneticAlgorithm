@@ -27,10 +27,12 @@ void getNetInfo(int &numConnections, int &numNeurons, std::vector<int> layerShap
     }
 }
 
+
+
 FullSimConfig readSimConfig(const std::string &filename)
 {
     
-    std::ifstream file("simulations/" + filename);
+    std::ifstream file("C:\\Users\\suprm\\git\\GeneticAlgorithm\\simulations\\" + filename);
     json configFile;
 
     // Parse the JSON file
@@ -167,8 +169,8 @@ int main(int argc, char* argv[])
 
     Taxonomy* resultsHistory;
     if (argc == 1) {
-        std::cout << "Testing Multibot\n";
-        resultsHistory = testSim("MultibotSimConfig.json", 4);
+        std::cout << "Testing CartPole\n";
+        resultsHistory = testSim("CartSimConfig.json", 1);
     }
     else {
         std::cout << "Test user specified file\n";

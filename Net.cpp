@@ -49,7 +49,7 @@ double reluDerivative(double x)
 
 double LeakyRelu(double x)
 {
-    return x > 0 ? x : x / 8;
+    return x > 0 ? x : x / 8.0;
 }
 
 double LeakyReluDerivative(double x)
@@ -70,15 +70,15 @@ double sigmoidDerivative(double x)
 }
 
 // Tanh and its derivative
-double tanh(double x)
+double tanh_(double x)
 {
     return std::tanh(x);
 }
 
-double tanhDerivative(double x)
+double tanhDerivative_(double x)
 {
-    double t = tanh(x);
-    return 1 - t * t;
+    double t = tanh_(x);
+    return 1.0 - t * t;
 }
 
 // Softmax function (useful for multi-class classification)
@@ -219,7 +219,10 @@ MatrixXd DropoutLayer::backward(const MatrixXd &gradOutput)
 }
 
 NeuralNetwork::NeuralNetwork(double lr, double b1, double b2, double eps)
-    : optimizer(lr, b1, b2, eps) {}
+    : optimizer(lr, b1, b2, eps) {
+
+    timestep = 2;
+}
 
 
 MatrixXd NeuralNetwork::forward(const MatrixXd &inputs, bool isTraining)
@@ -251,9 +254,8 @@ void NeuralNetwork::backward(const MatrixXd& gradOutput) {
                 optimizer.update(denseLayer->biases, denseLayer->dBias, denseLayer->mBiases, denseLayer->vBiases, timestep);
                 //printf("update3\n");
             }        
-        }
-
-        timestep++;
+        } 
+        //timestep++;
     }
 
     void NeuralNetwork::updateParameters() {
@@ -264,7 +266,7 @@ void NeuralNetwork::backward(const MatrixXd& gradOutput) {
                 optimizer.update(denseLayer->biases, denseLayer->dBias, denseLayer->mBiases, denseLayer->vBiases, timestep);
             }
         }
-        timestep++;
+        //timestep++;
     }
 void NeuralNetwork::writeWeightsAndBiases()
 {

@@ -38,8 +38,8 @@ double LeakyRelu(double x);
 double LeakyReluDerivative(double x);
 double sigmoid(double x);
 double sigmoidDerivative(double x);
-double tanh(double x);
-double tanhDerivative(double x);
+double tanh_(double x);
+double tanhDerivative_(double x);
 MatrixXd softmax(const MatrixXd& x);
 
 // Initialization
@@ -49,7 +49,7 @@ MatrixXd heInitialization(int rows, int cols);
 class AdamOptimizer {
 public:
     AdamOptimizer(double lr = 0.001, double b1 = 0.9, double b2 = 0.999, double eps = 1e-8, 
-                  int decay_steps = 1000, double decay_rate = 0.96);
+                  int decay_steps = 200, double decay_rate = 0.9);
     void update(MatrixXd& params, const MatrixXd& dParams, MatrixXd& m, MatrixXd& v, int t);
     void updateLearningRate(int timestep);
 
@@ -163,6 +163,7 @@ public:
 //private:
     vector<std::unique_ptr<Layer>> layers;
     AdamOptimizer optimizer;
+    double lambda; // for L2 Regularization
     int timestep;
 };
 
