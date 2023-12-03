@@ -143,7 +143,8 @@ Taxonomy* testSim(std::string configFile, int numThreads)
     engine.mutateDecayRate = fullConfig.mutationDecayRate;
     engine.shiftEffectiveness = fullConfig.shiftEffectiveness;
     engine.NUM_THREADS = numThreads;
-
+    engine.RL = fullConfig.RL;
+    
     if (fullConfig.loadData == 1)
     {
         engine.loadData = 1;

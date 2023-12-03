@@ -65,7 +65,7 @@ void CartPoleSimulation::eval(int tid, int block, float **actions, float *gamest
     // }
 
 
-    gamestate[6] = (actions[0][0] > actions[0][1]) ? 0 : 0; //Record action taken this iteration
+    gamestate[6] = (actions[0][0] > actions[0][1]) ? 0 : 1; //Record action taken this iteration
 
     float cosTheta = cos(gamestate[2]);
     float sinTheta = sin(gamestate[2]);

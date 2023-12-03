@@ -107,8 +107,8 @@ import numpy as np
 def display_activations(activations, weights, surface):
     def normalize(activations):
         log_activations = [[np.log2(abs(a) + 1) * np.sign(a) for a in layer] for layer in activations]
-        min_activation = min(min(layer) for layer in log_activations)
-        max_activation = max(max(layer) for layer in log_activations)
+        min_activation = min(min(layer) for layer in log_activations) + 1e-9
+        max_activation = max(max(layer) for layer in log_activations) + 2e-9
         range_activation = max_activation - min_activation
 
         normalized_activations = []

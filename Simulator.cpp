@@ -862,6 +862,7 @@ std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *out
     if (iterationsCompleted % printInterval == 0)
         std::cout << "Simulation time taken: " << elapsed_time << " ms\t";
 
+   
     // slowly reduce the mutation rate until it hits a lower bound
     // if (mutateMagnitude > min_mutate_rate)
     //     mutateMagnitude *= mutateDecayRate;
@@ -928,7 +929,7 @@ std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *out
     {
         elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
 
-        printf("iter %d, mutate scale = NA. Shift = NA", iterationsCompleted, mutateMagnitude, 0);
+        printf("iter %d, Score = %f", iterationsCompleted, output_h[0]);
         std::cout << " Generation took " << elapsed_time << " ms.\n";
     }
 
@@ -1079,14 +1080,14 @@ void Simulator::batchSimulate(int numSimulations)
             
             double loss = agent.update(simulationIterationHistory);
             if(i % 25 == 0){
-                printf("\tLoss = %f\n", loss);
+                printf("\tLoss = %f, Epsilon = %f\n", loss, agent.epsilon);
             
             }
         }else{
             std::vector<episodeHistory> simulationIterationHistory = runSimulation(&output_h[i * totalBots], parentSpecimen_h, ancestors_h, distances_h);
 
             // build new speciment objects in order to log history
-        copyFromGPU(weights_h, biases_h);
+            copyFromGPU(weights_h, biases_h);
 
         }
         

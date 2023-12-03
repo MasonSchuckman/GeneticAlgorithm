@@ -51,7 +51,7 @@ def readWeightsAndBiasesAll():
 
             all_weights.append(weights)
             all_biases.append(biases)
-
+    
     return layerShapes, all_weights, all_biases
 
 
@@ -165,6 +165,19 @@ net_locations = [(0,0)]
 
 # Main game loop
 running = True
+
+def normalize_state(state):
+    normalized_state = np.empty_like(state)
+    # Assuming state is [cart_position, cart_velocity, pole_angle, pole_velocity_at_tip]
+    # Replace these with the actual ranges for your environment
+    min_values = [-12.4, -50, -12, -500]  # Replace with actual min values
+    max_values = [12.4, 50, 12, 500]      # Replace with actual max values
+
+    for i in range(len(state)):
+        normalized_state[i] = (state[i] - min_values[i]) / (max_values[i] - min_values[i])
+
+    return normalized_state
+
 while running:
     screen.fill(BLACK)
 
@@ -175,7 +188,7 @@ while running:
 
     # Get action from neural network
     state = [cart_x, cart_vx, pole_angle, pole_angular_velocity]
-    force = get_actions_cart(state, networks[0]['weights'], networks[0]['biases'])
+    force = get_actions_cart(normalize_state(state), networks[0]['weights'], networks[0]['biases'])
     #print("Force = ", force)
 
     #if abs(force) > FORCE_MAG:
@@ -184,12 +197,12 @@ while running:
     print(force)
     print(state)
     # Update game state
-    update_game_state(-force)
+    update_game_state(force)
 
     # Network visualization
-    activations = calculate_activations(networks[0]['weights'], networks[0]['biases'], state, layershapes, numLayers)
-    display_activations(activations, converted_all_weights[0], network_display_left)
-    screen.blit(network_display_left, net_locations[0])
+    # activations = calculate_activations(networks[0]['weights'], networks[0]['biases'], state, layershapes, numLayers)
+    # display_activations(activations, converted_all_weights[0], network_display_left)
+    # screen.blit(network_display_left, net_locations[0])
 
     # Draw the cart
     cart_rect = pygame.Rect(NETWORK_DISPLAY_WIDTH + cart_x - CART_WIDTH // 2 + SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, CART_WIDTH, CART_HEIGHT)

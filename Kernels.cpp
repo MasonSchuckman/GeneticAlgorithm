@@ -623,9 +623,7 @@ using Eigen::VectorXd;
                 // update simulation/game state based on bot actions
                 (*sim)->eval(0, block, actions, gamestate);
 
-                // Get the iteration info
-                history.states[iter] = (*sim)->getState(history.actions[iter], history.rewards[iter], gamestate);
-
+                
                 if ((*sim)->checkFinished(0, block, gamestate) == 1)
                 {
                     finished = true;
@@ -634,6 +632,18 @@ using Eigen::VectorXd;
                     history.actions.resize(iter);
                     history.rewards.resize(iter);
                     history.states.resize(iter);
+                }
+
+                // Get the iteration info
+                history.states[iter] = (*sim)->getState(history.actions[iter], history.rewards[iter], gamestate);
+                if(finished){
+                    history.rewards[iter] = -10;
+                    float scaler = .95f;
+                    for(int i = iter - 1; i > iter - 10; i--){
+                        history.rewards[i] -= 10 * scaler;
+                        scaler *= scaler;
+                    }
+                   
                 }
 
                 iter++;
