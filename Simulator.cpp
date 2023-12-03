@@ -5,6 +5,7 @@
 #include <thread>
 #include <vector>
 #include <algorithm>
+#include "Agent.h"
 
 using std::vector;
 
@@ -28,19 +29,21 @@ void processBlocksSimulate(int startBlock, int endBlock, int sharedMemNeeded, in
 
 }
 
+bool firstProcCall = true;
 // Function to be executed by each thread
 void processBlocksSimulateSaveHistory(int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
-                                      const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d, Simulation**derived)
+                                      const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d, Simulation**derived, std::vector<episodeHistory> & histories)
 {
     float *sharedMem = new float[sharedMemNeeded];
 
 
-    float fractionSaved = 0.1f;
+    float fractionSaved = 0.01f;
     int totalEpisodes = endBlock - startBlock + 1;
     int totalSaved = fractionSaved * totalEpisodes + 1;
-    int saveInterval = totalEpisodes / totalSaved;
 
-    std::vector<episodeHistory> histories;
+    totalSaved = 1;
+    int saveInterval = totalEpisodes / totalSaved;
+    
     histories.reserve(totalSaved);
 
     int c = 0;
@@ -60,7 +63,52 @@ void processBlocksSimulateSaveHistory(int startBlock, int endBlock, int sharedMe
     }
     delete[] sharedMem;
 
+    if(firstProcCall)
+    {
+        printf("Total Episodes = %d, Total targeted saved = %d, Actual Saved = %d, save interval = %d\n", totalEpisodes, totalSaved, histories.size(), saveInterval);
+        firstProcCall = false;
+    }
+
 }
+
+
+void processBlocksSimulateSaveHistoryRL(Agent & agent, int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
+                                      const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d, Simulation**derived, std::vector<episodeHistory> & histories)
+{
+    float *sharedMem = new float[sharedMemNeeded];
+
+
+    float fractionSaved = 1.0f;
+    int totalEpisodes = endBlock - startBlock + 1;
+    int totalSaved = fractionSaved * totalEpisodes + 1;
+
+    totalSaved = totalEpisodes;
+    int saveInterval = totalEpisodes / totalSaved;
+    
+    histories.reserve(totalSaved);
+
+    int c = 0;
+    for (int block = startBlock; block < endBlock; block++)
+    {
+        
+        histories.push_back(Kernels::simulateShared4(agent, block, sharedMem, numBlocks, derived, weights_d, 
+                            biases_d, startingParams_d, output_d));
+        
+        
+        // Zero out the shared mem
+        memset(sharedMem, 0, sharedMemNeeded * sizeof(float));
+        c++;
+    }
+    delete[] sharedMem;
+
+    if(firstProcCall)
+    {
+        printf("Total Episodes = %d, Total targeted saved = %d, Actual Saved = %d, save interval = %d\n", totalEpisodes, totalSaved, histories.size(), saveInterval);
+        firstProcCall = false;
+    }
+
+}
+
 
 // Function to be executed by each thread
 void processBlocksMutate(int startBlock, int endBlock, int totalBots, float mutateMagnitude, float *weights_d,
@@ -552,8 +600,27 @@ float Simulator::getAvgDistance()
     return sum_d;
 }
 
+std::vector<episodeHistory> combineThreadResults(const std::vector<std::vector<episodeHistory>>& threadResults) {
+    std::vector<episodeHistory> combinedResults;
+
+    // Estimate total size to reserve space
+    size_t totalSize = 0;
+    for (const auto& threadVec : threadResults) {
+        totalSize += threadVec.size();
+    }
+    combinedResults.reserve(totalSize);
+
+    // Combine all thread results into one vector
+    for (const auto& threadVec : threadResults) {
+        // Move elements from each inner vector to the combined vector
+        std::move(std::begin(threadVec), std::end(threadVec), std::back_inserter(combinedResults));
+    }
+  
+    return combinedResults;
+}
+
 #include <chrono>
-void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ancestors_h, float *distances_h)
+std::vector<episodeHistory> Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ancestors_h, float *distances_h)
 {
     int printInterval = 25;
 
@@ -578,6 +645,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
     // Launch a kernel on the GPU with one block for each simulation/contest
     // Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
     bool multithread = true;
+    std::vector<std::vector<episodeHistory>> threadResults(NUM_THREADS);
 
     if (!multithread)
     {
@@ -596,19 +664,35 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
         // Create a vector to store the thread objects
         std::vector<std::thread> threads;
         
+
         for (int i = 0; i < NUM_THREADS; i++) {
             int startBlock = i * blocksPerThread;
             int endBlock = (i == NUM_THREADS - 1) ? numBlocks : (startBlock + blocksPerThread);
 
             // Create a thread and pass the necessary arguments
-            threads.emplace_back(std::thread(processBlocksSimulate, startBlock, endBlock, sharedMemNeeded, numBlocks,
-                                 weights_d, biases_d, startingParams_d, output_d, &derived));
+            threads.emplace_back(std::thread(processBlocksSimulateSaveHistory, startBlock, endBlock, sharedMemNeeded, numBlocks,
+                                 weights_d, biases_d, startingParams_d, output_d, &derived, std::ref(threadResults[i])));
         }
 
+        int c = 0;
         // Wait for all threads to finish
         for (auto& thread : threads) {
             thread.join();
+            // printf("Thread %d:\n", c);
+            
+
+            // for(int i = 0; i < 1; i++){
+            //     printf("\n\nEpisode %d\n", i);
+            //     for(int j = 0; j < 2; j++)
+            //     {
+            //         printf("Iteration = %d, Action = %f, Reward = %f\n", j, threadResults[c][i].actions[j], threadResults[c][i].rewards[j]);
+            //         std::cout << "State: \n" << threadResults[c][i].states[j] << "\n";
+            //     }
+            // }
+            // c++;
         }
+
+        
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -669,9 +753,7 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
             thread.join();
         }
     }
-    // Kernels::mutate<<<numBlocks, tpb, config.paddedNetworkSize * sizeof(float)>>>(totalBots, mutateMagnitude, weights_d, biases_d, output_d, parentSpecimen_d,
-    //                                                                               nextGenWeights_d, nextGenBiases_d, distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift);
-
+    
     end_time = std::chrono::high_resolution_clock::now();
 
     elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_mutate).count();
@@ -703,7 +785,157 @@ void Simulator::runSimulation(float *output_h, int *parentSpecimen_h, int *ances
         printf("iter %d, mutate scale = %f. Shift = %d", iterationsCompleted, mutateMagnitude, shift);
         std::cout << " Generation took " << elapsed_time << " ms.\n";
     }
+
+
+    return std::move(combineThreadResults(threadResults));
 }
+
+std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *output_h)
+{
+    int printInterval = 25;
+
+    int totalBots = bots.size();
+    int tpb = 32; // threads per block
+    int numBlocks = (totalBots / config.bpb);
+
+    int sharedMemNeeded = (config.totalWeights + config.totalNeurons * 2) * config.bpb;
+    if (iterationsCompleted == 0)
+    {
+        printf("Num blocks = %d. Bots per sim = %d\n", numBlocks, config.bpb);
+        printf("Shared mem needed per block = %d KB\n", sharedMemNeeded * sizeof(float) / (2 << 10));
+    }
+
+    float *startingParams_h = new float[config.numStartingParams];
+    derived->getStartingParams(startingParams_h);
+
+    memcpy(startingParams_d, startingParams_h, config.numStartingParams * sizeof(float));
+    delete[] startingParams_h;
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+    // Launch a kernel on the GPU with one block for each simulation/contest
+    // Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
+    bool multithread = true;
+    std::vector<std::vector<episodeHistory>> threadResults(NUM_THREADS);
+
+
+
+
+    // // Calculate the number of blocks per thread
+    int blocksPerThread = numBlocks / NUM_THREADS;
+
+    // Create a vector to store the thread objects
+    std::vector<std::thread> threads;
+    
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        int startBlock = i * blocksPerThread;
+        int endBlock = (i == NUM_THREADS - 1) ? numBlocks : (startBlock + blocksPerThread);
+
+        // Create a thread and pass the necessary arguments
+        threads.emplace_back(std::thread(processBlocksSimulateSaveHistoryRL, std::ref(agent), startBlock, endBlock, sharedMemNeeded, numBlocks,
+                                weights_d, biases_d, startingParams_d, output_d, &derived, std::ref(threadResults[i])));
+    }
+
+    int c = 0;
+    // Wait for all threads to finish
+    for (auto& thread : threads) {
+        thread.join();
+        // printf("Thread %d:\n", c);
+        
+
+        // for(int i = 0; i < 1; i++){
+        //     printf("\n\nEpisode %d\n", i);
+        //     for(int j = 0; j < 2; j++)
+        //     {
+        //         printf("Iteration = %d, Action = %f, Reward = %f\n", j, threadResults[c][i].actions[j], threadResults[c][i].rewards[j]);
+        //         std::cout << "State: \n" << threadResults[c][i].states[j] << "\n";
+        //     }
+        // }
+        // c++;
+    }
+
+        
+    
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    if (iterationsCompleted % printInterval == 0)
+        std::cout << "Simulation time taken: " << elapsed_time << " ms\t";
+
+    // slowly reduce the mutation rate until it hits a lower bound
+    // if (mutateMagnitude > min_mutate_rate)
+    //     mutateMagnitude *= mutateDecayRate;
+
+    // // each block looks at 2 bots
+    // numBlocks = totalBots / 2; //(assumes even number of bots)
+    // // start_time = std::chrono::high_resolution_clock::now();
+
+    // int shift = (int)(((double)rand() / RAND_MAX) * totalBots * shiftEffectiveness) % totalBots;
+    // if (shiftEffectiveness < 0)
+    //     shift = iterationsCompleted;
+
+    // float progThreshold = 1; // This will be calculated properly later
+
+    // auto start_time_mutate = std::chrono::high_resolution_clock::now();
+    
+    // // Calculate the number of blocks per thread
+    // int blocksPerThread = numBlocks / NUM_THREADS;
+
+    // Create a vector to store the thread objects
+    // std::vector<std::thread> threads;
+
+    // for (int i = 0; i < NUM_THREADS; i++) {
+    //     int startBlock = i * blocksPerThread;
+    //     int endBlock = (i == NUM_THREADS - 1) ? numBlocks : (startBlock + blocksPerThread);
+
+    //     // Create a thread and pass the necessary arguments
+    //     threads.emplace_back(std::thread(processBlocksMutate, startBlock, endBlock, totalBots, mutateMagnitude, weights_d,
+    //                             biases_d, output_d, parentSpecimen_d, nextGenWeights_d, nextGenBiases_d,
+    //                             distances_d, deltas_d, ancestors_d, progThreshold, iterationsCompleted, shift, config.paddedNetworkSize, config.directContest));
+    // }
+
+    // // Wait for all threads to finish
+    // for (auto& thread : threads) {
+    //     thread.join();
+    // }
+    
+    
+    // end_time = std::chrono::high_resolution_clock::now();
+
+    // elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_mutate).count();
+    // if (iterationsCompleted % printInterval == 0)
+    //     std::cout << "Mutation time taken: " << elapsed_time << " ms\t";
+
+    // // swap which weights/biases arrays are "current"
+    // float *temp = nextGenBiases_d;
+    // nextGenBiases_d = biases_d;
+    // biases_d = temp;
+
+    // temp = nextGenWeights_d;
+    // nextGenWeights_d = weights_d;
+    // weights_d = temp;
+
+    // Copy output vector from GPU buffer to host memory.
+    memcpy(output_h, output_d, totalBots * sizeof(float));
+    // memcpy(parentSpecimen_h, parentSpecimen_d, totalBots * sizeof(int));
+    // memcpy(ancestors_h, ancestors_d, totalBots * sizeof(int));
+
+    // copy new generation from Device to Host
+
+    // Used to decide where to write nextGen population data to
+    iterationsCompleted++;
+    if (iterationsCompleted % printInterval == 0)
+    {
+        elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+        printf("iter %d, mutate scale = NA. Shift = NA", iterationsCompleted, mutateMagnitude, 0);
+        std::cout << " Generation took " << elapsed_time << " ms.\n";
+    }
+
+
+    return std::move(combineThreadResults(threadResults));
+}
+
 
 // void retrieveBotsToHost(float* weights_d, float* biases_d, vector<Bot*>* bots) {
 
@@ -833,13 +1065,33 @@ void Simulator::batchSimulate(int numSimulations)
 
     // Invoke the kernel
 
+    Agent agent(2, 4);
+
     std::cout << "total variables in network (weights+biases): " << config.totalNeurons + config.totalWeights << std::endl;
     for (int i = 0; i < numSimulations; i++)
     {
         // Only pass the location to where this iteration is writing
-        runSimulation(&output_h[i * totalBots], parentSpecimen_h, ancestors_h, distances_h);
-        // build new speciment objects in order to log history
+        
+        //runSimulation(&output_h[i * totalBots], parentSpecimen_h, ancestors_h, distances_h);
+        
+        if(RL){
+            std::vector<episodeHistory> simulationIterationHistory = runSimulationRL(agent, &output_h[i * totalBots]);
+            
+            double loss = agent.update(simulationIterationHistory);
+            if(i % 25 == 0){
+                printf("\tLoss = %f\n", loss);
+            
+            }
+        }else{
+            std::vector<episodeHistory> simulationIterationHistory = runSimulation(&output_h[i * totalBots], parentSpecimen_h, ancestors_h, distances_h);
+
+            // build new speciment objects in order to log history
         copyFromGPU(weights_h, biases_h);
+
+        }
+        
+        
+        
 
         if (trackingGenetics)
         {
@@ -886,7 +1138,7 @@ void Simulator::batchSimulate(int numSimulations)
 
     // Find the best score in each generation
     int lastGenBest = 0;
-    analyzeHistory(numSimulations, totalBots, output_h, lastGenBest);
+    //analyzeHistory(numSimulations, totalBots, output_h, lastGenBest);
 
     write_weights_and_biases(weights_h, biases_h, config.numLayers, config.layerShapes, config.totalWeights, config.totalNeurons, lastGenBest);
     writeWeightsAndBiasesAll(weights_h, biases_h, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);
@@ -906,6 +1158,8 @@ void Simulator::batchSimulate(int numSimulations)
         }
     }
     printf("PASSED TEST? %d\n", passed);
+
+    agent.saveNeuralNet();
 
     delete[] savedWeights;
     delete[] savedBiases;

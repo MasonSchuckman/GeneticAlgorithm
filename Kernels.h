@@ -5,17 +5,13 @@
 #include <random>
 #include <Eigen/Dense>
 #include <vector>
-
-struct episodeHistory
-{
-    int endIter = 0;
-    std::vector<Eigen::MatrixXd> states;
-    std::vector<float> actions;
-    std::vector<float> rewards;    
-};
+#include "Agent.h"
 
 namespace Kernels
 {
+    episodeHistory simulateShared4(Agent &agent, int block, float *s, const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output);
+
+
     episodeHistory simulateShared3(int block, float *s, const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output);
 
     void simulateShared2(int block, float *s, const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output);

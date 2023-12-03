@@ -100,6 +100,8 @@ FullSimConfig readSimConfig(const std::string &filename)
 
     
     int loadData = configFile["load_data"].get<int>();
+    int RL = configFile["RL"].get<int>();
+
     SimConfig config(numLayers, numNeurons, numConnections, botsPerSim, maxIters, numStartingParams, directContest, botsPerTeam);
 
     for (int i = 0; i < layerShapes.size(); i++)
@@ -108,7 +110,7 @@ FullSimConfig readSimConfig(const std::string &filename)
         config.layerTypes[i] = layerTypes[i];
 
     // Create and return the SimConfig object
-    return FullSimConfig(sim, config, totalBots, generations, baseMutationRate, minMutationRate, mutationDecayRate, shiftEffectiveness, loadData);
+    return FullSimConfig(sim, config, totalBots, generations, baseMutationRate, minMutationRate, mutationDecayRate, shiftEffectiveness, loadData, RL);
 
 }
 

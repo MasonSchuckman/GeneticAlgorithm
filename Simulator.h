@@ -10,6 +10,7 @@
 #include "biology/Specimen.h"
 #include "SimulationList.h"
 #include "Kernels.h"
+#include "Agent.h"
 
 #include <iostream>
 #include <vector>
@@ -40,6 +41,7 @@ public:
     float mutateDecayRate = 0.99f;
     float shiftEffectiveness = 1.0f;
     int loadData = 0;
+    int RL = 0;
     int NUM_THREADS = 4; // Number of threads
 
 private:
@@ -63,8 +65,12 @@ private:
     void copyFromGPU(float *&weights_h, float *&biases_h);
 
 
-    void runSimulation(float *output_h, int *parentSpecimen_h, int* ancestors_h, float* distances_h);
-    
+    //void runSimulation(float *output_h, int *parentSpecimen_h, int* ancestors_h, float* distances_h);
+    std::vector<episodeHistory> runSimulation(float *output_h, int *parentSpecimen_h, int* ancestors_h, float* distances_h);
+
+    std::vector<episodeHistory> runSimulationRL(Agent & agent, float *output_h);
+
+
     void readWeightsAndBiasesAll(float *&weights_h, float *&biases_h, int &TOTAL_BOTS, int &totalWeights, int &totalNeurons, int &numLayers, int * layerShapes);
 
     //Reads in saved weights and biases if it matches the current config

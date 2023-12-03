@@ -422,7 +422,7 @@ namespace Kernels
     episodeHistory simulateShared3(int blockIdx, float *s, const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
     {
         episodeHistory history;
-        history.endIter = config_d.maxIters; // Get's overridden if end condition ever gets triggered
+        history.endIter = config_d.maxIters - 1; // Get's overridden if end condition ever gets triggered
         history.states.resize(config_d.maxIters);
         history.actions.resize(config_d.maxIters);
         history.rewards.resize(config_d.maxIters);
@@ -528,6 +528,112 @@ namespace Kernels
                     finished = true;
 
                     history.endIter = iter;
+                    history.actions.resize(iter);
+                    history.rewards.resize(iter);
+                    history.states.resize(iter);
+                }
+
+                iter++;
+                if (iter >= maxIters || finished)
+                {                    
+                    finished = true;
+                    (*sim)->setOutput(0, block, output, gamestate, startingParams);
+                }
+            }
+        }
+
+        return history;
+    }
+
+
+#include <Eigen/Dense>
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
+    episodeHistory simulateShared4(Agent &agent, int blockIdx, float *s, const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
+
+    //episodeHistory simulateShared4(Agent & agent, int blockIdx, float *s, const int n, Simulation **sim, const float *startingParams, float *output)
+    {
+        episodeHistory history;
+        history.endIter = config_d.maxIters - 1; // Get's overridden if end condition ever gets triggered
+        history.states.resize(config_d.maxIters);
+        history.actions.resize(config_d.maxIters);
+        history.rewards.resize(config_d.maxIters);
+        // int gid = tid + blockIdx * 32; // global id
+
+        int block = blockIdx;
+        int stride = 32;
+
+        // prevent OOB errors
+        if (block < n)
+        {
+
+            // hard coding this makes things *much* simpler. We can change it if needed.
+            float gamestate[64];
+
+            (*sim)->setupSimulation(0, blockIdx, startingParams, gamestate);
+
+            // shared mem layout is w1,w2...,w_bpt,b1,b2,...,b_bpt,a_1,a_2,...,a_bpt
+            // declare our block of shared memory
+            // float s[];
+
+            // split our shared memory block into the weights, biases, and activations
+            float *weights = s;
+            float *biases = weights + config_d.totalWeights * config_d.bpb;
+            float *activations = biases + config_d.totalNeurons * config_d.bpb;
+
+            // Seperate the bot(s) data
+            const float *ws[MAX_BOTS_PER_SIM]; // abbreviation for "bot weights"
+            const float *bs[MAX_BOTS_PER_SIM]; // abbreviation for "bot biases"
+            float *activs[MAX_BOTS_PER_SIM];   // abbreviation for "bot activations"
+
+            // The pointers in this array point to the last layer of each bots' neural net.
+            // This makes it easier to pass the bots' actions' for each iteration.
+            float *actions[MAX_BOTS_PER_SIM];
+
+            // Populate the arrays created above
+            for (int i = 0; i < config_d.bpb; i++)
+            {
+                ws[i] = weights + config_d.totalWeights * i;
+                bs[i] = biases + config_d.totalNeurons * i;
+                activs[i] = activations + config_d.totalNeurons * i;
+
+                // offsets actions[i] to point to the last layer of bot_i's activations network.
+                actions[i] = activs[i] + config_d.totalNeurons - config_d.layerShapes[config_d.numLayers - 1];
+            }
+
+            int maxIters = config_d.maxIters;
+            bool finished = false;
+
+            int iter = 0; // current timestep of simulation we're on
+
+            // run the simulation loop.
+            while (!finished)
+            {
+                // Set the activations for this bot this iteration
+                (*sim)->setActivations(0, block, gamestate, activs, iter);
+
+                MatrixXd state(4, 1);
+                state << gamestate[0], gamestate[1], gamestate[2], gamestate[3];
+
+                // Poll the NN for actions.
+                VectorXd action = agent.chooseAction(state);
+                for(int index = 0; index < action.size(); index++)
+                    actions[0][index] = action(index);
+
+                // update simulation/game state based on bot actions
+                (*sim)->eval(0, block, actions, gamestate);
+
+                // Get the iteration info
+                history.states[iter] = (*sim)->getState(history.actions[iter], history.rewards[iter], gamestate);
+
+                if ((*sim)->checkFinished(0, block, gamestate) == 1)
+                {
+                    finished = true;
+
+                    history.endIter = iter;
+                    history.actions.resize(iter);
+                    history.rewards.resize(iter);
+                    history.states.resize(iter);
                 }
 
                 iter++;

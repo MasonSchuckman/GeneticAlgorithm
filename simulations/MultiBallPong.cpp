@@ -354,7 +354,7 @@ void MultiBallPong::setOutput(int tid, int block, float *output, float *gamestat
     
 }
 
-Eigen::MatrixXd MultiBallPong::getState(float & action, float & reward, float *gamestate)
+Eigen::MatrixXd MultiBallPong::getState(int& action, float & reward, float *gamestate)
 {
 	Eigen::MatrixXd state(1,10);
 	return state;

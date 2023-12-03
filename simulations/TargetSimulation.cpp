@@ -186,7 +186,7 @@ float * output, float * gamestate, const float * startingParams_d){
     
 }
 
-Eigen::MatrixXd TargetSimulation::getState(float & action, float & reward, float *gamestate)
+Eigen::MatrixXd TargetSimulation::getState(int& action, float & reward, float *gamestate)
 {
 	Eigen::MatrixXd state(1,10);
 	return state;

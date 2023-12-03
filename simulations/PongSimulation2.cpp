@@ -202,7 +202,7 @@ void PongSimulation2::setOutput(int tid, int block, float *output, float *gamest
         printf("Touches: %d, %d\n", (int)gamestate[9], (int)gamestate[10]);
 }
 
-Eigen::MatrixXd PongSimulation2::getState(float & action, float & reward, float *gamestate)
+Eigen::MatrixXd PongSimulation2::getState(int& action, float & reward, float *gamestate)
 {
 	Eigen::MatrixXd state(1,10);
 	return state;

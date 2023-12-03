@@ -5,13 +5,15 @@ import math
 import struct
 from network_visualizer import *
 
+data_file = "allBots.data"
+data_file = "RL-bot.data"
 numLayers = 0
 # Read the all bot format
 def readWeightsAndBiasesAll():
-    with open("allBots.data", "rb") as infile:
+    with open(data_file, "rb") as infile:
         # Read the total number of bots
         TOTAL_BOTS = struct.unpack('i', infile.read(4))[0]
-
+        
         # Read the total number of weights and neurons
         totalWeights = struct.unpack('i', infile.read(4))[0]
         totalNeurons = struct.unpack('i', infile.read(4))[0]
@@ -39,6 +41,7 @@ def readWeightsAndBiasesAll():
 
             # Read the biases for each layer
             biases = []
+            layerBiases1 = np.zeros(0, dtype=np.float32)
             for i in range(numLayers):
                 layerBiases = np.zeros(layerShapes[i], dtype=np.float32)
                 for j in range(layerShapes[i]):
@@ -90,7 +93,7 @@ def get_actions_cart(state, net_weights, net_biases):
 
     output = forward_propagation(prevLayer, net_weights[numLayers - 2], net_biases[numLayers - 1], layershapes[numLayers - 2], layershapes[numLayers - 1], numLayers - 1)
     
-    return output[0]
+    return output
 
 
 # Initialize Pygame
@@ -133,8 +136,7 @@ TAU = 0.02  # Time interval for updates
 # Read weights and biases
 best = 0
 layershapes, all_weights, all_biases = readWeightsAndBiasesAll()
-networks = [{'weights': all_weights[best], 'biases': all_biases[best]},
-            {'weights': all_weights[best + 1], 'biases': all_biases[best + 1]}]
+networks = [{'weights': all_weights[best], 'biases': all_biases[best]}]
 converted_all_weights = convert_weights(all_weights, layershapes)
 
 # Function to update the game state
@@ -174,13 +176,15 @@ while running:
     # Get action from neural network
     state = [cart_x, cart_vx, pole_angle, pole_angular_velocity]
     force = get_actions_cart(state, networks[0]['weights'], networks[0]['biases'])
-    print("Force = ", force)
-    if abs(force) > FORCE_MAG:
-        force = FORCE_MAG if force > 0 else -FORCE_MAG
+    #print("Force = ", force)
+
+    #if abs(force) > FORCE_MAG:
+    force = FORCE_MAG if force[0] > force[1] else -FORCE_MAG
+
     print(force)
     print(state)
     # Update game state
-    update_game_state(force)
+    update_game_state(-force)
 
     # Network visualization
     activations = calculate_activations(networks[0]['weights'], networks[0]['biases'], state, layershapes, numLayers)

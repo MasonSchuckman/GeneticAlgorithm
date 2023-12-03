@@ -65,7 +65,7 @@ public:
     virtual void setOutput(int tid, int block, float * output, float * gamestate, const float * startingParams_d) = 0;
 
     //Called at end of each iteration. Used for Reinforcement Learning.
-    virtual Eigen::MatrixXd getState(float & action, float & reward, float *gamestate) = 0;
+    virtual Eigen::MatrixXd getState(int & action, float & reward, float *gamestate) = 0;
     //NOTE: The ID this function returns MUST be unique for each derived class!
     virtual int getID() = 0;
     
@@ -86,10 +86,11 @@ struct FullSimConfig{
     float shiftEffectiveness;
 
     int loadData;
+    int RL;
     FullSimConfig(Simulation * sim_, SimConfig config_, int totalBots_, int generations_, float baseMutationRate_,
-    float minMutationRate_, float mutationDecayRate_, float shiftEffectiveness_, int loadData_)
+    float minMutationRate_, float mutationDecayRate_, float shiftEffectiveness_, int loadData_, int RL_)
         : sim(sim_), config(config_), totalBots(totalBots_), generations(generations_), baseMutationRate(baseMutationRate_)
-        , minMutationRate(minMutationRate_), mutationDecayRate(mutationDecayRate_), shiftEffectiveness(shiftEffectiveness_), loadData(loadData_) {}
+        , minMutationRate(minMutationRate_), mutationDecayRate(mutationDecayRate_), shiftEffectiveness(shiftEffectiveness_), loadData(loadData_), RL(RL_) {}
 
     ~FullSimConfig(){
         delete sim;

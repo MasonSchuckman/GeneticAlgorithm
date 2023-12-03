@@ -88,6 +88,13 @@
         "numbers": "cpp",
         "semaphore": "cpp",
         "stop_token": "cpp",
-        "cinttypes": "cpp"
+        "cinttypes": "cpp",
+        "netfwd": "cpp",
+        "buffer": "cpp",
+        "executor": "cpp",
+        "internet": "cpp",
+        "io_context": "cpp",
+        "socket": "cpp",
+        "timer": "cpp"
     }
 }
