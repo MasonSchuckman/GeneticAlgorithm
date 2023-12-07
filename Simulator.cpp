@@ -795,7 +795,7 @@ int total_score_ = 0;
 int topScore = 0;
 std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *output_h)
 {
-    int printInterval = 25;
+    int printInterval = 1;
 
     int totalBots = bots.size();
     int tpb = 32; // threads per block
@@ -862,8 +862,8 @@ std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *out
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    if (iterationsCompleted % printInterval == 0)
-        std::cout << "Simulation time taken: " << elapsed_time << " ms\t";
+    //if (iterationsCompleted % printInterval == 0)
+     //   std::cout << "Simulation time taken: " << elapsed_time << " ms\t";
 
    
     // slowly reduce the mutation rate until it hits a lower bound
@@ -934,8 +934,8 @@ std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *out
     {
         elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
 
-        printf("\niter %d, Total Score = %d, top score = %d", iterationsCompleted, total_score_, topScore);
-        std::cout << " Generation took " << elapsed_time << " ms.\n";
+        printf("Iter %d, Total Score = %d, top score = %d\t", iterationsCompleted, total_score_, topScore);
+        //std::cout << " Generation took " << elapsed_time << " ms.\t";
         total_score_ = 0;
         topScore = 0;
     }
@@ -1086,10 +1086,10 @@ void Simulator::batchSimulate(int numSimulations)
             std::vector<episodeHistory> simulationIterationHistory = runSimulationRL(agent, &output_h[i * totalBots]);
             
             double loss = agent.update(simulationIterationHistory);
-            if(i % 25 == 0){
-                printf("\tLoss = %f, Epsilon = %f\n", loss, agent.epsilon);
-            
+            if(i % 1 == 0){
+                printf("Loss = %f, Epsilon = %f, LR = %f\n", loss, agent.epsilon, agent.qNet.optimizer.learningRate);            
             }
+
         }else{
             std::vector<episodeHistory> simulationIterationHistory = runSimulation(&output_h[i * totalBots], parentSpecimen_h, ancestors_h, distances_h);
 
@@ -1097,45 +1097,6 @@ void Simulator::batchSimulate(int numSimulations)
             copyFromGPU(weights_h, biases_h);
 
         }
-        
-        
-        
-
-        //if (trackingGenetics)
-        //{
-        //    Specimen **nextGeneration = new Specimen *[totalBots];
-
-        //    for (int j = 0; j < totalBots; j++)
-        //    {
-        //        Genome *nextGenome = new Genome(layerShapes_h, config.numLayers, &biases_h[j * config.totalNeurons], &weights_h[j * config.totalWeights], "sigmoid");
-        //        Specimen *nextSpecimen = new Specimen(nextGenome, previousGeneration[parentSpecimen_h[j]]);
-
-        //        nextGeneration[j] = nextSpecimen;
-        //    }
-
-        //    // bigger constant = harder to make a new species
-        //    float MAGIC_CONSTANT = 5;
-        //    float PROGENITOR_THRESHOLD = 0;
-
-        //    PROGENITOR_THRESHOLD = getAvgDistance();
-        //    PROGENITOR_THRESHOLD *= MAGIC_CONSTANT;
-
-        //    history->incrementGeneration(nextGeneration, totalBots, PROGENITOR_THRESHOLD);
-        //    compositions.push_back(history->speciesComposition());
-
-        //    if (history->getYear() % 10 == 0)
-        //        historyGraph(history);
-
-        //    for (int j = 0; j < totalBots; j++)
-        //        history->pruneSpecimen(previousGeneration[j]);
-
-        //    delete previousGeneration;
-        //    previousGeneration = nextGeneration;
-        //    // printAncestry(previousGeneration[0]->species, 0);
-        //}
-
-        //if(i % 100 == 0)
-        //    writeWeightsAndBiasesAll(weights_h, biases_h, totalBots, config.totalWeights, config.totalNeurons, config.numLayers, config.layerShapes);
 
     }
     if (trackingGenetics)
@@ -1167,7 +1128,7 @@ void Simulator::batchSimulate(int numSimulations)
     }
     printf("PASSED TEST? %d\n", passed);
 
-    agent.saveNeuralNet();
+    //agent.saveNeuralNet();
 
     delete[] savedWeights;
     delete[] savedBiases;

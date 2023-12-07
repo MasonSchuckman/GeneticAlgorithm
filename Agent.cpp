@@ -7,38 +7,59 @@
 extern int debugging;
 extern int print_iterval;
 extern int CURRENT_ITERATION;
+template <typename MatrixType>
+void printDims(const MatrixType& matrix)
+{
+    std::cout << "Rows: " << matrix.rows() << ", Columns: " << matrix.cols() << std::endl;
+}
+template <typename MatrixType>
+void printDims(const std::string matName, const MatrixType& matrix)
+{
+    std::cout << matName << "\n";
+    std::cout << "Rows: " << matrix.rows() << ", Columns: " << matrix.cols() << std::endl;
+}
 
 
 int trainCalls = 0;
 
 Agent::Agent(int numActions, int numInputs)
-    : numActions(numActions), numInputs(numInputs), rd(), gen(rd()), qNet(0.03), replayBuffer(replayBufferSize)
+    : numActions(numActions), numInputs(numInputs), rd(), gen(rd()), qNet(0.01, 0.9, 0.999), replayBuffer(replayBufferSize)
 {
     // Add layers to the Q-network
-    qNet.addLayer(DenseLayer(numInputs, 12, LeakyRelu, LeakyReluDerivative));
-    qNet.addLayer(DenseLayer(12, 6, LeakyRelu, LeakyReluDerivative));
-    qNet.addLayer(DenseLayer(6, numActions, linear, linearDerivative)); // Output layer has numActions neurons
+    qNet.addLayer(DenseLayer(numInputs, 24, relu, reluDerivative));
+   // qNet.addLayer(BatchNormalizationLayer(64));
+    qNet.addLayer(DenseLayer(24, 24, relu, reluDerivative));    
+
+    /*qNet.addLayer(DenseLayer(12, 6, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(6, 4, LeakyRelu, LeakyReluDerivative));*/
+
+
+    qNet.addLayer(DenseLayer(24, numActions, linear, linearDerivative)); // Output layer has numActions neurons
     
     targetNet = qNet;
 
     gamma = 0.95f; // Discount factor
     epsilon = 1.0f; // Exploration rate
-    epsilonMin = 0.05f;
-    epsilonDecay = 0.9998f;
+    epsilonMin = 0.1f;
+    epsilonDecay = 0.99;
 }
 
 Eigen::VectorXd normalizeState(const Eigen::VectorXd &state) {
     Eigen::VectorXd normalizedState(state.size());
     // Assuming state is [cart_position, cart_velocity, pole_angle, pole_velocity_at_tip]
     // Replace these with the actual ranges for your environment
-    double minValue[4] = {-12.4, -50, -12, -500}; // Replace with actual min values
-    double maxValue[4] = {12.4, 50, 12, 500};     // Replace with actual max values
+    double minValue[4] = {-2.4, -5, -12, -500}; // Replace with actual min values
+    double maxValue[4] = {2.4, 5, 12, 500};     // Replace with actual max values
 
     for (int i = 0; i < state.size(); ++i) {
         normalizedState[i] = (state[i] - minValue[i]) / (maxValue[i] - minValue[i]);
     }
     return normalizedState;
 }
+
+//Eigen::MatrixXd normalizeState(const Eigen::MatrixXd& state) {
+//    return normalizeState(state.);
+//}
 
 Eigen::VectorXd Agent::chooseAction(const Eigen::MatrixXd &state_)
 {
@@ -57,20 +78,28 @@ Eigen::VectorXd Agent::chooseAction(const Eigen::MatrixXd &state_)
     }
     else
     {
-        Eigen::VectorXd state = normalizeState(state_);
-        VectorXd actionValues = qNet.forward(state); // Get Q-values for each action
-
+        //Eigen::VectorXd state = normalizeState(state_);
+        VectorXd actionValues = qNet.forward(state_); // Get Q-values for each action
+        //if(std::abs(actionValues(0) - actionValues(1)) > 1){
+        ////if (isPrintIteration()) {
+        //    std::cout << "State : \n" << state_ << std::endl;
+        //    std::cout << "Action values\n" << actionValues << std::endl;
+        //}
+        
         // Choose the best action
         auto maxIndex = std::distance(actionValues.data(), std::max_element(actionValues.data(), actionValues.data() + actionValues.size()));
         action = VectorXd::Zero(numActions);
         action(maxIndex) = 1.0;
-    }
+        //std::cout << "Action vec \n" << action << std::endl;
 
-    
-    // if(((double)rand() / RAND_MAX) > 0.99f){
-    //     printf("\n\n\nAction list:\n");
-    //     std::cout << action << std::endl;
-    // }
+        //if (isPrintIteration()) {
+        //    //if(((double)rand() / RAND_MAX) > 0.99f){
+        //    printf("\n\n\nAction list:\n");
+        //    std::cout << actionValues << std::endl;
+        //}
+
+        
+    }
 
     return action;
 }
@@ -78,11 +107,16 @@ Eigen::VectorXd Agent::chooseAction(const Eigen::MatrixXd &state_)
 float _train(NeuralNetwork& net, const MatrixXd& inputs, const MatrixXd& targets, int timestep) {
     trainCalls++;
     // Update the learning rate
-    net.optimizer.updateLearningRate(timestep);
+    //net.optimizer.updateLearningRate(timestep);
     /*if (trainCalls % 10000 == 0)
         printf("\n\nLEARNING RATE = %f\n", net.optimizer.learningRate);*/
     // Forward pass
     MatrixXd predictions = net.forward(inputs, true);
+
+
+    //std::cout << "\ntargets:\n" << targets << std::endl;
+    //std::cout << "\npredictions:\n" << predictions << std::endl;
+    //std::cout << "\ninputs:\n" << inputs << std::endl;
 
     // Calculate loss
     //MatrixXd loss = meanSquaredError(predictions, targets);
@@ -90,12 +124,10 @@ float _train(NeuralNetwork& net, const MatrixXd& inputs, const MatrixXd& targets
 
     //MSE
     //MatrixXd gradient = (predictions - targets);
-
     //// Clip gradients
     //double clipValue = 5.000; // You can adjust this value
     //double maxCoeff = gradient.maxCoeff();
-    //double minCoeff = gradient.minCoeff();
-   
+    //double minCoeff = gradient.minCoeff();   
     //if (maxCoeff > clipValue) {
     //    gradient = gradient * (clipValue / maxCoeff);
     //} else if (minCoeff < -clipValue) {
@@ -104,8 +136,15 @@ float _train(NeuralNetwork& net, const MatrixXd& inputs, const MatrixXd& targets
 
 
     //Huber loss
+   // std::cout << "Predictions:\n" << (predictions.leftCols(5)).transpose() << std::endl;
+    //std::cout << "Targets    :\n" << (targets.leftCols(5)).transpose() << std::endl;
+
     MatrixXd gradient = predictions - targets;
-    double delta = 1.0; // You can tune this parameter
+    //printf("Loss = %f\t", (gradient).array().square().sum() / (gradient.cols()));
+    //std::cout << "Gradient:\n" << (gradient.leftCols(5)).transpose() << std::endl;
+
+    gradient /= (predictions.cols());
+    double delta = 3; 
     for (int i = 0; i < gradient.rows(); ++i) {
         for (int j = 0; j < gradient.cols(); ++j) {
             if (std::abs(gradient(i, j)) <= delta) {
@@ -125,66 +164,183 @@ float _train(NeuralNetwork& net, const MatrixXd& inputs, const MatrixXd& targets
     // Update weights and biases in all layers
     //net.updateParameters();    
 
-    return (predictions - targets).array().square().sum();
+    return (gradient).array().square().sum();
 }
 
-
+//Batch training
 double Agent::train()
 {
+    double total = 0;
+    double abTotal = 0;
+    int large = 0;
+    int small = 0;
     int K = CURRENT_ITERATION;
     double loss = 0;
     if (replayBuffer.isSufficient()) {
-        auto experiences = replayBuffer.sample(minibatchSize);
-        for (const auto& e : experiences) {
-            K++;
-            MatrixXd target = qNet.forward(e.state);
-            double qUpdate = e.reward;
-            if (!e.done) {
-                MatrixXd nextQ = targetNet.forward(e.nextState);
-                qUpdate += gamma * nextQ.maxCoeff();
-            }
-            target(e.action, 0) = qUpdate;
-            loss += _train(qNet, e.state, target, CURRENT_ITERATION);
-
-            
+        if (K % 50 == 0)
+        {
+            printf("L2 norm between Q and Target : %f\n", qNet.computeL2NormWith(targetNet));
+            targetNet.polyakUpdate(qNet, 0.99);
         }
 
-        qNet.timestep++;        
+        std::vector<int> indices(minibatchSize); // To store indices of experiences in the batch
+        auto experiences = replayBuffer.sample(minibatchSize, indices);
+
+
+        MatrixXd states(experiences[0].state.rows(), minibatchSize);
+        MatrixXd nextStates(experiences[0].nextState.rows(), minibatchSize);
+        MatrixXd rewards(1, minibatchSize);
+        std::vector<int> actions(minibatchSize);
+        std::vector<bool> dones(minibatchSize);
+
+
+        for (int i = 0; i < minibatchSize; i++)
+        {
+            states.col(i) = experiences[i].state.col(0);
+            nextStates.col(i) = experiences[i].nextState.col(0);
+            rewards(0, i) = experiences[i].reward;
+            actions[i] = experiences[i].action;
+            dones[i] = experiences[i].done;
+        }
+
+        
+        
+        MatrixXd qValues = qNet.forward(states);
+        MatrixXd qUpdates = rewards;
+        MatrixXd q_values_next = targetNet.forward(nextStates);
+        MatrixXd targets = qValues;
+
+        //if ((qNet.forward(states) - targetNet.forward(nextStates)).maxCoeff() > 100) {
+        //    std::cout << "\MAX DIFF = " << (qNet.forward(states) - targetNet.forward(nextStates)).maxCoeff() << std::endl;
+        //    std::cout << "\nDIFF = " << (qNet.forward(states) - targetNet.forward(nextStates)) << std::endl;
+        //    std::cout << "\nMAX DIFF states= " << (nextStates - states).maxCoeff() << std::endl;
+        //    std::cout << "\nDIFF STATES = " << (nextStates - states) << std::endl;
+        // //std::cout << "\REWARDS = " << rewards << std::endl;
+        //std::cout << "\MAX REWARDS = " << rewards.maxCoeff() << std::endl;       
+        //}
+         
+        
+        for (int i = 0; i < minibatchSize; i++) {
+            targets(actions[i], i) = rewards(i);
+            if (!dones[i]) {
+                /*if(i < 5)
+
+                printf("Max coef = %f\n", );
+                double qq = nextQs.col(i).maxCoeff();*/
+                //qUpdates(0,i) += gamma * q_values_next.col(i).maxCoeff();
+                targets(actions[i], i) += gamma * q_values_next.col(i).maxCoeff();
+
+            }
+        }
+
+        std::vector<double> td_errors(minibatchSize);
+        //printf("\n");
+        // update target
+        for (int i = 0; i < minibatchSize; i++) {     
+            td_errors[i] = qUpdates(0, i) - qValues(actions[i], i);
+            
+            
+            //if (qUpdates(0, i) > 10) {
+            //    //printf("qUpdate = %f, original = %f\n", qUpdates(0, i), targets(actions[i], i));
+            //    //std::cout << "States : \n" << states.col(i) << "\nNext States :\n" << nextStates.col(i) << std::endl;
+            //}
+
+            qValues(actions[i], i) = qUpdates(0, i);
+            
+            
+        }
+        //printf("\n");
+
+
+       /* if (true || CURRENT_ITERATION > 5000 && (isPrintIteration())) {
+            std::cout << "Rewards:\n" << rewards.leftCols(5) << std::endl;
+            std::cout << "Next Q's:\n" << (q_values_next.leftCols(5)).transpose() << std::endl;
+            std::cout << "Targets:\n" << (targets.leftCols(5)).transpose() << std::endl;
+
+        }*/
+
+        for (int i = 0; i < 3; i++)
+            loss += _train(qNet, states, targets, CURRENT_ITERATION);
+
+        
+
+        // Update priorities
+        for (int i = 0; i < minibatchSize; i++) {
+            replayBuffer.updatePriority(indices[i], td_errors[i]);
+        }
+        
+
+        int zz = 0;
+        for (auto e : experiences) {
+            double pre = 0;
+            if (e.tdError != 1) {
+
+                pre = e.tdError;
+            }
+
+
+
+            if (std::abs(td_errors[zz]) > 10.001) {
+                large++;
+                total += td_errors[zz];
+                abTotal += std::abs(td_errors[zz]);
+            }
+            else {
+                small++;
+            }
+
+            if (pre != 0) {
+               // printf("Seen again %d : %f\t", indices[zz], pre);
+                //printf("New : %f, Delta TD error = %f\n", td_errors[zz], (pre - td_errors[zz]));
+            }
+            zz++;
+        }
+
+        
+            
+        qNet.timestep++;
     }
 
-    
-    if (CURRENT_ITERATION % 25 == 0) {
-        targetNet = qNet;
-    }
-
-
+    if (isPrintIteration())
+        printf("\n\nLarge = %d, small = %d, avg for large: %f, avg ab: %f\n", large, small, (total / large), (abTotal / large));
     return loss;
 }
 
+
 void Agent::formatData(const std::vector<episodeHistory>& history)
 {
+    int start = 0;
+    /*if (CURRENT_ITERATION > 500)
+        start = 10;*/
     for (auto it = history.begin(); it != history.end(); it++)
     {
-        for (size_t i = 0; i < it->states.size() - 1; i++)
+        for (size_t i = start; i < it->states.size() - 1; i++)
         {
             bool done = i >= it->endIter;
-            replayBuffer.add({ it->states[i], it->actions[i], it->rewards[i], it->states[i + 1], done});
+            replayBuffer.add({ it->states[i], it->actions[i], it->rewards[i+1], it->states[i + 1], done, it->endIter});
         }        
     }
 }
 
 double Agent::update(const std::vector<episodeHistory> &history)
 {
-    formatData(history);
+    //if(CURRENT_ITERATION < 2500) //turn on for overfit experiment
+        formatData(history);
     double totalLoss = 0;
-    /*for (int episode = 0; episode < history.size(); episode+=)
-    {*/
-        // printf("Update Episode %d\n\n", episode);
+    
     CURRENT_ITERATION++;
-    totalLoss += train();
-    //}
 
-    if (epsilon > epsilonMin)
+    /*if (CURRENT_ITERATION > 20)
+        for (int i = 0; i < 100000; i++) {
+            CURRENT_ITERATION++;
+            printf("\ni = %d, \n\nLoss : %f\n\n\n", i, train());
+        }
+      */      
+    
+
+    totalLoss += train();
+
+    if (replayBuffer.isSufficient() && epsilon > epsilonMin)
     {
         epsilon *= epsilonDecay;
     }
@@ -198,6 +354,82 @@ void Agent::saveNeuralNet()
 }
 
 
+
+/////////
+
+// batchSize = 1 updates (OLD)
+//double Agent::train()
+//{
+//    double total = 0;
+//    double abTotal = 0;
+//    int large = 0;
+//    int small = 0;
+//    int K = CURRENT_ITERATION;
+//    double loss = 0;
+//    if (replayBuffer.isSufficient()) {
+//        std::vector<int> indices(minibatchSize); // To store indices of experiences in the batch
+//        auto experiences = replayBuffer.sample(minibatchSize, indices);
+//
+//        int c = 0;
+//        for (const auto& e : experiences) {
+//            K++;
+//            MatrixXd target = qNet.forward(e.state);
+//            double qUpdate = e.reward;
+//            if (!e.done) {
+//                MatrixXd nextQ = targetNet.forward(e.nextState);
+//                qUpdate += gamma * nextQ.maxCoeff();
+//            }
+//            double pre = 0;
+//            if (e.tdError != 1) {
+//                
+//                pre = e.tdError;
+//            }
+//
+//            double td_error = qUpdate - target(e.action, 0);
+//            if (std::abs(td_error) > 10.001) {
+//                large++;
+//                total += td_error;
+//                abTotal += std::abs(td_error);
+//            }
+//            else {
+//                small++;
+//            }
+//            replayBuffer.updatePriority(indices[c], td_error);
+//
+//
+//            target(e.action, 0) = qUpdate;
+//            for(int i = 0; i < 5; i++)
+//            loss += _train(qNet, e.state, target, CURRENT_ITERATION);
+//            
+//
+//
+////            if (isPrintIteration()) {
+////                if (e.endIter > 300)
+////                    printf("Long episode td error = %f\n", td_error);
+////
+////               /* if (pre != 0) {
+////                    printf("Seen again %d : %f\t", indices[c], pre);
+////                    printf("New : %f, Delta TD error = %f\n", td_error, (pre - td_error));
+////                }
+////;*/
+////            }
+//                
+//
+//            if (K % 3 == 0) {
+//                targetNet = qNet;
+//            }
+//
+//            c++;
+//        }
+//
+//        qNet.timestep++;        
+//    }
+//
+//    if(isPrintIteration())
+//    printf("\n\nLarge = %d, small = %d, avg for large: %f, avg ab: %f\n", large, small, (total / large), (abTotal / large));
+//
+//    return loss;
+//}
 
 
 //////////////////

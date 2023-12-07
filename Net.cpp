@@ -3,8 +3,10 @@
 
 
 int debugging = 0;
-int print_iterval = 500;
+int print_iterval = 1000;
 int CURRENT_ITERATION = 0;
+
+const float L2_LAMBDA = 0.0;
 
 bool isPrintIteration()
 {
@@ -20,7 +22,7 @@ void printDims(const MatrixType &matrix)
 template <typename MatrixType>
 void printDims(const std::string matName, const MatrixType &matrix)
 {
-    std::cout << matName << "\n";
+    std::cout << matName << "   ";
     std::cout << "Rows: " << matrix.rows() << ", Columns: " << matrix.cols() << std::endl;
 }
 
@@ -49,12 +51,12 @@ double reluDerivative(double x)
 
 double LeakyRelu(double x)
 {
-    return x > 0 ? x : x / 8.0;
+    return x > 0 ? x : x / 32.0;
 }
 
 double LeakyReluDerivative(double x)
 {
-    return x > 0 ? 1 : 1.0 / 8.0;
+    return x > 0 ? 1 : 1.0 / 32.0;
 }
 
 // Sigmoid and its derivative
@@ -90,13 +92,16 @@ MatrixXd softmax(const MatrixXd &x)
 }
 
 MatrixXd heInitialization(int rows, int cols)
-{
+{    
     std::default_random_engine generator;
     std::normal_distribution<double> distribution(0, sqrt(2.0 / cols)); // Using He-et-al initialization
     MatrixXd m = MatrixXd::Zero(rows, cols);
-    for (int i = 0; i < m.rows(); ++i)
-        for (int j = 0; j < m.cols(); ++j)
-            m(i, j) = distribution(generator);
+    int c = 1;
+    for (int i = 0; i < m.cols(); ++i)
+        for (int j = 0; j < m.rows(); ++j) {
+            m(j, i) =  distribution(generator);
+            c++;
+        }
     return m;
 }
 
@@ -120,8 +125,19 @@ void AdamOptimizer::update(MatrixXd& params, const MatrixXd& dParams, MatrixXd& 
         MatrixXd vHat = v / (1.0 - pow(beta2, t));
 
         //std::cout << "initial value :\n" << params.array() << "\nUpdate :\n" << learningRate * mHat.array() / (vHat.array().sqrt() + epsilon) << std::endl;
-        params.array() -= learningRate * mHat.array() / (vHat.array().sqrt() + epsilon);
+        //params.array() -= learningRate * mHat.array() / (vHat.array().sqrt() + epsilon);
         //std::cout << "post value    :\n" << params.array() << std::endl;
+
+        
+        MatrixXd adjustedGradient = mHat.array() / (vHat.array().sqrt() + epsilon);
+        //if(isPrintIteration())
+       // std::cout << "Is small ? " << mHat.array() << "   /   " << (vHat.array().sqrt() + epsilon) << std::endl;
+        // Update parameters
+        //if(isPrintIteration())
+        //std::cout << "Max coef : " << adjustedGradient.maxCoeff() << ", total delta : " << (learningRate * adjustedGradient.maxCoeff()) << std::endl;
+        //printf("Max coef : %f, prior max coef : %f, total delta : %f\n ", adjustedGradient.maxCoeff(), params.maxCoeff(), (learningRate * adjustedGradient.maxCoeff()));
+        
+        params.array() -= learningRate * adjustedGradient.array();
 
     }
 
@@ -138,45 +154,85 @@ void AdamOptimizer::update(MatrixXd& params, const MatrixXd& dParams, MatrixXd& 
     numWeights = n_neurons * n_inputs;
 }
 
-MatrixXd DenseLayer::forward(const MatrixXd &inputs, bool isTraining)
-{
-    Layer::input = inputs;
 
-    // Compute the matrix product
-    MatrixXd z = weights * inputs;
-    // Broadcast the bias addition across columns
-    unactivated_output = z.colwise() + biases.col(0);
+ MatrixXd DenseLayer::forward(const MatrixXd& inputs, bool isTraining) {
+     Layer::input = inputs;
 
-    output = unactivated_output.unaryExpr(activation); // Apply activation function
+     // Compute the matrix product
+     //printDims("Weights", weights);
+     //printDims("inputs", inputs);
+     MatrixXd z = weights * inputs;
+     //           24 x 4    4 x 1
+     // Broadcast the bias addition across columns
+     unactivated_output = z.colwise() + biases.col(0);
 
-    // Print layer information
-    if (debugging >= 3 && isPrintIteration())
-    {
-        std::cout << "Layer Information:" << std::endl;
-        std::cout << "Inputs:" << std::endl
-                  << inputs << std::endl;
-        std::cout << "Weights:" << std::endl
-                  << weights << std::endl;
-        std::cout << "Biases:" << std::endl
-                  << biases << std::endl;
-        std::cout << "Activations:" << std::endl
-                  << output << std::endl;
-    }
-    return output;
-}
+     output = unactivated_output.unaryExpr(activation); // Apply activation function
 
+     // Print layer information
+     if (debugging >= 2 && isPrintIteration()) {
+         std::cout << "Layer Information:" << std::endl;
+         std::cout << "Inputs:" << std::endl << inputs << std::endl;
+         std::cout << "Weights:" << std::endl << weights << std::endl;
+         std::cout << "Biases:" << std::endl << biases << std::endl;
+         std::cout << "Activations:" << std::endl << output << std::endl;
+     }
+     return output;
+ }
+//
+//MatrixXd DenseLayer::forward(const MatrixXd &inputs, bool isTraining)
+//{
+//    Layer::input = inputs;
+//
+//    // Compute the matrix product
+//    unactivated_output = (inputs * weights.transpose()).rowwise() + biases.col(0).transpose();
+//    
+//    
+//    output = unactivated_output.unaryExpr(activation); // Apply activation function
+//    std::cout << "Activations:" << std::endl
+//        << output << std::endl;
+//
+//
+//    // Print layer information
+//    if (debugging >= 3 && isPrintIteration())
+//    {
+//        std::cout << "Layer Information:" << std::endl;
+//        std::cout << "Inputs:" << std::endl
+//                  << inputs << std::endl;
+//        std::cout << "Weights:" << std::endl
+//                  << weights << std::endl;
+//        std::cout << "Biases:" << std::endl
+//                  << biases << std::endl;
+//        std::cout << "Activations:" << std::endl
+//                  << output << std::endl;
+//    }
+//    return output;
+//}
+
+ //MatrixXd DenseLayer::backward(const MatrixXd& error) {
+ //    // Apply derivative of activation function to the error
+ //    MatrixXd output_delta = error.array() * unactivated_output.unaryExpr(activationDerivative).array();
+
+ //    // Update dWeights and dBias using the outer product of output_delta and input
+ //    dWeights = output_delta * input.transpose();
+
+ //    // Add L2 regularization to the gradient for the weights
+ //    dWeights += L2_LAMBDA * weights;
+
+ //    dBias = output_delta.rowwise().sum();
+
+ //    // Propagate the error backwards
+ //    dInput = weights.transpose() * output_delta;
+
+ //    return dInput;
+ //}
 MatrixXd DenseLayer::backward(const MatrixXd& error) {
-        // Apply derivative of activation function to the error
-        MatrixXd output_delta = error.array() * unactivated_output.unaryExpr(activationDerivative).array();
 
-        // Update dWeights and dBias using the outer product of output_delta and input
-        dWeights = output_delta * input.transpose();
-        dBias = output_delta.rowwise().sum();
+    MatrixXd output_delta = error.array() * unactivated_output.unaryExpr(activationDerivative).array();
+    dWeights = output_delta * input.transpose();
+    dWeights += L2_LAMBDA * weights;
+    dBias = output_delta.rowwise().sum();
 
-        // Propagate the error backwards
-        dInput = weights.transpose() * output_delta;
-
-        return dInput;
+    return output_delta;
 }
 
 DropoutLayer::DropoutLayer(double rate) : dropoutRate(rate)
@@ -218,45 +274,189 @@ MatrixXd DropoutLayer::backward(const MatrixXd &gradOutput)
     return dInput;
 }
 
+
+//BatchNormalizationLayer::BatchNormalizationLayer(int n_inputs)
+//    : gamma(MatrixXd::Ones(n_inputs, 1)),
+//    beta(MatrixXd::Zero(n_inputs, 1)),
+//    runningMean(MatrixXd::Zero(n_inputs, 1)),
+//    runningVariance(MatrixXd::Zero(n_inputs, 1)),
+//    momentum(0.9) {}
+
+//MatrixXd BatchNormalizationLayer::forward(const MatrixXd& inputs, bool isTraining) {
+//    if (isTraining) {
+//        // Compute mean and variance for the batch
+//        batchMean = inputs.colwise().mean();
+//        MatrixXd meanCentered = inputs - batchMean.transpose().replicate(inputs.rows(), 1);
+//        batchVariance = ((meanCentered.array().square().colwise().sum()) / inputs.rows()).matrix();
+//
+//        // Update running mean and variance
+//        runningMean = momentum * runningMean + (1 - momentum) * batchMean;
+//        runningVariance = momentum * runningVariance + (1 - momentum) * batchVariance;
+//
+//        // Normalize
+//        output = (meanCentered.array() / (batchVariance.array() + 1e-8).sqrt().transpose().replicate(1, inputs.cols())).matrix();
+//    }
+//    else {
+//       // // Use running mean and variance for normalization during inference
+//        MatrixXd meanCentered = inputs - runningMean.transpose().replicate(1, inputs.cols());
+//        output = (meanCentered.array() / (runningVariance.array() + 1e-8).sqrt().transpose().replicate(1, inputs.cols())).matrix();
+//    }
+//
+//    // Apply scale and shift
+//    output.array() *= gamma.transpose().replicate(1, inputs.cols()).array();
+//    output.array() += beta.transpose().replicate(1, inputs.cols()).array();
+//
+//    return output;
+//}
+//
+//
+//MatrixXd var(MatrixXd m) {
+//    double mean = m.mean();
+//    Eigen::MatrixXd variance = (m.array() - mean).matrix().square().mean();
+//    return variance;
+//}
+//
+//MatrixXd BatchNormalizationLayer::forward(const MatrixXd& inputs, bool isTraining) {
+//    // Calculate the mean and variance of the input data
+//    MatrixXd mean = inputs.rowwise().mean();
+//    MatrixXd variance = inputs.rowwise().variance();
+//
+//    // Calculate the scale and shift parameters
+//    MatrixXd scale = (1 - momentum) * gamma / sqrt(variance + epsilon);
+//    MatrixXd shift = beta - gamma * mean / sqrt(variance + epsilon);
+//
+//    // Apply the batch normalization transformation
+//    MatrixXd normalized = (inputs - mean) / sqrt(variance + epsilon);
+//    MatrixXd transformed = scale * normalized + shift;
+//
+//    // Update the running mean and variance
+//    runningMean = momentum * runningMean + (1 - momentum) * mean;
+//    runningVariance = momentum * runningVariance + (1 - momentum) * variance;
+//
+//    return transformed;
+//}
+//
+//MatrixXd BatchNormalizationLayer::backward(const MatrixXd& gradOutput) {
+//    //int m = gradOutput.rows();
+//
+//    // Derivative of loss with respect to scale (gamma) and shift (beta)
+//    //MatrixXd dGamma = (gradOutput.array() * output.array()).colwise().sum();
+//    //MatrixXd dBeta = gradOutput.colwise().sum();
+//
+//    //// Intermediate terms for normalization
+//    //MatrixXd stdInv = (batchVariance.array() + 1e-8).sqrt().inverse();
+//    //MatrixXd xMu = input.rowwise() - batchMean;
+//
+//    // Derivative of loss with respect to normalized input
+//    //MatrixXd dxNorm = gradOutput.array().rowwise() * gamma.transpose().array();
+//
+//    //// Derivative of loss with respect to variance
+//    //MatrixXd dVar = (dxNorm.array() * xMu.array()).colwise().sum() * -0.5 * stdInv.array().cube();
+//
+//    //// Derivative of loss with respect to mean
+//    //MatrixXd dMean = -dxNorm.colwise().sum().array() * stdInv.array() - 2.0 / m * dVar.array() * xMu.colwise().sum().array();
+//
+//    //// Derivative of loss with respect to input
+//    //MatrixXd dInput = dxNorm.array().rowwise() * stdInv.transpose().array() + 2.0 / m * dVar.array() * xMu.array() + dMean.array() / m;
+//
+//    //// Update scale and shift
+//    //gamma -= learningRate * dGamma;
+//    //beta -= learningRate * dBeta;
+//
+//    return gamma;
+//}
+
+
 NeuralNetwork::NeuralNetwork(double lr, double b1, double b2, double eps)
     : optimizer(lr, b1, b2, eps) {
-
-    timestep = 2;
+    lambda = 0.01;
+    timestep = 1;
 }
 
+void NeuralNetwork::polyakUpdate(const NeuralNetwork& primaryNetwork, double polyakCoefficient) {
+    for (size_t i = 0; i < layers.size(); ++i) {
+        auto& targetLayer = dynamic_cast<DenseLayer&>(*layers[i]);
+        const auto& primaryLayer = dynamic_cast<const DenseLayer&>(*primaryNetwork.layers[i]);
+
+        // Update weights and biases with Polyak averaging
+        targetLayer.weights = polyakCoefficient * targetLayer.weights +
+            (1 - polyakCoefficient) * primaryLayer.weights;
+        targetLayer.biases = polyakCoefficient * targetLayer.biases +
+            (1 - polyakCoefficient) * primaryLayer.biases;
+    }
+}
 
 MatrixXd NeuralNetwork::forward(const MatrixXd &inputs, bool isTraining)
 {
+    int c = 0;
     MatrixXd currentOutput = inputs;
     for (auto &layer : layers)
     {
+        //printf("C = %d, ", c);
+        //printDims("currentOutput", currentOutput);
         currentOutput = layer->forward(currentOutput, isTraining);
+        c++;
     }
+    //printf("C = %d, ", c);
+    //printDims("currentOutput", currentOutput);
     return currentOutput;
 }
 
+//void NeuralNetwork::backward(const MatrixXd& gradOutput) {
+//        MatrixXd currentGradient = gradOutput;
+//
+//        for (auto it = layers.rbegin(); it != layers.rend(); ++it) {            
+//            //printf("back1\n");
+//
+//           /* if (auto normalizer = dynamic_cast<BatchNormalizationLayer*>(it->get()))
+//                normalizer->learningRate = optimizer.learningRate;*/
+//
+//            currentGradient = (*it)->backward(currentGradient);
+//            //printf("back2\n");
+//            if(debugging && isPrintIteration())
+//                std::cout << "Current gradient: " << std::endl << currentGradient << std::endl;
+//
+//            // If it's a DenseLayer, update its weights and biases
+//            if (auto denseLayer = dynamic_cast<DenseLayer*>(it->get())) {
+//                // Update the weights and biases using Adam optimizer
+//                //printf("update1\n");
+//                optimizer.update(denseLayer->weights, denseLayer->dWeights, denseLayer->mWeights, denseLayer->vWeights, timestep);
+//                //printf("update2\n");
+//                optimizer.update(denseLayer->biases, denseLayer->dBias, denseLayer->mBiases, denseLayer->vBiases, timestep);
+//                //printf("update3\n");
+//            }        
+//        } 
+//        //timestep++;
+//    }
+
 void NeuralNetwork::backward(const MatrixXd& gradOutput) {
-        MatrixXd currentGradient = gradOutput;
+    MatrixXd currentGradient = gradOutput;
 
-        for (auto it = layers.rbegin(); it != layers.rend(); ++it) {            
-            //printf("back1\n");
-            currentGradient = (*it)->backward(currentGradient);
-            //printf("back2\n");
-            if(debugging && isPrintIteration())
-                std::cout << "Current gradient: " << std::endl << currentGradient << std::endl;
+    for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+        if (it != layers.rbegin()) {
+            if (auto denseLayer = dynamic_cast<DenseLayer*>((it - 1)->get())) {
+                currentGradient = denseLayer->weights.transpose() * currentGradient;
+            }
+        }
 
-            // If it's a DenseLayer, update its weights and biases
-            if (auto denseLayer = dynamic_cast<DenseLayer*>(it->get())) {
-                // Update the weights and biases using Adam optimizer
-                //printf("update1\n");
-                optimizer.update(denseLayer->weights, denseLayer->dWeights, denseLayer->mWeights, denseLayer->vWeights, timestep);
-                //printf("update2\n");
-                optimizer.update(denseLayer->biases, denseLayer->dBias, denseLayer->mBiases, denseLayer->vBiases, timestep);
-                //printf("update3\n");
-            }        
-        } 
-        //timestep++;
+        currentGradient = (*it)->backward(currentGradient);
+
+        if (debugging && isPrintIteration())
+            std::cout << "Current gradient: " << std::endl << currentGradient << std::endl;
+
+        // If it's a DenseLayer, update its weights and biases
+        if (auto denseLayer = dynamic_cast<DenseLayer*>(it->get())) {
+            // Update the weights
+            optimizer.update(denseLayer->weights, denseLayer->dWeights, denseLayer->mWeights, denseLayer->vWeights, timestep);
+            optimizer.update(denseLayer->biases, denseLayer->dBias, denseLayer->mBiases, denseLayer->vBiases, timestep);
+
+            // Update the biases
+            //denseLayer->biases -= optimizer.learningRate * denseLayer->dBias;
+        }
     }
+
+    timestep++;
+}
 
     void NeuralNetwork::updateParameters() {
         for (auto& layer : layers) {
@@ -268,8 +468,35 @@ void NeuralNetwork::backward(const MatrixXd& gradOutput) {
         }
         //timestep++;
     }
+
+void NeuralNetwork::printWeightsAndBiases()
+{
+    for (int i = 0; i < layers.size(); i++) {
+        if (auto denseLayer = dynamic_cast<DenseLayer*>((layers[i].get())))
+        {
+            std::cout << "Layer " << i << " Weights:\n" << denseLayer->weights << std::endl;
+            std::cout << "Layer " << i << " Biases:\n" << denseLayer->biases << std::endl;
+
+        }
+        printf("\n");
+    }
+    printf("\n\n");
+}
 void NeuralNetwork::writeWeightsAndBiases()
 {
+
+    printf("\n\nSaving RL-BOT parameters\n\n");
+
+    for (int i = 0; i < layers.size(); i++) {
+        if (auto denseLayer = dynamic_cast<DenseLayer*>((layers[i].get())))
+        {
+            std::cout << "Layer " << i << " Weights:\n" << denseLayer->weights << std::endl;
+            std::cout << "Layer " << i << " Biases:\n" << denseLayer->biases << std::endl;
+
+        }
+        printf("\n");        
+    }
+    printf("\n\n");
     int TOTAL_BOTS = 1;
     int numLayers = layers.size() + 1;
     int *layerShapes = new int[numLayers];
@@ -290,16 +517,20 @@ void NeuralNetwork::writeWeightsAndBiases()
 
     float *weights = new float[totalWeights];
     int c = 0;
+    int layerr = 0;
     for (auto it = layers.rbegin(); it != layers.rend(); ++it)
     {
+        //printf("\nLayer %d Weights:\n", layerr);
         if (auto denseLayer = dynamic_cast<DenseLayer *>((it->get())))
         {
             for (int j = 0; j < denseLayer->numWeights; j++)
             {
-                weights[c] = denseLayer->weights.transpose().data()[c];
+                
+                weights[c] = denseLayer->weights.transpose().data()[c];// printf("%f, ", weights[c]);
                 c++;
             }
         }
+        layerr++;
     }
 
     float *biases = new float[totalNeurons];
@@ -307,16 +538,20 @@ void NeuralNetwork::writeWeightsAndBiases()
         biases[i] = 0;
 
     c = layerShapes[0];
+    layerr = 0;
     for (auto it = layers.rbegin(); it != layers.rend(); ++it)
     {
+        //printf("\nLayer %d Biases:\n", layerr);
         if (auto denseLayer = dynamic_cast<DenseLayer *>((it->get())))
         {
             for (int j = 0; j < denseLayer->numNeurons; j++)
             {
-                biases[c] = denseLayer->biases.transpose().data()[c];
+                
+                biases[c] = denseLayer->biases.transpose().data()[c];// printf("%f, ", biases[c]);
                 c++;
             }
         }
+        layerr++;
     }
 
     std::ofstream outfile("RL-bot.data", std::ios::out | std::ios::binary); // this might be more space efficient

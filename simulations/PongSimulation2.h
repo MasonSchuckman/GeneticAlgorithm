@@ -27,6 +27,10 @@ public:
     
     Eigen::MatrixXd getState(int & action, float & reward, float *gamestate);
 
+    Eigen::MatrixXd getStateP1(int& action, float& reward, float** activs);
+    Eigen::MatrixXd getStateP2(int& action, float& reward, float** activs);
+
+
     int getID();
 
     

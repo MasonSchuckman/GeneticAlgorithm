@@ -97,6 +97,25 @@ void PongSimulation2::setActivations(int tid, int block, float *gamestate, float
     //activs[1][5] = 0;
 }
 
+
+Eigen::MatrixXd getStateP1(int& action, float& reward, float** activs)
+{
+    Eigen::MatrixXd state(6, 1);
+    for (int i = 0; i < 6; i++)
+        state(i, 0) = activs[0][i];
+
+    return state;
+}
+
+Eigen::MatrixXd getStateP2(int& action, float& reward, float** activs)
+{
+    Eigen::MatrixXd state(6, 1);
+    for (int i = 0; i < 6; i++)
+        state(i, 0) = activs[1][i];
+
+    return state;
+}
+
 // The actions are the outputs of the neural networks that control the paddles. They are the normalized velocities of the paddles in the y direction
 void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate)
 {

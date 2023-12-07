@@ -48,8 +48,9 @@ MatrixXd heInitialization(int rows, int cols);
 // Optimizer
 class AdamOptimizer {
 public:
-    AdamOptimizer(double lr = 0.001, double b1 = 0.9, double b2 = 0.999, double eps = 1e-8, 
-                  int decay_steps = 200, double decay_rate = 0.9);
+    AdamOptimizer(double lr = 0.001, double b1 = 0.9, double b2 = 0.999, double eps = 1e-7, 
+                  int decay_steps = 100, double decay_rate = 0.994);
+
     void update(MatrixXd& params, const MatrixXd& dParams, MatrixXd& m, MatrixXd& v, int t);
     void updateLearningRate(int timestep);
 
@@ -101,6 +102,24 @@ public:
     ActivationFunction activationDerivative;
 };
 
+//class BatchNormalizationLayer : public Layer {
+//public:
+//    BatchNormalizationLayer(int n_inputs);
+//    MatrixXd forward(const MatrixXd& inputs, bool isTraining) override;
+//    MatrixXd backward(const MatrixXd& gradOutput) override;
+//
+//    double learningRate = 0.001;
+//private:
+//    MatrixXd gamma; // Scale parameters
+//    MatrixXd beta;  // Shift parameters
+//    double momentum;
+//    MatrixXd runningMean;
+//    MatrixXd runningVariance;
+//    MatrixXd batchMean;
+//    MatrixXd batchVariance;
+//};
+//
+
 class DropoutLayer : public Layer {
 public:
     DropoutLayer(double rate);
@@ -116,7 +135,7 @@ public:
 // Neural Network
 class NeuralNetwork {
 public:
-    NeuralNetwork(double lr = 0.01, double b1 = 0.9, double b2 = 0.999, double eps = 1e-8);
+    NeuralNetwork(double lr = 0.0001, double b1 = 0.9, double b2 = 0.999, double eps = 1e-7);
     template<typename LayerType>
     void addLayer(const LayerType& layer) {
         layers.push_back(std::make_unique<LayerType>(layer));
@@ -136,7 +155,6 @@ public:
             if (auto denseLayer = dynamic_cast<const DenseLayer*>(layer.get())) {
                 layers.push_back(std::make_unique<DenseLayer>(*denseLayer));
             }
-            // If you have other Layer types, handle them similarly
         }
 
         // Copy optimizer settings
@@ -155,10 +173,33 @@ public:
         *this = other;  // Delegate to assignment operator
     }
 
+
+    double computeL2NormWith(const NeuralNetwork& otherNetwork) const {
+        double l2Norm = 0.0;
+
+        for (size_t i = 0; i < layers.size(); ++i) {
+            const auto& thisLayer = dynamic_cast<const DenseLayer&>(*layers[i]);
+            const auto& otherLayer = dynamic_cast<const DenseLayer&>(*otherNetwork.layers[i]);
+
+            // Compute the difference in weights and biases, and add their L2 norm to the total
+            MatrixXd weightDiff = thisLayer.weights - otherLayer.weights;
+            MatrixXd biasDiff = thisLayer.biases - otherLayer.biases;
+
+            l2Norm += weightDiff.squaredNorm() + biasDiff.squaredNorm();
+        }
+
+        return sqrt(l2Norm);
+    }
+
     MatrixXd forward(const MatrixXd& inputs, bool isTraining = false);
+
+    // Polyak Averaging function for soft target nextwork updates
+    void polyakUpdate(const NeuralNetwork& primaryNetwork, double polyakCoefficient);
+
     void backward(const MatrixXd& gradOutput);
     void updateParameters();
     void writeWeightsAndBiases();
+    void printWeightsAndBiases();
 
 //private:
     vector<std::unique_ptr<Layer>> layers;

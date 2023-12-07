@@ -6,7 +6,7 @@ import struct
 from network_visualizer import *
 
 data_file = "allBots.data"
-data_file = "RL-bot.data"
+data_file = "C:\\Users\\suprm\\source\\repos\\LearningSandbox\\RL-bot.data"
 numLayers = 0
 # Read the all bot format
 def readWeightsAndBiasesAll():
@@ -24,6 +24,7 @@ def readWeightsAndBiasesAll():
         numLayers = struct.unpack('i', infile.read(4))[0]
         layerShapes = [struct.unpack('i', infile.read(4))[0] for _ in range(numLayers)]
         print(layerShapes)
+        layerShapes[0] = 4
         # Allocate memory for the weights and biases
         all_weights = []
         all_biases = []
@@ -46,7 +47,12 @@ def readWeightsAndBiasesAll():
                 layerBiases = np.zeros(layerShapes[i], dtype=np.float32)
                 for j in range(layerShapes[i]):
                     bias = struct.unpack('f', infile.read(4))[0]
-                    layerBiases[j] = bias
+                    trig = False
+                    if math.isnan(bias):
+                        print("\nFOUND NAN",bias)
+                        trig = True
+                        #bias = 0
+                    layerBiases[j] = 0 if trig else bias
                 biases.append(layerBiases)
 
             all_weights.append(weights)
@@ -63,23 +69,29 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
     # Initialize output to biases
     output[:] = biases
 
+    print(f"Layer {layer} Weights \n{0}\nBiases {biases}\n")
+
     # Compute dot product of input and weights
     output[:] += np.dot(inputs, weights)
 
     # Apply activation function (ReLU for non-output layers, sigmoid for output layer)
     if layer != len(layershapes) - 1:        
         #output = np.tanh(output)
-        output[output < 0] = 0
+        #output[output < 0] = 0
+        for i in range(output_size):
+            if output[i] < 0:
+                output[i] /= 8
     # else:
     #     #print('sigmoid')
     #     output[:] = 1.0 / (1.0 + np.exp(-output))
     # if layer != len(layershapes) - 1:
     #     
 
-    
+    #print(f"Layer {layer} Output {output}")
     return output
 
 def get_actions_cart(state, net_weights, net_biases):
+    print("\n\n\nNetBiases",net_biases)
     inputs = np.array(state)
     prevLayer = inputs
     numHiddenLayers = len(layershapes) - 2
@@ -125,7 +137,7 @@ pole_angle = 0#np.pi  # Pole angle in radians (starting straight up)
 pole_angular_velocity = 0
 
 # Physics constants
-GRAVITY = 9.8 * 6
+GRAVITY = 9.8 * 1
 CART_MASS = 1.0
 POLE_MASS = 1.0
 TOTAL_MASS = CART_MASS + POLE_MASS
@@ -176,7 +188,8 @@ def normalize_state(state):
     for i in range(len(state)):
         normalized_state[i] = (state[i] - min_values[i]) / (max_values[i] - min_values[i])
 
-    return normalized_state
+    return state
+    #return normalized_state
 
 while running:
     screen.fill(BLACK)
@@ -192,9 +205,10 @@ while running:
     #print("Force = ", force)
 
     #if abs(force) > FORCE_MAG:
+    print(force)
     force = FORCE_MAG if force[0] > force[1] else -FORCE_MAG
 
-    print(force)
+   
     print(state)
     # Update game state
     update_game_state(force)

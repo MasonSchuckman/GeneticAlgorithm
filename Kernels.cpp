@@ -612,9 +612,12 @@ using Eigen::VectorXd;
                 // Set the activations for this bot this iteration
                 (*sim)->setActivations(0, block, gamestate, activs, iter);
 
-                MatrixXd state(4, 1);
-                state << gamestate[0], gamestate[1], gamestate[2], gamestate[3];
 
+                int a;
+                float b;
+                MatrixXd state = (*sim)->getState(a, b, gamestate);
+
+                
                 // Poll the NN for actions.
                 VectorXd action = agent.chooseAction(state);
                 for(int index = 0; index < action.size(); index++)
@@ -630,25 +633,38 @@ using Eigen::VectorXd;
                     finished = true;
 
                     history.endIter = iter;
-                    history.actions.resize(iter);
-                    history.rewards.resize(iter);
-                    history.states.resize(iter);
+                    history.actions.resize(iter + 1);
+                    history.rewards.resize(iter + 1);
+                    history.states.resize(iter + 1);
                 }
 
-                // Get the iteration info
-                history.states[iter] = (*sim)->getState(history.actions[iter], history.rewards[iter], gamestate);
+                // Get the iteration 
+                (*sim)->getState(history.actions[iter], history.rewards[iter], gamestate);
+                history.states[iter] = state;
                 if(finished){
-                    history.rewards[iter] = -10;
+                    //history.rewards[iter] = -10;
+                    //history.rewards[iter-1] = -5;
+
+                    
+
+                    //// Give negative reward 
                     float scaler = .96f;
-                    for(int i = iter - 1; i > std::max(iter - 30, 0); i--){
+                    /*for(int i = iter - 1; i > std::max(iter - 30, 0); i--){
                         history.rewards[i] -= 10  * scaler;
                         scaler *= scaler;
-                    }                   
+                    }   */                
                 }
 
                 iter++;
                 if (iter >= maxIters || finished)
-                {                    
+                {       
+                    //float scaler = .96f;
+                    //// Give positive reward towards beginning depending on how long it survived
+                    //for (int i = 0; i < iter - 5; i++) {
+                    //    history.rewards[i] += ((float)iter - (float)i) * scaler;
+                    //    scaler *= scaler;
+                    //}
+
                     finished = true;
                     (*sim)->setOutput(0, block, output, gamestate, startingParams);
                 }
