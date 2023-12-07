@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-const size_t replayBufferSize = 1200 * 1;
+const size_t replayBufferSize = 12000 * 1;
 const size_t minibatchSize = 128 * 1;
 const int targetUpdateFrequency = 1;
 

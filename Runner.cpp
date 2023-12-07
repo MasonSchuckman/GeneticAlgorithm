@@ -169,10 +169,10 @@ int main(int argc, char* argv[])
 
     Taxonomy* resultsHistory;
     if (argc == 1) {
-        std::cout << "Testing CartPole\n";
-        resultsHistory = testSim("CartSimConfig.json", 1);
-    }
-    else {
+        std::cout << "Testing Pong\n";
+        resultsHistory = testSim("PongSimulation2.json", 1);
+
+    }else {
         std::cout << "Test user specified file\n";
         int numThreads = atoi(argv[2]);
         resultsHistory = testSim(argv[1], numThreads);

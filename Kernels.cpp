@@ -549,9 +549,8 @@ namespace Kernels
 #include <Eigen/Dense>
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
-    episodeHistory simulateShared4(Agent &agent, int blockIdx, float *s, const int n, Simulation **sim, const float *allWeights, const float *allBiases, const float *startingParams, float *output)
-
-    //episodeHistory simulateShared4(Agent & agent, int blockIdx, float *s, const int n, Simulation **sim, const float *startingParams, float *output)
+episodeHistory simulateShared4(Agent& agent, int blockIdx, float* s, const int n, Simulation** sim, const float* allWeights, const float* allBiases, const float* startingParams, float* output)
+//episodeHistory simulateShared4(Agent & agent, int blockIdx, float *s, const int n, Simulation **sim, const float *startingParams, float *output)
     {
         episodeHistory history;
         history.endIter = config_d.maxIters - 1; // Get's overridden if end condition ever gets triggered
@@ -564,7 +563,7 @@ using Eigen::VectorXd;
         int stride = 32;
 
         // prevent OOB errors
-        if (block < n)
+        if (true || block < n)
         {
 
             // hard coding this makes things *much* simpler. We can change it if needed.
@@ -613,21 +612,25 @@ using Eigen::VectorXd;
                 (*sim)->setActivations(0, block, gamestate, activs, iter);
 
 
-                int a;
-                float b;
-                MatrixXd state = (*sim)->getState(a, b, gamestate);
+                int a = 0;
+                float b = 0;
+                MatrixXd stateP1 = ((PongSimulation2*)(*sim))->getStateP1(a, b, activs);
+                MatrixXd stateP2 = ((PongSimulation2*)(*sim))->getStateP2(a, b, activs);
 
                 
                 // Poll the NN for actions.
-                VectorXd action = agent.chooseAction(state);
-                for(int index = 0; index < action.size(); index++)
-                    actions[0][index] = action(index);
+                VectorXd actionP1 = agent.chooseAction(stateP1);
+                for(int index = 0; index < actionP1.size(); index++)
+                    actions[0][index] = actionP1(index);
                 
+                VectorXd actionP2 = agent.chooseAction(stateP2);
+                for (int index = 0; index < actionP2.size(); index++)
+                    actions[1][index] = actionP2(index);
 
                 // update simulation/game state based on bot actions
                 (*sim)->eval(0, block, actions, gamestate);
 
-                
+                //printf("here23322\n");
                 if ((*sim)->checkFinished(0, block, gamestate) == 1)
                 {
                     finished = true;
@@ -638,9 +641,13 @@ using Eigen::VectorXd;
                     history.states.resize(iter + 1);
                 }
 
+
+
                 // Get the iteration 
                 (*sim)->getState(history.actions[iter], history.rewards[iter], gamestate);
-                history.states[iter] = state;
+                history.states[iter] = stateP1;
+
+
                 if(finished){
                     //history.rewards[iter] = -10;
                     //history.rewards[iter-1] = -5;

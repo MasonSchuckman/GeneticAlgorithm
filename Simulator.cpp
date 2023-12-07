@@ -75,6 +75,9 @@ void processBlocksSimulateSaveHistory(int startBlock, int endBlock, int sharedMe
 void processBlocksSimulateSaveHistoryRL(Agent & agent, int startBlock, int endBlock, int sharedMemNeeded, int numBlocks,
                                       const float *weights_d, const float *biases_d, const float *startingParams_d, float *output_d, Simulation**derived, std::vector<episodeHistory> & histories)
 {
+
+    //TODO: FIX HARD CODING. MANUALLY SETTING THIS LOCKS INTO ONE THREAD AT A TIME. DID SO DIDN';T HAVE TO REWORK THE .JSON TOTAL BOTS AND BOTS PER BLOCK SETTINGS
+    //endBlock = 1;
     float *sharedMem = new float[sharedMemNeeded];
 
 
@@ -86,24 +89,29 @@ void processBlocksSimulateSaveHistoryRL(Agent & agent, int startBlock, int endBl
     int saveInterval = totalEpisodes / totalSaved;
     
     histories.reserve(totalSaved);
+           // printf("Total Episodes = %d, Total targeted saved = %d, Actual Saved = %d, save interval = %d\n", totalEpisodes, totalSaved, histories.size(), saveInterval);
+
+
+    
 
     int c = 0;
-    for (int block = startBlock; block < endBlock; block++)
+    for (int block = startBlock; block < 1; block++)
     {
         
         histories.push_back(Kernels::simulateShared4(agent, block, sharedMem, numBlocks, derived, weights_d, 
                             biases_d, startingParams_d, output_d));
-        
-        
+       // printf("Total Episodes = %d, Total targeted saved = %d, Actual Saved = %d, save interval = %d\n", totalEpisodes, totalSaved, histories.size(), saveInterval);
+
+        //printf("EXIT SIM\n");
         // Zero out the shared mem
-        memset(sharedMem, 0, sharedMemNeeded * sizeof(float));
+        //memset(sharedMem, 0, sharedMemNeeded * sizeof(float));
         c++;
     }
-    delete[] sharedMem;
+    //delete[] sharedMem;
 
     if(firstProcCall)
     {
-        printf("Total Episodes = %d, Total targeted saved = %d, Actual Saved = %d, save interval = %d\n", totalEpisodes, totalSaved, histories.size(), saveInterval);
+       // printf("Total Episodes = %d, Total targeted saved = %d, Actual Saved = %d, save interval = %d\n", totalEpisodes, totalSaved, histories.size(), saveInterval);
         firstProcCall = false;
     }
 
@@ -797,7 +805,7 @@ std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *out
 {
     int printInterval = 1;
 
-    int totalBots = bots.size();
+    int totalBots = bots.size() * 2;
     int tpb = 32; // threads per block
     int numBlocks = (totalBots / config.bpb);
 
@@ -818,10 +826,9 @@ std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *out
     // Launch a kernel on the GPU with one block for each simulation/contest
     // Kernels::simulateShared2<<<numBlocks, tpb, sharedMemNeeded * sizeof(float)>>>(numBlocks, this->sim_d, weights_d, biases_d, startingParams_d, output_d);
     bool multithread = true;
+
+
     std::vector<std::vector<episodeHistory>> threadResults(NUM_THREADS);
-
-
-
 
     // // Calculate the number of blocks per thread
     int blocksPerThread = numBlocks / NUM_THREADS;
@@ -833,7 +840,6 @@ std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *out
     for (int i = 0; i < NUM_THREADS; i++) {
         int startBlock = i * blocksPerThread;
         int endBlock = (i == NUM_THREADS - 1) ? numBlocks : (startBlock + blocksPerThread);
-
         // Create a thread and pass the necessary arguments
         threads.emplace_back(std::thread(processBlocksSimulateSaveHistoryRL, std::ref(agent), startBlock, endBlock, sharedMemNeeded, numBlocks,
                                 weights_d, biases_d, startingParams_d, output_d, &derived, std::ref(threadResults[i])));
@@ -1073,7 +1079,7 @@ void Simulator::batchSimulate(int numSimulations)
 
     // Invoke the kernel
 
-    Agent agent(2, 4);
+    Agent agent(2, 6);
 
     std::cout << "total variables in network (weights+biases): " << config.totalNeurons + config.totalWeights << std::endl;
     for (int i = 0; i < numSimulations; i++)
@@ -1091,6 +1097,7 @@ void Simulator::batchSimulate(int numSimulations)
             }
 
         }else{
+            printf("\n\nWRONG SPOT\n\n");
             std::vector<episodeHistory> simulationIterationHistory = runSimulation(&output_h[i * totalBots], parentSpecimen_h, ancestors_h, distances_h);
 
             // build new speciment objects in order to log history
