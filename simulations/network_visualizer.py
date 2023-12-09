@@ -110,7 +110,7 @@ def display_activations(activations, weights, surface):
         min_activation = min(min(layer) for layer in log_activations) + 1e-9
         max_activation = max(max(layer) for layer in log_activations) + 2e-9
         range_activation = max_activation - min_activation
-
+        #print("range = ", range_activation)
         normalized_activations = []
         for layer in log_activations:
             normalized_layer = [(a - min_activation) / range_activation for a in layer]

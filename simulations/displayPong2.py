@@ -108,7 +108,7 @@ networks = [{'weights': all_weights[best], 'biases': all_biases[best]},
 
 converted_all_weights = convert_weights(all_weights, layershapes)
 
-print(converted_all_weights)
+#print(converted_all_weights)
 
 converted_all_weights.append(*converted_all_weights)
 
@@ -137,7 +137,7 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
     
     return output
 
-
+actionEffects = [PADDLE_SPEED, -PADDLE_SPEED, 0]
 
 def get_actions_pong(state, net_weights, net_biases):
     inputs = np.array(state)
@@ -155,9 +155,16 @@ def get_actions_pong(state, net_weights, net_biases):
     #print(output)
     gamestate = [None] * 1
 
-    
+    chosen_action = 0
+    max_value = output[0]
 
-    gamestate[0] = PADDLE_SPEED if output[0] > output[1] else -PADDLE_SPEED
+    for action in range(1, 3):
+        if output[action] > max_value:
+            max_value = output[action]
+            chosen_action = action
+
+    gamestate[0] = actionEffects[chosen_action]
+    #gamestate[0] = PADDLE_SPEED if output[0] > output[1] else -PADDLE_SPEED
 
 
     # max_val = output[0]

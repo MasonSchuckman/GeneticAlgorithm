@@ -49,7 +49,7 @@ MatrixXd heInitialization(int rows, int cols);
 class AdamOptimizer {
 public:
     AdamOptimizer(double lr = 0.001, double b1 = 0.9, double b2 = 0.999, double eps = 1e-7, 
-                  int decay_steps = 100, double decay_rate = 0.98);
+                  int decay_steps = 100, double decay_rate = 0.991);
 
     void update(MatrixXd& params, const MatrixXd& dParams, MatrixXd& m, MatrixXd& v, int t);
     void updateLearningRate(int timestep);

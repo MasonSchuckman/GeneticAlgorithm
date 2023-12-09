@@ -6,7 +6,7 @@ int debugging = 0;
 int print_iterval = 1000;
 int CURRENT_ITERATION = 0;
 
-const float L2_LAMBDA = 0.03;
+const float L2_LAMBDA = 0.01;
 
 bool isPrintIteration()
 {
@@ -548,7 +548,7 @@ void NeuralNetwork::writeWeightsAndBiases()
 
     printf("\n\nSaving RL-BOT parameters\n\n");
 
-    for (int i = 0; i < layers.size(); i++) {
+    /*for (int i = 0; i < layers.size(); i++) {
         if (auto denseLayer = dynamic_cast<DenseLayer*>((layers[i].get())))
         {
             std::cout << "Layer " << i << " Weights:\n" << denseLayer->weights << std::endl;
@@ -557,8 +557,8 @@ void NeuralNetwork::writeWeightsAndBiases()
         }
         printf("\n");        
     }
-    printf("\n\n");
-    write_weights_and_biases2();
+    printf("\n\n");*/
+    //write_weights_and_biases2();
      
     
     
@@ -579,13 +579,13 @@ void NeuralNetwork::writeWeightsAndBiases()
 
         totalNeurons += layers[i]->numNeurons;
         totalWeights += layers[i]->numWeights;
-        printf("Layer %d num weights = %d\n", i, layers[i]->numWeights);
+        //printf("Layer %d num weights = %d\n", i, layers[i]->numWeights);
     }
-    printf("Total weights = %d, total neurons = %d\n", totalWeights, totalNeurons);
-    printf("Layer shapes:\n");
-    for (int i = 0; i < numLayers; i++)
-        printf("%d, ", layerShapes[i]);
-    printf("\n");
+   // printf("Total weights = %d, total neurons = %d\n", totalWeights, totalNeurons);
+    //printf("Layer shapes:\n");
+   // for (int i = 0; i < numLayers; i++)
+   //     printf("%d, ", layerShapes[i]);
+   // printf("\n");
 
     float *weights = new float[totalWeights];
     int c = 0;

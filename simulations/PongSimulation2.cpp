@@ -3,7 +3,7 @@
 #define WIDTH 640.0f
 #define HEIGHT 480.0f
 #define PADDLE_WIDTH 10.0f
-#define PADDLE_HEIGHT 150.0f
+#define PADDLE_HEIGHT 100.0f
 #define BALL_RADIUS 10.0f
 #define BALL_SPEED 5.0f
 #define PADDLE_SPEED 10.0f
@@ -121,6 +121,8 @@ Eigen::MatrixXd PongSimulation2::getStateP2(int& action, float& reward, float** 
     return state;
 }
 
+const float actionEffects[3] = { PADDLE_SPEED, -PADDLE_SPEED, 0 };
+
 // The actions are the outputs of the neural networks that control the paddles. They are the normalized velocities of the paddles in the y direction
 void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate)
 {
@@ -140,12 +142,48 @@ void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate
     gamestate[14] = 0;
     gamestate[15] = 0;
 
-    gamestate[5] += (actions[0][0] < actions[0][1]) ? PADDLE_SPEED : -PADDLE_SPEED;
+
+    // Actions:
+    // 0 : Go up
+    // 1 : Go down
+    // 2 : Don't move
+    for (int bot = 0; bot < 2; bot++)
+    {
+        int chosenAction = 0;
+        float max = actions[bot][0];
+
+        for (int action = 1; action < 3; action++)
+        {
+            if (actions[bot][action] > max)
+            {
+                max = actions[bot][action];
+                chosenAction = action;
+            }
+        }
+        // Record action taken this time step
+        gamestate[12 + bot] = chosenAction;
+
+        // Update paddle position
+        gamestate[5 + bot * 2] += actionEffects[chosenAction];
+
+        // Clamp paddle position to screen dims
+        if (gamestate[5 + bot * 2] < PADDLE_HEIGHT / 2)
+            gamestate[5 + bot * 2] = PADDLE_HEIGHT / 2;
+
+        else if (gamestate[5 + bot * 2] > HEIGHT - PADDLE_HEIGHT / 2)
+            gamestate[5 + bot * 2] = HEIGHT - PADDLE_HEIGHT / 2;
+       
+
+        
+    }
+
+
+    /*gamestate[5] += (actions[0][0] < actions[0][1]) ? PADDLE_SPEED : -PADDLE_SPEED;
     gamestate[7] += (actions[1][0] < actions[1][1]) ? PADDLE_SPEED : -PADDLE_SPEED;
 
 
     gamestate[12] = (actions[0][0] < actions[0][1]) ? 0 : 1;
-    gamestate[13] = (actions[1][0] < actions[1][1]) ? 0 : 1;
+    gamestate[13] = (actions[1][0] < actions[1][1]) ? 0 : 1;*/
 
     
     // Update the ball position and velocity based on physics
@@ -241,8 +279,9 @@ Eigen::MatrixXd PongSimulation2::getState(int& action, float & reward, float *ga
 	Eigen::MatrixXd state(1,1);
 
     reward = gamestate[14] * 1;
-    //if (reward == 0)
-        reward =- abs(gamestate[5] - gamestate[1]) / 10.0;
+
+    if (reward == 0 && gamestate[12] == 2 && abs(gamestate[5] - gamestate[1]) > 0.5 * PADDLE_HEIGHT)
+        reward = -abs(gamestate[5] - gamestate[1]) / 1000.0;
 
 
 
