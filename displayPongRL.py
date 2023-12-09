@@ -26,7 +26,7 @@ def readWeightsAndBiasesAll():
         global numLayers
         numLayers = struct.unpack('i', infile.read(4))[0]
         layerShapes = [struct.unpack('i', infile.read(4))[0] for _ in range(numLayers)]
-        print(layerShapes)
+        print("layer shapes: ", layerShapes)
         # Allocate memory for the weights and biases
         all_weights = []
         all_biases = []
@@ -36,14 +36,13 @@ def readWeightsAndBiasesAll():
             # Read the weights for each layer
             weights = []
             for i in range(numLayers - 1):
+                print("On layer ", i)
                 layerWeights = np.zeros(layerShapes[i] * layerShapes[i + 1], dtype=np.float32)
                 for j in range(layerShapes[i] * layerShapes[i+1]):                    
                     weight = struct.unpack('f', infile.read(4))[0]
                     layerWeights[j] = weight
                 weights.append(layerWeights)
-                print("Layer weights : ", layerWeights)
             print(weights)
-
             # Read the biases for each layer
             biases = []
             for i in range(numLayers):
@@ -100,22 +99,48 @@ right_paddle_y = SCREEN_HEIGHT // 2
 
 best = 0
 # Load bot networks
-layershapes, all_weights, all_biases = readWeightsAndBiasesAll()
-networks = [{'weights': all_weights[best], 'biases': all_biases[best]},
-            {'weights': all_weights[best + 0], 'biases': all_biases[best + 0]}]
+#layershapes, all_weights, all_biases = readWeightsAndBiasesAll()
+#print(all_weights)
+
+net_weights = [
+	np.array([4.34934e-13, 0.24987, 0.0416768, -9.56894e-10, -4.48483e-09, 4.92089e-321, 2.75621e-10, -1.76359, 1.41272, -3.33359e-06, 1.91175e-13, -5.92879e-322, -3.94081e-20, -0.619966, -0.0399475, 6.66632e-10, 5.32484e-07, -6.66464e-316, -1.88333e-12, -0.00707911, -0.00849511, -4.42413e-08, 1.23364e-15, -4.57505e-321, 3.55332e-13, 1.65336, -1.4851, 3.24195e-14, 1.50806e-19, -4.77761e-321, -3.99686e-20, 1.09618, 0.21377, -5.17169e-08, 1.09053e-15, 9.23903e-322]),
+	np.array([-3.58885e-14, -5.50058e-19, -6.90461e-14, 2.73827e-06, 2.07594, -1.20078e-13, 1.26186, -2.04268e-07, 0.0178136, 2.80739e-09, 0.696641, -3.80357e-05, 3.73458e-11, 2.20555e-19, 6.13821e-08, 9.26502e-14, 2.55272e-13, -1.08919e-06, -5.3442e-15, 1.1956e-11, -4.64862e-293, -1.1109e-06, -1.12963e-286, -1.08708e-14]),
+	np.array([1.9172, 1.16122, 2.31521e-09, -3.97684e-06, 1.03391, 1.8298, 2.09054e-07, 1.18055e-18])]
+net_biases = [
+	np.array([-0.231861, 0.465512, 0.0447217, -0.62297, -0.437516, -0.0613782]),
+	np.array([0.48504, -0.430751, 0.631634, -0.355517]),
+	np.array([1.23795, 1.17743])]
+
+
+layershapes = []
+for i in range(len(net_biases)):
+    layershapes.append(net_biases[i].size)
+
+print(layershapes)
+print("weights\n", net_weights[0])
+inputLayerSize = net_weights[0].size // layershapes[0]
+layershapes = [inputLayerSize, *layershapes]
+print(layershapes)
+numLayers = len(layershapes)
+networks = [{'weights': net_weights, 'biases' : net_biases}, {'weights': net_weights, 'biases' : net_biases}]
+
+# networks = [{'weights': all_weights[best], 'biases': all_biases[best]},
+#             {'weights': all_weights[best + 0], 'biases': all_biases[best + 0]}]
 #print(all_weights)
 
 
-converted_all_weights = convert_weights(all_weights, layershapes)
+#converted_all_weights = convert_weights(all_weights, layershapes)
 
-print(converted_all_weights)
+#print(converted_all_weights)
 
-converted_all_weights.append(*converted_all_weights)
+#converted_all_weights.append(*converted_all_weights)
+
+
 
 
 def forward_propagation(inputs, weights, biases, input_size, output_size, layer):
     output = np.zeros(output_size)
-    #print(input_size, " ", output_size, " ", layer)
+    print(input_size, " ", output_size, " ", layer)
     weights = np.array(weights).reshape((input_size, output_size))
 
     # Initialize output to biases
@@ -142,22 +167,26 @@ def forward_propagation(inputs, weights, biases, input_size, output_size, layer)
 def get_actions_pong(state, net_weights, net_biases):
     inputs = np.array(state)
     prevLayer = inputs
+    print("input ; ", inputs)
     numHiddenLayers = len(layershapes) - 2
     hidden_outputs = [None] * numHiddenLayers
     #forward prop for the hidden layers
     for i in range(numHiddenLayers):
-        #print("iter={}, inshape = {}, outshape = {}".format(i, layershapes[i], layershapes[i + 1]))
-
-        hidden_outputs[i] = forward_propagation(prevLayer, net_weights[i], net_biases[i + 1], layershapes[i], layershapes[i + 1],  i)
+        print("iter={}, inshape = {}, outshape = {}".format(i, layershapes[i], layershapes[i + 1]))
+        print(f"weights dim : {net_weights[i].size}, biases dim : {net_biases[i].size}")
+        hidden_outputs[i] = forward_propagation(prevLayer, net_weights[i], net_biases[i], layershapes[i], layershapes[i + 1],  i)
         prevLayer = hidden_outputs[i]
 
-    output = forward_propagation(prevLayer, net_weights[numLayers - 2], net_biases[numLayers - 1], layershapes[numLayers - 2], layershapes[numLayers - 1], numLayers - 1)
+    print(net_weights[numLayers - 2])
+    print(net_biases[numLayers - 2])
+    print(layershapes[numLayers - 2])
+    output = forward_propagation(prevLayer, net_weights[numLayers - 2], net_biases[numLayers - 2], layershapes[numLayers - 2], layershapes[numLayers - 1], numLayers - 1)
     #print(output)
     gamestate = [None] * 1
 
     
 
-    gamestate[0] = PADDLE_SPEED if output[0] > output[1] else -PADDLE_SPEED
+    gamestate[0] = PADDLE_SPEED if output[0] < output[1] else -PADDLE_SPEED
 
 
     # max_val = output[0]
@@ -222,6 +251,9 @@ while running:
         #state = [305.000000, 240.000000, -5.000000, 0.000000, 5.000000, 455.000000, 635.000000, 455.000000]
 
         #print(state)
+
+
+
         acceleration = get_actions_pong(state, networks[i]['weights'], networks[i]['biases'])
         
         if i == 0:
@@ -249,9 +281,9 @@ while running:
             right_paddle_y = SCREEN_HEIGHT - PADDLE_HEIGHT
 
         #draw neural net        
-        activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
+        #activations_left = calculate_activations(networks[i]['weights'], networks[i]['biases'], state, layershapes, numLayers)
         #print(networks[i]['biases'])
-        display_activations(activations_left, converted_all_weights[i], net_displays[i])
+        #display_activations(activations_left, converted_all_weights[i], net_displays[i])
         #display_activations2(activations_left, converted_all_weights[i], net_displays[i], SCREEN_HEIGHT)
         screen.blit(net_displays[i], net_locations[i])
     

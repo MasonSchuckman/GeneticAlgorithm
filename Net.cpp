@@ -6,7 +6,7 @@ int debugging = 0;
 int print_iterval = 1000;
 int CURRENT_ITERATION = 0;
 
-const float L2_LAMBDA = 0.0;
+const float L2_LAMBDA = 0.03;
 
 bool isPrintIteration()
 {
@@ -482,6 +482,67 @@ void NeuralNetwork::printWeightsAndBiases()
     }
     printf("\n\n");
 }
+
+
+
+
+
+void NeuralNetwork::write_weights_and_biases2()
+{
+    std::ofstream outfile("bestBot.data");
+    outfile << "net_weights = [\n";
+
+    int WO = 0;
+    for (int layer = 0; layer < layers.size(); layer++)
+    {
+        if (auto denseLayer = dynamic_cast<DenseLayer*>((layers[layer].get())))
+        {
+            outfile << "\tnp.array([";
+            int numWeightsInLayer = denseLayer->numWeights;
+
+            for (int i = 0; i < numWeightsInLayer; i++)
+            {
+                outfile << denseLayer->weights.data()[WO + i];
+                if (i != numWeightsInLayer - 1)
+                    outfile << ", ";
+            }
+            //WO += numWeightsInLayer;
+            outfile << "])";
+
+            if (layer != layers.size() - 1)
+                outfile << ",\n";
+        }
+    }
+    outfile << "]\n";
+
+
+    int BO = 0;
+    outfile << "net_biases = [\n";
+    for (int layer = 0; layer < layers.size(); layer++)
+    {
+        if (auto denseLayer = dynamic_cast<DenseLayer*>((layers[layer].get())))
+        {
+            outfile << "\tnp.array([";
+            int numBiasesInLayer = denseLayer->numNeurons;
+            for (int i = 0; i < numBiasesInLayer; i++)
+            {
+                outfile << denseLayer->biases.data()[BO + i];
+                if (i != numBiasesInLayer - 1)
+                    outfile << ", ";
+            }
+            //BO += numBiasesInLayer;
+            outfile << "])";
+            if (layer != layers.size() - 1)
+                outfile << ",\n";
+        }
+    }
+
+
+    outfile << "]\n";
+    outfile.close();
+    printf("\n");
+}
+
 void NeuralNetwork::writeWeightsAndBiases()
 {
 
@@ -497,36 +558,47 @@ void NeuralNetwork::writeWeightsAndBiases()
         printf("\n");        
     }
     printf("\n\n");
+    write_weights_and_biases2();
+     
+    
+    
     int TOTAL_BOTS = 1;
     int numLayers = layers.size() + 1;
     int *layerShapes = new int[numLayers];
+    
+    //Set input layer shape
+    layerShapes[0] = layers[0]->input.rows();
+
     int totalWeights = 0;
-    int totalNeurons = 0;
+    int totalNeurons = layerShapes[0];
 
-    // Account for input layer
-    layerShapes[0] = layers[0]->input.size();
-    totalNeurons += layerShapes[0];
-
-    for (int i = 1; i < numLayers; i++)
+    
+    for (int i = 0; i < numLayers - 1; i++)
     {
-        layerShapes[i] = layers[i - 1]->numNeurons;
+        layerShapes[i + 1] = layers[i]->numNeurons;
 
-        totalNeurons += layers[i - 1]->numNeurons;
-        totalWeights += layers[i - 1]->numWeights;
+        totalNeurons += layers[i]->numNeurons;
+        totalWeights += layers[i]->numWeights;
+        printf("Layer %d num weights = %d\n", i, layers[i]->numWeights);
     }
+    printf("Total weights = %d, total neurons = %d\n", totalWeights, totalNeurons);
+    printf("Layer shapes:\n");
+    for (int i = 0; i < numLayers; i++)
+        printf("%d, ", layerShapes[i]);
+    printf("\n");
 
     float *weights = new float[totalWeights];
     int c = 0;
     int layerr = 0;
-    for (auto it = layers.rbegin(); it != layers.rend(); ++it)
+    for (auto it = layers.begin(); it != layers.end(); it++)
     {
-        //printf("\nLayer %d Weights:\n", layerr);
+        // printf("\nLayer %d Weights:\n", layerr);
         if (auto denseLayer = dynamic_cast<DenseLayer *>((it->get())))
         {
             for (int j = 0; j < denseLayer->numWeights; j++)
             {
                 
-                weights[c] = denseLayer->weights.transpose().data()[c];// printf("%f, ", weights[c]);
+                weights[c] = denseLayer->weights.data()[j]; //printf("%f, ", weights[c]);
                 c++;
             }
         }
@@ -539,15 +611,14 @@ void NeuralNetwork::writeWeightsAndBiases()
 
     c = layerShapes[0];
     layerr = 0;
-    for (auto it = layers.rbegin(); it != layers.rend(); ++it)
+    for (auto it = layers.begin(); it != layers.end(); it++)
     {
         //printf("\nLayer %d Biases:\n", layerr);
         if (auto denseLayer = dynamic_cast<DenseLayer *>((it->get())))
         {
             for (int j = 0; j < denseLayer->numNeurons; j++)
-            {
-                
-                biases[c] = denseLayer->biases.transpose().data()[c];// printf("%f, ", biases[c]);
+            {                
+                biases[c] = denseLayer->biases.data()[j];// printf("%f, ", biases[c]);
                 c++;
             }
         }
@@ -578,15 +649,15 @@ void NeuralNetwork::writeWeightsAndBiases()
         outfile.write(reinterpret_cast<const char *>(&weight), sizeof(float));
     }
 
-    // Write the biases for this bot
-    int biasOffset = 0 * totalNeurons;
+    // Write the biases for this bot    
     for (int i = 0; i < totalNeurons; i++)
     {
-        float bias = biases[biasOffset + i];
+        float bias = biases[i];
         outfile.write(reinterpret_cast<const char *>(&bias), sizeof(float));
     }
 
     outfile.close();
+
 
     delete[] layerShapes;
     delete[] weights;

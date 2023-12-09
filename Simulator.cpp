@@ -803,7 +803,7 @@ int total_score_ = 0;
 int topScore = 0;
 std::vector<episodeHistory> Simulator::runSimulationRL(Agent & agent, float *output_h)
 {
-    int printInterval = 1;
+    int printInterval = 25;
 
     int totalBots = bots.size() * 2;
     int tpb = 32; // threads per block
@@ -1092,7 +1092,7 @@ void Simulator::batchSimulate(int numSimulations)
             std::vector<episodeHistory> simulationIterationHistory = runSimulationRL(agent, &output_h[i * totalBots]);
             
             double loss = agent.update(simulationIterationHistory);
-            if(i % 1 == 0){
+            if(i % 25 == 0){
                 printf("Loss = %f, Epsilon = %f, LR = %f\n", loss, agent.epsilon, agent.qNet.optimizer.learningRate);            
             }
 
@@ -1135,7 +1135,9 @@ void Simulator::batchSimulate(int numSimulations)
     }
     printf("PASSED TEST? %d\n", passed);
 
-    //agent.saveNeuralNet();
+
+    agent.saveNeuralNet();
+
 
     delete[] savedWeights;
     delete[] savedBiases;

@@ -233,16 +233,17 @@ void PongSimulation2::setOutput(int tid, int block, float *output, float *gamest
         output[block * 2 + 1] = -abs(gamestate[7] - gamestate[1]);
     }
     if (block == 0 && (int)startingParams_d[8] % 25 == 0)
-        printf("Touches: %d, %d\n", (int)gamestate[9], (int)gamestate[10]);
+        printf("Touches: %d, %d\t", (int)gamestate[9], (int)gamestate[10]);
 }
 
 Eigen::MatrixXd PongSimulation2::getState(int& action, float & reward, float *gamestate)
 {
 	Eigen::MatrixXd state(1,1);
 
-    reward = gamestate[14] * 10;
-    if (abs(gamestate[5] - gamestate[1]) > 200)
-        reward -= 5;
+    reward = gamestate[14] * 1;
+    //if (reward == 0)
+        reward =- abs(gamestate[5] - gamestate[1]) / 10.0;
+
 
 
     //printf("reward = %f\n", reward);

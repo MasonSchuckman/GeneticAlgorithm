@@ -23,7 +23,7 @@ void printDims(const std::string matName, const MatrixType& matrix)
 int trainCalls = 0;
 
 Agent::Agent(int numActions, int numInputs)
-    : numActions(numActions), numInputs(numInputs), rd(), gen(rd()), qNet(0.1, 0.9, 0.999), replayBuffer(replayBufferSize)
+    : numActions(numActions), numInputs(numInputs), rd(), gen(rd()), qNet(0.03, 0.9, 0.999), replayBuffer(replayBufferSize)
 {
     // Add layers to the Q-network
    // qNet.addLayer(DenseLayer(numInputs, 16, relu, reluDerivative));
@@ -35,20 +35,21 @@ Agent::Agent(int numActions, int numInputs)
    // qNet.addLayer(DenseLayer(6, 6, relu, reluDerivative));
 
 
-     qNet.addLayer(DenseLayer(numInputs, 6, relu, reluDerivative));
+    qNet.addLayer(DenseLayer(numInputs, 6, relu, reluDerivative));
     qNet.addLayer(DenseLayer(6, 4, relu, reluDerivative));    
    
-   
+    
 
     /*qNet.addLayer(DenseLayer(12, 6, LeakyRelu, LeakyReluDerivative));
     qNet.addLayer(DenseLayer(6, 4, LeakyRelu, LeakyReluDerivative));*/
+
 
 
     qNet.addLayer(DenseLayer(4, numActions, linear, linearDerivative)); // Output layer has numActions neurons
     
     targetNet = qNet;
 
-    gamma = 0.92f; // Discount factor
+    gamma = 0.2f; // Discount factor
     epsilon = 1.0f; // Exploration rate
     epsilonMin = 0.1f;
     epsilonDecay = 0.9998;
@@ -154,19 +155,19 @@ float _train(NeuralNetwork& net, const MatrixXd& inputs, const MatrixXd& targets
     //std::cout << "Gradient:\n" << (gradient.leftCols(5)).transpose() << std::endl;
 
     gradient /= (predictions.cols());
-    double delta = 3000; 
-    for (int i = 0; i < gradient.rows(); ++i) {
-        for (int j = 0; j < gradient.cols(); ++j) {
-            if (std::abs(gradient(i, j)) <= delta) {
-                // In the quadratic zone (MSE)
-                gradient(i, j) = gradient(i, j);
-            }
-            else {
-                // In the linear zone
-                gradient(i, j) = delta * ((gradient(i, j) > 0) ? 1 : -1);
-            }
-        }
-    }
+     double delta = 10; 
+     for (int i = 0; i < gradient.rows(); ++i) {
+         for (int j = 0; j < gradient.cols(); ++j) {
+             if (std::abs(gradient(i, j)) <= delta) {
+                 // In the quadratic zone (MSE)
+                 gradient(i, j) = gradient(i, j);
+             }
+             else {
+                 // In the linear zone
+                 gradient(i, j) = delta * ((gradient(i, j) > 0) ? 1 : -1);
+             }
+         }
+     }
     
     // Backward pass
     net.backward(gradient);
@@ -174,7 +175,7 @@ float _train(NeuralNetwork& net, const MatrixXd& inputs, const MatrixXd& targets
     // Update weights and biases in all layers
     //net.updateParameters();    
 
-    return (gradient).array().square().sum();
+    return (gradient).array().square().sum() * predictions.cols();
 }
 
 //Batch training
@@ -187,10 +188,10 @@ double Agent::train()
     int K = CURRENT_ITERATION;
     double loss = 0;
     if (replayBuffer.isSufficient()) {
-        if (K % 1 == 0)
+        if (K % 100 == 0)
         {
             //printf("L2 norm between Q and Target : %f\n", qNet.computeL2NormWith(targetNet));
-            targetNet.polyakUpdate(qNet, 0.99);
+            targetNet.polyakUpdate(qNet, 0.999);
         }
 
         std::vector<int> indices(minibatchSize); // To store indices of experiences in the batch
@@ -332,8 +333,8 @@ void Agent::formatData(const std::vector<episodeHistory>& history)
     {
         for (size_t i = start; i < it->states.size() - 1; i++)
         {
-            bool done = i >= it->endIter;
-            replayBuffer.add({ it->states[i], it->actions[i], it->rewards[i+1], it->states[i + 1], done, it->endIter});
+            bool done = i >= it->endIter - 2;
+            replayBuffer.add({ it->states[i], it->actions[i], it->rewards[i], it->states[i + 1], done, it->endIter});
             //std::cout << "History :\n" << it->states[i] << std::endl;;
         }        
     }

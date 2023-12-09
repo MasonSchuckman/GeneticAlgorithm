@@ -42,7 +42,7 @@ def draw_connections(surface, weights, activations, positions, layer_spacing, ne
                 weight = weights[i][src_idx][dst_idx]  # Updated indexing order
                 activation = activations[i][src_idx] * activations[i + 1][dst_idx]
                 intensity = int(activation * 255)
-
+                #print(weight)
                 if weight > 0:
                     color = (0, intensity, 0)
                 else:
