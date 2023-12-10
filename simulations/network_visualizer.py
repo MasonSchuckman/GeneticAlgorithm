@@ -124,12 +124,16 @@ def display_activations(activations, weights, surface):
     num_layers = len(activations)
     layer_spacing = surface.get_width() / (num_layers + 1)
     neuron_radius = 10
+    
     positions = []
 
     for i, layer in enumerate(normalized_activations):
         positions.append([])
         neuron_spacing = surface.get_height() / (len(layer) + 1)
-
+        neuron_radius_layer = neuron_radius
+        if (len(layer) > 24):
+            neuron_radius_layer = neuron_radius // 1.5
+        
         for j, activation in enumerate(layer):
             x = int((i + 1) * layer_spacing)
             y = int((j + 1) * neuron_spacing)
@@ -141,7 +145,7 @@ def display_activations(activations, weights, surface):
             else:
                 color = (int(activation * 255), 0, 0)  # Red
 
-            pygame.draw.circle(surface, color, (x, y), neuron_radius)
+            pygame.draw.circle(surface, color, (x, y), neuron_radius_layer)
 
     draw_connections(surface, weights, normalized_activations, positions, layer_spacing, neuron_radius)
 

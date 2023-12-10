@@ -26,33 +26,28 @@ Agent::Agent(int numActions, int numInputs)
     : numActions(numActions), numInputs(numInputs), rd(), gen(rd()), qNet(0.03, 0.9, 0.999), replayBuffer(replayBufferSize)
 {
     // Add layers to the Q-network
-   qNet.addLayer(DenseLayer(numInputs, 6, relu, reluDerivative));
-   //// qNet.addLayer(BatchNormalizationLayer(64));
-    //qNet.addLayer(DenseLayer(6, 8, relu, reluDerivative));    
-   // qNet.addLayer(DenseLayer(8, 6, relu, reluDerivative));    
-    qNet.addLayer(DenseLayer(6, 4, relu, reluDerivative));    
-    //qNet.addLayer(DenseLayer(8, 6, relu, reluDerivative));
-    //qNet.addLayer(DenseLayer(6, 4, relu, reluDerivative));
+    qNet.addLayer(DenseLayer(numInputs, 24, LeakyRelu, LeakyReluDerivative));
+    //// qNet.addLayer(BatchNormalizationLayer(64));
+    qNet.addLayer(DenseLayer(24, 12, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(12, 8, LeakyRelu, LeakyReluDerivative));
+    //qNet.addLayer(DenseLayer(8, 6, LeakyRelu, LeakyReluDerivative));
+   // qNet.addLayer(DenseLayer(6, 6, LeakyRelu, LeakyReluDerivative));
+   // qNet.addLayer(DenseLayer(6, 6, LeakyRelu, LeakyReluDerivative));
+    //qNet.addLayer(DenseLayer(6, 6, LeakyRelu, LeakyReluDerivative));
+   // qNet.addLayer(DenseLayer(6, 6, LeakyRelu, LeakyReluDerivative));
+
+    //qNet.addLayer(DenseLayer(10, 5, LeakyRelu, LeakyReluDerivative));    
+    //qNet.addLayer(DenseLayer(4, 3, LeakyRelu, LeakyReluDerivative));
 
 
-   // qNet.addLayer(DenseLayer(numInputs, 6, relu, reluDerivative));
-    //qNet.addLayer(DenseLayer(6, 4, relu, reluDerivative));    
-   
-    
-
-    /*qNet.addLayer(DenseLayer(12, 6, LeakyRelu, LeakyReluDerivative));
-    qNet.addLayer(DenseLayer(6, 4, LeakyRelu, LeakyReluDerivative));*/
-
-
-
-    qNet.addLayer(DenseLayer(4, numActions, linear, linearDerivative)); // Output layer has numActions neurons
+    qNet.addLayer(DenseLayer(8, numActions, linear, linearDerivative)); // Output layer has numActions neurons
     
     targetNet = qNet;
 
-    gamma = 0.999f; // Discount factor
+    gamma = 0.98f; // Discount factor
     epsilon = 1.0f; // Exploration rate
-    epsilonMin = 0.1f;
-    epsilonDecay = 0.9992;
+    epsilonMin = 0.01f;
+    epsilonDecay = 0.99972;
 }
 
 Eigen::VectorXd normalizeState(const Eigen::VectorXd &state) {
@@ -103,11 +98,11 @@ Eigen::VectorXd Agent::chooseAction(const Eigen::MatrixXd &state_)
         action(maxIndex) = 1.0;
         //std::cout << "Action vec \n" << action << std::endl;
 
-        //if (isPrintIteration()) {
-        //    //if(((double)rand() / RAND_MAX) > 0.99f){
-        //    printf("\n\n\nAction list:\n");
-        //    std::cout << actionValues << std::endl;
-        //}
+        if (isPrintIteration()) {
+            //if(((double)rand() / RAND_MAX) > 0.99f){
+            printf("\nAction list:\n");
+            std::cout << actionValues.transpose() << std::endl;
+        }
 
         
     }
@@ -186,11 +181,15 @@ double Agent::train()
     int K = CURRENT_ITERATION;
     double loss = 0;
     if (replayBuffer.isSufficient()) {
-        if (K % 250 == 0)
+        //if (K % 10 == 0)
         {
             //printf("L2 norm between Q and Target : %f\n", qNet.computeL2NormWith(targetNet));
-            targetNet.polyakUpdate(qNet, 0.95);
+           //targetNet.polyakUpdate(qNet, 0.9995);
+            //targetNet = qNet;
         }
+        if(K % 500 == 0)
+            targetNet = qNet;
+        //targetNet.polyakUpdate(qNet, 0.99);
 
         std::vector<int> indices(minibatchSize); // To store indices of experiences in the batch
         auto experiences = replayBuffer.sample(minibatchSize, indices);
@@ -241,7 +240,7 @@ double Agent::train()
 
                 printf("Max coef = %f\n", );
                 double qq = nextQs.col(i).maxCoeff();*/
-                //qUpdates(0,i) += gamma * q_values_next.col(i).maxCoeff();
+                qUpdates(0,i) += gamma * q_values_next.col(i).maxCoeff();
                 targets(actions[i], i) += gamma * q_values_next.col(i).maxCoeff();
 
             }
@@ -315,24 +314,44 @@ double Agent::train()
         //qNet.timestep++;
     }
 
-    if (isPrintIteration())
-        printf("\n\nLarge = %d, small = %d, avg for large: %f, avg ab: %f\n", large, small, (total / large), (abTotal / large));
+    //if (isPrintIteration())
+    //    printf("\nLarge = %d, small = %d, avg for large: %f, avg ab: %f\n", large, small, (total / large), (abTotal / large));
     return loss;
 }
 
 
-void Agent::formatData(const std::vector<episodeHistory>& history)
+void Agent::formatData(std::vector<episodeHistory>& history)
 {
     int start = 0;
-    /*if (CURRENT_ITERATION > 500)
-        start = 10;*/
-    //printf("history size = %d\n", history.size());
+
+    // Eligibility tracing? (Give reward for actions leading up to positive reward
+    float lambda = 0.95;  // Eligibility trace decay factor
+    //if(isPrintIteration())
+        //printf("\nTraces:\n");
+    for (auto& ep : history)
+    {
+        // If the episode has rewards, apply eligibility traces
+        if (!ep.rewards.empty())
+        {
+            float trace = 0.0;
+            // Traverse the rewards in reverse
+            for (int i = ep.rewards.size() - 1; i >= 0; --i)
+            {
+                trace = ep.rewards[i] + lambda * trace;
+                ep.rewards[i] = trace;
+                //if (isPrintIteration())
+                    //printf("%f\n", trace);
+            }
+        }
+    }
+
+
     int c = 0;
     for (auto it = history.begin(); it != history.end(); it++)
     {
         for (size_t i = start; i < it->states.size() - 1; i++)
         {
-            bool adding = (CURRENT_ITERATION < 1500) || (it->rewards[i] > 0) || (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) > 0.8;
+            bool adding = true;// (CURRENT_ITERATION < 1500) || (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) > 0.6;
 
             if (adding)
             {
@@ -344,11 +363,10 @@ void Agent::formatData(const std::vector<episodeHistory>& history)
            
         }        
     }
-    //if(CURRENT_ITERATION % 10 == 0)
-    //printf("\n\nAdded %d\n", c);
+
 }
 
-double Agent::update(const std::vector<episodeHistory> &history)
+double Agent::update(std::vector<episodeHistory> &history)
 {
     //if(CURRENT_ITERATION < 2500) //turn on for overfit experiment
         formatData(history);
@@ -363,9 +381,9 @@ double Agent::update(const std::vector<episodeHistory> &history)
       */      
     
 
-    for(int i = 0; i < 15; i++)
+    for(int i = 0; i < 3; i++)
         totalLoss += train();
-    qNet.timestep++;
+    //qNet.timestep++;
 
     if (replayBuffer.isSufficient() && epsilon > epsilonMin)
     {
@@ -377,7 +395,7 @@ double Agent::update(const std::vector<episodeHistory> &history)
 
 void Agent::saveNeuralNet()
 {
-    qNet.writeWeightsAndBiases();
+    qNet.writeWeightsAndBiases("RL-bot-extra.data");
 }
 
 

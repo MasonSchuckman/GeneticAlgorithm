@@ -137,9 +137,9 @@ public:
     Agent(int numActions, int numInputs);
     Eigen::VectorXd chooseAction(const Eigen::MatrixXd& state);
     double train();
-    double update(const std::vector<episodeHistory>& history);
+    double update(std::vector<episodeHistory>& history);
     void saveNeuralNet();
-    void formatData(const std::vector<episodeHistory>& history);
+    void formatData(std::vector<episodeHistory>& history);
 public:
     ReplayBuffer replayBuffer;
     NeuralNetwork qNet; // Q-Network

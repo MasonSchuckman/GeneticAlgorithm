@@ -1007,9 +1007,11 @@ void Simulator::batchSimulate(int numSimulations)
     }
 
     // Invoke the kernel
-
+    
     Agent agent(3, 6);
-
+    NeuralNetwork backup = agent.qNet;
+    float best_perf = 0;
+    int goodInARow = 0;
     std::cout << "total variables in network (weights+biases): " << config.totalNeurons + config.totalWeights << std::endl;
     for (int i = 0; i < numSimulations; i++)
     {
@@ -1020,16 +1022,34 @@ void Simulator::batchSimulate(int numSimulations)
         if(RL){
             std::vector<episodeHistory> simulationIterationHistory = runSimulationRL(agent, output_h);
             
+            if (output_h[0] >= best_perf)
+            {
+                best_perf = output_h[0];
+                backup = agent.qNet;
+            }
+
             // Stop early if performance is good
-            if (output_h[0] >= 6)
-                i = numSimulations;
-            else 
+            if (output_h[0] >= 7)
+            {    
+                goodInARow++;
+                if (goodInARow > 3)
+                {
+                    i = numSimulations;
+                }
+            } else
+            {
+                goodInARow = 0;
+            }
+
+            if (i < numSimulations)
             {
                 double loss = agent.update(simulationIterationHistory);
                 if (i % 25 == 0) {
                     printf("Loss = %f, Epsilon = %f, LR = %f\n", loss, agent.epsilon, agent.qNet.optimizer.learningRate);
                 }
             }
+            
+            
             
 
         }else{
@@ -1071,8 +1091,12 @@ void Simulator::batchSimulate(int numSimulations)
     }
     printf("PASSED TEST? %d\n", passed);
 
+    std::string latest = "RL-bot.data";
+    std::string best_net = "RL-bot-best.data";
 
-    agent.saveNeuralNet();
+    agent.qNet.writeWeightsAndBiases(latest);
+    backup.writeWeightsAndBiases(best_net);
+    printf("L2 norm between Final and Best : %f\n", agent.qNet.computeL2NormWith(backup));
 
 
     delete[] savedWeights;

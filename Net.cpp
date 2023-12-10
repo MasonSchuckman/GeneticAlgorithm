@@ -6,7 +6,7 @@ int debugging = 0;
 int print_iterval = 1000;
 int CURRENT_ITERATION = 0;
 
-const float L2_LAMBDA = 0.01;
+const float L2_LAMBDA = 0.000001;
 
 bool isPrintIteration()
 {
@@ -543,7 +543,7 @@ void NeuralNetwork::write_weights_and_biases2()
     printf("\n");
 }
 
-void NeuralNetwork::writeWeightsAndBiases()
+void NeuralNetwork::writeWeightsAndBiases(const std::string& filename)
 {
 
     printf("\n\nSaving RL-BOT parameters\n\n");
@@ -625,7 +625,7 @@ void NeuralNetwork::writeWeightsAndBiases()
         layerr++;
     }
 
-    std::ofstream outfile("RL-bot.data", std::ios::out | std::ios::binary); // this might be more space efficient
+    std::ofstream outfile(filename, std::ios::out | std::ios::binary); // this might be more space efficient
     // std::ofstream outfile("allBots.data");
     //  outfile << "all bots:\n";
     //  Write the total number of bots
