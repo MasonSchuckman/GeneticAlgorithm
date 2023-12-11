@@ -114,7 +114,10 @@ AdamOptimizer::AdamOptimizer(double lr, double b1, double b2, double eps,
 void AdamOptimizer::updateLearningRate(int timestep) {
         if (timestep % decaySteps == 0) {
             learningRate = initialLearningRate * pow(decayRate, timestep / decaySteps);
+            double minLearningRate = 0.000003;
+            learningRate = std::max(minLearningRate, learningRate);
         }
+
     }
 
 void AdamOptimizer::update(MatrixXd& params, const MatrixXd& dParams, MatrixXd& m, MatrixXd& v, int t) {

@@ -79,7 +79,7 @@ PADDLE_HEIGHT = 60
 BALL_SIZE = 10
 
 # Define paddle and ball speeds
-PADDLE_SPEED = 5
+PADDLE_SPEED = 6.5
 BALL_SPEED = 8
 SPEED_UP_RATE = 1.00
 # Define game colors
@@ -298,7 +298,7 @@ while running:
         right_paddle_y = SCREEN_HEIGHT // 2
         left_paddle_y = SCREEN_HEIGHT // 2
     
-    
+    ball_vy = min(BALL_SPEED * 2, max(-BALL_SPEED * 2, ball_vy))
     
     # draw game objects
     pygame.draw.rect(screen, WHITE, (left_paddle_x + NETWORK_DISPLAY_WIDTH, left_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT))

@@ -1007,7 +1007,9 @@ void Simulator::batchSimulate(int numSimulations)
     }
 
     // Invoke the kernel
-    
+    std::string latest = "RL-bot.data";
+    std::string best_net = "RL-bot-best.data";
+
     Agent agent(3, 6);
     NeuralNetwork backup = agent.qNet;
     float best_perf = 0;
@@ -1024,6 +1026,9 @@ void Simulator::batchSimulate(int numSimulations)
             
             if (output_h[0] >= best_perf)
             {
+                if (output_h[0] > best_perf)
+                    backup.writeWeightsAndBiases(best_net);
+
                 best_perf = output_h[0];
                 backup = agent.qNet;
             }
@@ -1091,8 +1096,7 @@ void Simulator::batchSimulate(int numSimulations)
     }
     printf("PASSED TEST? %d\n", passed);
 
-    std::string latest = "RL-bot.data";
-    std::string best_net = "RL-bot-best.data";
+    
 
     agent.qNet.writeWeightsAndBiases(latest);
     backup.writeWeightsAndBiases(best_net);

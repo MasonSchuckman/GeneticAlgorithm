@@ -6,7 +6,7 @@
 #define PADDLE_HEIGHT 50.0f
 #define BALL_RADIUS 10.0f
 #define BALL_SPEED 8.0f
-#define PADDLE_SPEED 5.0f
+#define PADDLE_SPEED 6.5f
 #define SPEED_UP_RATE 1.00f // Ball will increase in speed by x % after every paddle hit
 
 // Compile command:
@@ -32,9 +32,26 @@ gamestate[16]       // left delta y
 gamestate[17]       // right delta y
 gamestate[18]       // prev left pos
 gamestate[19]       // prev right pos
-
+gamestate[20]       // winner (-1 for game not over, 0 left, 1 right)
+gamestate[21]       // prev ball vy (used for reward shaping, giving more reward to hitting fast moving balls)
 */
-float rng(float a, float b, unsigned int seed);
+
+unsigned int xorshift(unsigned int x)
+{
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    return x * 0x2545F491;
+}
+
+
+float rng(float a, float b, unsigned int seed)
+{
+    unsigned int r = xorshift(seed);
+    static const float m = 4294967296.0f; // 2^32
+    return a + (b - a) * (static_cast<float>(r) / m);
+}
+
 float Limits[8] = {WIDTH, HEIGHT, BALL_SPEED, BALL_SPEED, WIDTH, HEIGHT, WIDTH, HEIGHT};
 
 // The starting parameters are the initial positions and velocities of the ball and the paddles
@@ -49,7 +66,7 @@ void PongSimulation2::getStartingParams(float *startingParams)
     if ((double)rand() / RAND_MAX > 0.5)
         startingParams[2] *= -1;
 
-    double speedCoef = fmin(2.3f, (0.5 + 0.0002 * iterationsCompleted));
+    double speedCoef = fmin(1.5f, (0.5 + 0.0002 * iterationsCompleted));
     startingParams[3] = (((double)rand() / RAND_MAX) - 0.5) * BALL_SPEED * speedCoef; // ball vy
     startingParams[4] = PADDLE_WIDTH / 2;                                 // left paddle x
     startingParams[5] = HEIGHT / 2 + (((double)rand() / RAND_MAX) - 0.5) * HEIGHT / 8; // right paddle y
@@ -69,6 +86,7 @@ void PongSimulation2::setupSimulation(int tid, int block, const float *startingP
         gamestate[tid + 8] = 0;
 
     gamestate[11] = startingParams[8]; // Generation number
+    gamestate[20] = -1;
 }
 
 // The activations are the inputs to the neural networks that control the paddles. They are the normalized positions and velocities of the ball and the paddles
@@ -95,16 +113,16 @@ void PongSimulation2::setActivations(int tid, int block, float *gamestate, float
     }
     activs[1][2] *= -1;
 
-    // rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);
+    rand = 0; // rng(-randomMagnitude, randomMagnitude, tid + iter + 0 ^ (int)gamestate[11]);
 
     activs[0][4] = gamestate[5] / HEIGHT; // left paddle y
     activs[0][5] = (gamestate[7]) / HEIGHT; // right paddle y //skew the other bot's pos a little
-    activs[0][5] = 0;
-    // rand = rng(-randomMagnitude, randomMagnitude, tid + iter + blockIdx.x ^ (int)gamestate[11]);
-
+    activs[0][5] = rand / HEIGHT;
+    
+    rand = 0; // rng(-randomMagnitude, randomMagnitude, tid + iter + 0 ^ (int)gamestate[11]);
     activs[1][4] = gamestate[7] / HEIGHT; // right paddle y
     activs[1][5] = (gamestate[5]) / HEIGHT; // left paddle y
-    activs[1][5] = 0;
+    activs[1][5] = rand / HEIGHT;
 }
 
 
@@ -148,6 +166,7 @@ void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate
     gamestate[14] = 0;
     gamestate[15] = 0;
 
+    gamestate[21] = gamestate[3];
 
     // Actions:
     // 0 : Go up
@@ -247,6 +266,9 @@ void PongSimulation2::eval(int tid, int block, float **actions, float *gamestate
         gamestate[15] = 1;
     }
 
+    // Clamp ball vertical speed
+    gamestate[3] = fmin(BALL_SPEED * 2, fmax(-BALL_SPEED * 2, gamestate[3]));
+
     gamestate[8]++;
 }
 
@@ -273,12 +295,14 @@ void PongSimulation2::setOutput(int tid, int block, float *output, float *gamest
     { // left paddle lost
         output[block * 2 + 0] = -abs(gamestate[5] - gamestate[1]) / 100; // The bot who loses gets a score of negative <dist to ball> (closer to ball the better)
         output[block * 2 + 1] = gamestate[10] + 1;
+        gamestate[20] = 1;
     }
     else // if (gamestate[0] > WIDTH)
     {
         // right paddle lost
         output[block * 2 + 0] = gamestate[9] + 1;
         output[block * 2 + 1] = -abs(gamestate[7] - gamestate[1]) / 100;
+        gamestate[20] = 0;
     }
     if (block == 0 && (int)startingParams_d[8] % 25 == 0)
         printf("Touches: %d, %d\t", (int)gamestate[9], (int)gamestate[10]);
@@ -290,18 +314,34 @@ Eigen::MatrixXd PongSimulation2::getState(int& action, float & reward, float *ga
 {
 	Eigen::MatrixXd state(1,1);
 
-    reward = gamestate[14];
+    reward = gamestate[14] / 5.0f; //* fmax(abs(gamestate[21]) / BALL_SPEED, 1);
+    if (gamestate[0] < 0)
+    {
+        float dist = abs(abs(gamestate[5] - gamestate[1]) - PADDLE_HEIGHT / 2);
+        dist = fmin(dist, 150);
+        reward = fmin(-0.2, -dist / 100.f);
+    }
+        
+    else if (gamestate[0] > WIDTH)
+        reward = 1;
+
+
+
    /* if (abs(gamestate[16]) < 0.1)
         reward -= 0.02;
     else
     {
         reward += 0.02;
     }*/
-    if (gamestate[12] == 2)
-        reward -= 0.001;
+    /*if (gamestate[12] == 2)
+        reward -= 0.0001;*/
     
-   
+    // If the ball is moving away from the left paddle, give negative reward proportional to dist from middle and dist from paddle
+    //      (if ball is moving away but we basically just hit it, give less negative reward...give time for bot to reset position)
+    //if (gamestate[2] > 0)
+    //    reward -= fmax(abs(gamestate[5] - HEIGHT / 2) / HEIGHT / 20000 * gamestate[0] / WIDTH, 0);
 
+    
     //printf("reward = %f\n", reward);
     action = gamestate[12];
 

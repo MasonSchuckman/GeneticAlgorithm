@@ -29,8 +29,13 @@ Agent::Agent(int numActions, int numInputs)
     qNet.addLayer(DenseLayer(numInputs, 24, LeakyRelu, LeakyReluDerivative));
     //// qNet.addLayer(BatchNormalizationLayer(64));
     qNet.addLayer(DenseLayer(24, 12, LeakyRelu, LeakyReluDerivative));
-    qNet.addLayer(DenseLayer(12, 8, LeakyRelu, LeakyReluDerivative));
-    //qNet.addLayer(DenseLayer(8, 6, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(12, 10, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(10, 10, LeakyRelu, LeakyReluDerivative));
+    //qNet.addLayer(DenseLayer(10, 10, LeakyRelu, LeakyReluDerivative));
+
+    //qNet.addLayer(DenseLayer(16, 12, LeakyRelu, LeakyReluDerivative));
+    //qNet.addLayer(DenseLayer(12, 8, LeakyRelu, LeakyReluDerivative));
+
    // qNet.addLayer(DenseLayer(6, 6, LeakyRelu, LeakyReluDerivative));
    // qNet.addLayer(DenseLayer(6, 6, LeakyRelu, LeakyReluDerivative));
     //qNet.addLayer(DenseLayer(6, 6, LeakyRelu, LeakyReluDerivative));
@@ -40,14 +45,14 @@ Agent::Agent(int numActions, int numInputs)
     //qNet.addLayer(DenseLayer(4, 3, LeakyRelu, LeakyReluDerivative));
 
 
-    qNet.addLayer(DenseLayer(8, numActions, linear, linearDerivative)); // Output layer has numActions neurons
+    qNet.addLayer(DenseLayer(10, numActions, linear, linearDerivative)); // Output layer has numActions neurons
     
     targetNet = qNet;
 
     gamma = 0.98f; // Discount factor
     epsilon = 1.0f; // Exploration rate
     epsilonMin = 0.01f;
-    epsilonDecay = 0.99972;
+    epsilonDecay = 0.99984;
 }
 
 Eigen::VectorXd normalizeState(const Eigen::VectorXd &state) {
@@ -98,11 +103,11 @@ Eigen::VectorXd Agent::chooseAction(const Eigen::MatrixXd &state_)
         action(maxIndex) = 1.0;
         //std::cout << "Action vec \n" << action << std::endl;
 
-        if (isPrintIteration()) {
-            //if(((double)rand() / RAND_MAX) > 0.99f){
-            printf("\nAction list:\n");
-            std::cout << actionValues.transpose() << std::endl;
-        }
+        //if (isPrintIteration()) {
+        //    //if(((double)rand() / RAND_MAX) > 0.99f){
+        //    printf("\nAction list:\n");
+        //    std::cout << actionValues.transpose() << std::endl;
+        //}
 
         
     }
@@ -187,8 +192,7 @@ double Agent::train()
            //targetNet.polyakUpdate(qNet, 0.9995);
             //targetNet = qNet;
         }
-        if(K % 500 == 0)
-            targetNet = qNet;
+        
         //targetNet.polyakUpdate(qNet, 0.99);
 
         std::vector<int> indices(minibatchSize); // To store indices of experiences in the batch
@@ -325,7 +329,7 @@ void Agent::formatData(std::vector<episodeHistory>& history)
     int start = 0;
 
     // Eligibility tracing? (Give reward for actions leading up to positive reward
-    float lambda = 0.95;  // Eligibility trace decay factor
+    float lambda = 0.996;  // Eligibility trace decay factor
     //if(isPrintIteration())
         //printf("\nTraces:\n");
     for (auto& ep : history)
@@ -339,6 +343,8 @@ void Agent::formatData(std::vector<episodeHistory>& history)
             {
                 trace = ep.rewards[i] + lambda * trace;
                 ep.rewards[i] = trace;
+                if (ep.actions[i] == 2)
+                    ep.rewards[i] += 0.0001; // Incentivizes minimal energy gameplay
                 //if (isPrintIteration())
                     //printf("%f\n", trace);
             }
@@ -380,6 +386,8 @@ double Agent::update(std::vector<episodeHistory> &history)
         }
       */      
     
+    if (CURRENT_ITERATION % 600 == 0)
+        targetNet = qNet;
 
     for(int i = 0; i < 3; i++)
         totalLoss += train();
