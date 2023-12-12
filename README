@@ -16,3 +16,6 @@ Note: you will likely have to replace the path at the end to match where you hav
 
 Build command for CPU branch:
 g++ -pthread *.cpp .\simulations\*.cpp .\biology\*.cpp  -o runner -g -O3
+
+Build command for RL branch:
+g++ -std=c++17 -pthread *.cpp .\simulations\*.cpp .\biology\*.cpp  -o runner -g -O3 -IC:\Users\suprm\Downloads\eigen-3.4.0\eigen-3.4.0
