@@ -7,8 +7,8 @@ from network_visualizer import *
 
 
 data_file = "allBots.data"
-data_file = "C:\\Users\\suprm\\source\\repos\\LearningSandbox\\RL-bot.data"
-data_file = "C:\\Users\\suprm\\source\\repos\\LearningSandbox\\RL-bot-best.data"
+data_file = "RL-bot.data"
+data_file = "RL-bot-best.data"
 
 #data_file = "C:\\Users\\suprm\\source\\repos\\LearningSandbox\\RL-bot-throw.data"
 

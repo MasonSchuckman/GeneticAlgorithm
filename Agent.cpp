@@ -26,12 +26,12 @@ Agent::Agent(int numActions, int numInputs)
     : numActions(numActions), numInputs(numInputs), rd(), gen(rd()), qNet(0.03, 0.9, 0.999), replayBuffer(replayBufferSize)
 {
     // Add layers to the Q-network
-    qNet.addLayer(DenseLayer(numInputs, 24, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(numInputs, 20, LeakyRelu, LeakyReluDerivative));
     //// qNet.addLayer(BatchNormalizationLayer(64));
-    qNet.addLayer(DenseLayer(24, 12, LeakyRelu, LeakyReluDerivative));
-    qNet.addLayer(DenseLayer(12, 10, LeakyRelu, LeakyReluDerivative));
-    qNet.addLayer(DenseLayer(10, 10, LeakyRelu, LeakyReluDerivative));
-    //qNet.addLayer(DenseLayer(10, 10, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(20, 12, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(12, 8, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(8, 8, LeakyRelu, LeakyReluDerivative));
+    qNet.addLayer(DenseLayer(8, 6, LeakyRelu, LeakyReluDerivative));
 
     //qNet.addLayer(DenseLayer(16, 12, LeakyRelu, LeakyReluDerivative));
     //qNet.addLayer(DenseLayer(12, 8, LeakyRelu, LeakyReluDerivative));
@@ -45,14 +45,14 @@ Agent::Agent(int numActions, int numInputs)
     //qNet.addLayer(DenseLayer(4, 3, LeakyRelu, LeakyReluDerivative));
 
 
-    qNet.addLayer(DenseLayer(10, numActions, linear, linearDerivative)); // Output layer has numActions neurons
+    qNet.addLayer(DenseLayer(6, numActions, linear, linearDerivative)); // Output layer has numActions neurons
     
     targetNet = qNet;
 
     gamma = 0.98f; // Discount factor
     epsilon = 1.0f; // Exploration rate
-    epsilonMin = 0.01f;
-    epsilonDecay = 0.99984;
+    epsilonMin = 0.04f;
+    epsilonDecay = 0.9999;
 }
 
 Eigen::VectorXd normalizeState(const Eigen::VectorXd &state) {
